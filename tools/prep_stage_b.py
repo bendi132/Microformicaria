@@ -89,7 +89,16 @@ m = trimesh.Trimesh(v2, f, process=False); nrm = m.vertex_normals
 attrs = {'_PART': (part, 1), '_LID': (lid, 1), '_W': (w, 1), '_PIVOT': (piv2, 3)}
 mesh = dict(name=which, positions=v2, normals=nrm, indices=f, attrs=attrs, roughness=0.55,
             color=[0.07, 0.06, 0.05, 1] if which in ('ponera', 'proceratium') else ([0.55, 0.52, 0.48, 1] if which == 'springtail' else None) or ([0.07, 0.065, 0.06, 1] if which == 'cephalotes' else [1, 1, 1, 1]))
-if len(col) and which == 'odonto': col = np.clip(col * np.array([0.55, 0.36, 0.24]) * 1.35, 0, 1)   # a forrás halvány; a faj sötét vörösesbarna
+if len(col) and which == 'odonto':   # referenciafotók szerint, testrészenként; az eredeti színek csak az árnyalást adják
+    lum = np.clip(col.mean(1) / max(col.mean(1).mean(), 1e-6), 0.6, 1.4)[:, None]
+    base = np.tile(np.array([0.24, 0.07, 0.04]), (n, 1))                      # tora: sötét vörösesbarna
+    base[part == 5] = [0.78, 0.33, 0.06]                                       # fej: élénk narancs
+    base[part == 4] = [0.82, 0.42, 0.08]                                       # potroh: borostyán-narancs
+    base[part == 3] = [0.33, 0.07, 0.05]                                       # rágó: sötétvörös
+    base[part == 2] = [0.55, 0.38, 0.20]                                       # csáp: világos barna
+    lg = part == 1; t = w[lg][:, None]
+    base[lg] = np.array([0.80, 0.45, 0.10]) * (1 - t) + np.array([0.30, 0.12, 0.05]) * t   # láb: borostyán, a vége sötétedik
+    col = np.clip(base * lum, 0, 1) ** 2.2
 if len(col): mesh['attrs']['COLOR_0'] = (np.c_[col, np.ones(len(col))].astype(np.float32), 4)
 extras = dict(bodyLength=1.0, headPivot=head_piv.tolist(), gasterPivot=gas_piv.tolist(), legs=len(legs), antennae=len(ants),
               bounds=[(v2.min(0)).tolist(), (v2.max(0)).tolist()], height=float(v2[:, 1].max()), origBodyLength=float(bl))
