@@ -88,7 +88,7 @@ $('bTop').onclick = () => { G.orbit.pitch = 1.5; G.orbit.yaw = 0; };
 $('bFollow').onclick = () => { G.follow = !G.follow; setFollowBtn(); };
 function setFollowBtn() { $('bFollow').classList.toggle('on', !!G.follow); }
 $('bNestV').onclick = () => toggleNest();
-function toggleNest() { G.nestView = !G.nestView; $('bNestV').classList.toggle('on', G.nestView); }
+function toggleNest() { G.nestView = !G.nestView; $('bNestV').classList.toggle('on', G.nestView); const n = G.sim && G.sim.nest; if (G.nestView && n) { const f = G.sel && selEntity(); if (!(f && f.loc === 'nest')) { const e = n.nodes[Math.min(2, n.nodes.length - 1)]; G.orbit.x = e.x; G.orbit.z = e.z; G.follow = false; setFollowBtn(); G.orbit.dist = Math.min(G.orbit.dist, 36); } } }
 $('bDig').onclick = () => { G.dig = !G.dig; $('bDig').classList.toggle('on', G.dig); $('digOpts').style.display = G.dig ? '' : 'none'; if (G.dig && !G.nestView) toggleNest(); };
 $('bSave').onclick = () => saveGame(true); $('pSave').onclick = () => saveGame(true);
 $('bMenu').onclick = () => { G.back = 'game'; show('pause'); G.paused = true; }; $('pResume').onclick = () => { show('hud'); G.paused = false; }; $('pQuit').onclick = () => { saveGame(false); quitToMenu(); };
@@ -151,7 +151,7 @@ function placeOrbitCam(dt) {
   const sp = (o.dist * 0.9) * dt; const kx = (G.keys.d ? 1 : 0) - (G.keys.a ? 1 : 0), kz = (G.keys.s ? 1 : 0) - (G.keys.w ? 1 : 0);
   if (kx || kz) { G.follow = false; const sy = Math.sin(o.yaw), cy = Math.cos(o.yaw); o.x += (kx * cy + kz * sy) * sp; o.z += (-kx * sy + kz * cy) * sp; }
   const lim = G.sim.world.half + 10; o.x = Math.max(-lim, Math.min(lim, o.x)); o.z = Math.max(-lim, Math.min(lim, o.z)); o.pitch = Math.max(0.12, Math.min(1.55, o.pitch)); o.dist = Math.max(4, Math.min(260, o.dist));
-  const gy = heightAt(G.sim.world, Math.max(-90, Math.min(90, o.x)), Math.max(-90, Math.min(90, o.z))); const under = G.nestView && f && f.loc === 'nest' ? f.y : -6; o.y += ((G.nestView ? under : gy) - o.y) * Math.min(1, dt * 5);
+  const gy = heightAt(G.sim.world, Math.max(-90, Math.min(90, o.x)), Math.max(-90, Math.min(90, o.z))); const nn = G.sim.nest; const ncy = nn && nn.site.kind === 'cavity' ? nn.nodes.reduce((s, q) => s + q.y, 0) / nn.nodes.length : -6; const under = G.nestView && f && f.loc === 'nest' ? f.y : ncy; o.y += ((G.nestView ? under : gy) - o.y) * Math.min(1, dt * 5);
   const cp = Math.cos(o.pitch) * o.dist; G.cam.position.set(o.x + Math.sin(o.yaw) * cp, o.y + Math.sin(o.pitch) * o.dist, o.z + Math.cos(o.yaw) * cp); G.cam.up.set(0, 1, 0); G.cam.lookAt(o.x, o.y, o.z);
   G.cam.near = Math.max(0.05, o.dist * 0.02);
   if (G.cam.position.y < gy + 0.6 && !G.nestView) G.cam.position.y = gy + 0.6;

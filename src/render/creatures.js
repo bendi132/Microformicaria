@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { loadCreatureGeometry, CreatureBatch } from './rig.js';
 import { mergeGeometries } from '../../vendor/three/addons/BufferGeometryUtils.js';
-import { soilTextures } from './textures.js';
+import { soilTextures, rottenWoodTextures } from './textures.js';
 import { heightAt } from '../sim/world.js';
 import { node } from '../sim/nest.js';
 import { SPECIES } from '../sim/config.js';
@@ -41,7 +41,7 @@ export class CreatureLayer {
     const bmat = (r, em) => new THREE.MeshStandardMaterial({ roughness: r, color: 0xffffff, emissive: em, emissiveIntensity: 0.6 });
     this.nEgg = new THREE.InstancedMesh(blob(0.5, 0.26, 0.26, 0, 0.26, 0), bmat(0.3, 0x7a7466), 500); this.nLarva = new THREE.InstancedMesh(larvaGeometry(), bmat(0.5, 0x6f6755), 500); this.nPupa = new THREE.InstancedMesh(pupaGeometry(), bmat(0.55, 0x6a5a40), 500);
     this.broodMeshes = [this.nEgg, this.nLarva, this.nPupa]; for (const m of this.broodMeshes) { m.count = 0; m.frustumCulled = false; this.group.add(m); }
-    const soil = soilTextures(256); this.nestTex = soil.map; if (this.nestTex) { this.nestTex.wrapS = this.nestTex.wrapT = THREE.RepeatWrapping; }
+    const soil = soilTextures(256); this.nestTex = soil.map; this.woodTex = rottenWoodTextures(256).map; for (const t of [this.nestTex, this.woodTex]) if (t) t.wrapS = t.wrapT = THREE.RepeatWrapping;
     this.silk = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 16, 12), new THREE.MeshStandardMaterial({ roughness: 0.9, color: 0xf2f0e6 }), 24); this.silk.count = 0; this.silk.castShadow = true; this.group.add(this.silk);
     this.carryMesh = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 14, 10), new THREE.MeshStandardMaterial({ roughness: 0.4, color: 0xffffff }), 300); this.carryMesh.count = 0; this.carryMesh.castShadow = true; this.group.add(this.carryMesh);
     this.headLight = new THREE.PointLight(0xffd9a0, 0, 40, 1.6); this.group.add(this.headLight);
@@ -140,7 +140,8 @@ export class CreatureLayer {
     for (const e of n.edges) if (e.collapsed) sig += 'c';
     if (sig === this.nestSig) return; this.nestSig = sig;
     while (this.nestGroup.children.length) { const c = this.nestGroup.children.pop(); c.geometry && c.geometry.dispose(); }
-    const mat = (c, em) => { const k = c + '_' + em; if (!this.nestMats[k]) this.nestMats[k] = new THREE.MeshStandardMaterial({ color: new THREE.Color(c).lerp(new THREE.Color(0xffffff), 0.55), map: this.nestTex || null, emissive: em, emissiveIntensity: 1.2, roughness: 1, side: THREE.DoubleSide, transparent: true, opacity: 0.93 }); return this.nestMats[k]; };
+    const wood = n.site.kind === 'cavity';   // fás fészek: ugyanaz a járat/kamra rendszer, de faanyagban
+    const mat = (c, em) => { const k = c + '_' + em + wood; if (!this.nestMats[k]) this.nestMats[k] = new THREE.MeshStandardMaterial({ color: new THREE.Color(wood ? new THREE.Color(c).lerp(new THREE.Color(0xb98a52), 0.45) : c).lerp(new THREE.Color(0xffffff), 0.55), map: (wood ? this.woodTex : this.nestTex) || null, emissive: em, emissiveIntensity: 1.2, roughness: 1, side: THREE.DoubleSide, transparent: true, opacity: 0.93 }); return this.nestMats[k]; };
     const Y = new THREE.Vector3(0, 1, 0);
     for (const nd of n.nodes) {
       if (nd.ready === false && nd.kind !== 'chamber') continue;

@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { loadCreatureGeometry, CreatureBatch } from './rig.js';
 import { soilTextures, softDot } from './textures.js';
 import { fbm, clamp, smooth } from '../core/util.js';
+import { SPECIES } from '../sim/config.js';
 
 // járatok (x,y) pontlistái és kamrák (x,y,r)
 const PATHS = [
@@ -40,7 +41,7 @@ export class MenuScene {
     const dg = new THREE.BufferGeometry(); dg.setAttribute('position', new THREE.BufferAttribute(pos, 3)); this.dust = new THREE.Points(dg, new THREE.PointsMaterial({ size: 1.4, map: softDot(), transparent: true, opacity: 0.35, depthWrite: false, color: 0xe0c090 })); sc.add(this.dust);
     // modellek
     const names = ['ponera', 'cephalotes', 'odonto', 'proceratium', 'isopod', 'spider', 'springtail']; const kinds = { isopod: 1, spider: 2, springtail: 3 }; const tint = { ponera: 0x8b4a2b, cephalotes: 0x1b1814, odonto: 0xffffff, proceratium: 0xe0701c, isopod: 0x7a746c, spider: 0xffffff, springtail: 0xffffff };
-    this.B = {}; for (const n2 of names) { const m = await loadCreatureGeometry(`assets/models/${n2}.glb`); const b = new CreatureBatch(m, { kind: kinds[n2] || 0, capacity: 3, color: tint[n2] }); b.mesh.frustumCulled = false; sc.add(b.mesh); this.B[n2] = b; }
+    this.B = {}; for (const n2 of names) { const m = await loadCreatureGeometry(`assets/models/${n2}.glb`); const b = new CreatureBatch(m, { kind: kinds[n2] || 0, capacity: 3, color: tint[n2], swing: SPECIES[n2] && SPECIES[n2].gait ? SPECIES[n2].gait.swing : 0.55 }); b.mesh.frustumCulled = false; sc.add(b.mesh); this.B[n2] = b; }
     // forgótányér
     this.stage = new THREE.Group(); const disc = new THREE.Mesh(new THREE.CylinderGeometry(26, 28, 3, 48), new THREE.MeshStandardMaterial({ map: tex.map, normalMap: tex.normalMap, roughness: 1, color: 0xb09a80 })); disc.position.y = -1.5; this.stage.add(disc); this.stage.position.set(0, 0, 30); this.stage.rotation.x = -0.0; sc.add(this.stage); this.stage.visible = false;
     this.path = PATHS[0].concat(PATHS[0].slice(0, -1).reverse()); this.pathLens = []; let L = 0; for (let i = 0; i < this.path.length - 1; i++) { const d = Math.hypot(this.path[i + 1][0] - this.path[i][0], this.path[i + 1][1] - this.path[i][1]); this.pathLens.push(d); L += d; } this.pathL = L;
@@ -53,8 +54,8 @@ export class MenuScene {
     const c = this.renderer || this.r; const w = c.domElement.clientWidth, h = c.domElement.clientHeight; this.cam.aspect = w / h; this.cam.updateProjectionMatrix();
     for (const k in this.B) this.B[k].begin();
     // séta a járatban
-    const walk = (batch, s, speed, size, flip) => { const P = this.pathAt(s); const f = [P.dx * (flip ? -1 : 1), P.dy * (flip ? -1 : 1), 0]; batch.addBasis(new THREE.Vector3(P.x, P.y, -8.4 + Math.sin(s * 0.8) * 0.0), f, [0, 0, 1], size, [s * 0.9, 1, 0, 0], [Math.sin(t * 0.7) * 0.15, 0, 0, 0.3], undefined); };
-    walk(this.B.ponera, t * 4.2 + 20, 4, 9, false); walk(this.B.odonto, t * 5 + 160, 5, 11, true);
+    const walk = (batch, s, speed, size, flip, phk = 0.9) => { const P = this.pathAt(s); const f = [P.dx * (flip ? -1 : 1), P.dy * (flip ? -1 : 1), 0]; batch.addBasis(new THREE.Vector3(P.x, P.y, -8.4 + Math.sin(s * 0.8) * 0.0), f, [0, 0, 1], size, [s * phk, 1, 0, 0], [Math.sin(t * 0.7) * 0.15, 0, 0, 0.3], undefined); };
+    walk(this.B.ponera, t * 4.2 + 20, 4, 9, false, Math.PI / (SPECIES.ponera.gait.stride * 9));   // a lábfázis a megtett úthoz kötött: nincs csúszás
     if (this.mode === 'stage' && this.sel && this.B[this.sel]) {
       const b = this.B[this.sel]; const size = { isopod: 26, spider: 30, springtail: 22 }[this.sel] || 24; const a = t * 0.45;
       b.addBasis(new THREE.Vector3(0, 0, 30), [Math.cos(a), 0, -Math.sin(a)], [0, 1, 0], size, [t * 3, 0.0, 0, 0], [Math.sin(t) * 0.2, 0, 0, 0.2], undefined);

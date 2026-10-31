@@ -609,7 +609,7 @@ function manual(sim, a, dt) {
     if (mag > 0.01) { a.ls += (-Math.cos(0) * 0 + inp.fwd) * sstep * 0.9; a.lth += (inp.strafe * sstep * 0.9) / L.r; a.moved = sstep * Math.min(1, mag); }
     if (a.ls < 0) { if (a.limb === 0) { const tb = treeBase(sim); a.loc = 'ground'; a.x = tb.x + Math.cos(a.lth) * (tb.r + 1.8); a.z = tb.z + Math.sin(a.lth) * (tb.r + 1.8); a.ls = 0; } else { const P = w.limbs[L.parent]; const old = a.limb; a.limb = L.parent; a.ls = L.sP; a.lth = L.thP; } }
     else if (a.ls > L.len) a.ls = L.len; else for (const C of w.limbs) if (C.parent === a.limb && Math.abs(a.ls - C.sP) < 1.2 && Math.abs(angDiff(a.lth, C.thP)) < 0.4 && inp.use) { a.limb = C.id; a.ls = 0.8; a.lth = C.thP; }
-    if (n && n.site.kind === 'cavity') { const cav = w.cavities[n.site.cavityId]; if (a.limb === cav.limb && Math.hypot(a.ls - cav.s, angDiff(a.lth, cav.th) * L.r) < 1.2 && inp.use && !(n.plug.active && a.caste !== 'soldier')) { a.loc = 'nest'; a.node = n.entranceId; a.path = null; a.nseg = null; placeInNode(sim, a); } }
+    if (n && n.site.kind === 'cavity') { const cav = w.cavities[n.site.cavityId]; if (a.limb === cav.limb && Math.hypot(a.ls - cav.s, angDiff(a.lth, cav.th) * L.r) < Math.max(3, cav.entrance * 1.1 + a.len * 0.5) && (inp.use || inp.fwd > 0) && !(n.plug.active && a.caste !== 'soldier')) { a.loc = 'nest'; a.node = n.entranceId; a.path = null; a.nseg = null; placeInNode(sim, a); } }
     if (a.loc === 'limb') placeAnt(sim, a);
   } else if (a.loc === 'nest') {
     manualNest(sim, a, dt, spd);
