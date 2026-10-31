@@ -25,23 +25,27 @@ elif which in ('proceratium', 'springtail'):
     V, F = g.vertices, g.faces
     R = np.eye(3)
 elif which == 'cephalotes':
-    m = trimesh.load(glob.glob(A + 'e8a53946*.stl')[0]); m.merge_vertices()
-    m.update_faces(m.area_faces > 1e-12); m.remove_unreferenced_vertices()
-    V = m.vertices - np.array([0, 1.3, 0]); F = m.faces
-    R = np.array([[-1, 0, 0], [0, 0, -1], [0, -1, 0]], float)
+    # dolgozó modell (Text3D-6148): előre = +X, fel = +Y, már kanonikus tájolású
+    g = list(trimesh.load(glob.glob(A + 'd06e06c7*.glb')[0]).geometry.values())[0]; g.merge_vertices()
+    g.update_faces(g.area_faces > 1e-12); g.remove_unreferenced_vertices()
+    V, F = g.vertices, g.faces
+    R = np.eye(3)
 else:
-    S = sys.argv[3]
-    V = np.load(S + '/od_V.npy'); F = np.load(S + '/od_F.npy'); C = np.load(S + '/od_C.npy')
+    # Odontomachus davidsoni dolgozó (szárny nélkül): 5 darab, textúrával; a színeket csúcsszínre visszük át
+    sc = trimesh.load(glob.glob(A + '924c5a84*.glb')[0]); parts = sc.dump()
+    Vs, Fs, Cs, off = [], [], [], 0
+    for g in parts:
+        cc = g.visual.to_color().vertex_colors[:, :3] / 255.0
+        Vs.append(np.asarray(g.vertices)); Fs.append(np.asarray(g.faces) + off); Cs.append(cc); off += len(g.vertices)
+    V = np.vstack(Vs); F = np.vstack(Fs); C = np.vstack(Cs)
+    # azonos helyzetű csúcsok összevonása (a darabok és a UV-varratok mentén), a színeket átlagoljuk
+    key = np.round(V / (np.ptp(V, axis=0).max() * 1e-6)).astype(np.int64)
+    _, uidx, inv = np.unique(key, axis=0, return_index=True, return_inverse=True); inv = inv.reshape(-1)
+    Cn = np.zeros((len(uidx), 3)); cnt = np.zeros(len(uidx)); np.add.at(Cn, inv, C); np.add.at(cnt, inv, 1)
+    V = V[uidx]; C = Cn / cnt[:, None]; F = inv[F]
+    F = F[(F[:, 0] != F[:, 1]) & (F[:, 1] != F[:, 2]) & (F[:, 0] != F[:, 2])]
     R = np.array([[0, 0, 1], [0, 1, 0], [-1, 0, 0]], float)
-    # szárnyak eltávolítása (dealát királynő): a tor fölé nyúló lapok
-    # (a csúcsok y>0.27 felett), utána a lebegő darabok eldobása
 V = V @ R.T
-if which == 'odonto':
-    fy = V[F][:, :, 1].max(1)
-    keep = V[F][:, :, 1].min(1) < 0.27
-    F = F[keep]
-    nv = len(V); used = np.zeros(nv, bool); used[F] = True
-    idx = -np.ones(nv, int); idx[used] = np.arange(used.sum()); V = V[used]; C = C[used]; F = idx[F]
 v, f = simplify(V, F, cfg['face'])
 m = trimesh.Trimesh(v, f, process=True); m.remove_unreferenced_vertices()
 # legnagyobb összefüggő darabok megtartása

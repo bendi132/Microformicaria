@@ -25,7 +25,7 @@ export const SPECIES = {
     colorWorker: 0x1a1512,
   },
   cephalotes: {
-    id: 'cephalotes', climate: 'tropical', name: 'Cephalotes', latin: 'Cephalotes sp. – teknőshangya', difficulty: 'Közepes', diffLevel: 2, model: 'cephalotes', tint: 0x7a5636,
+    id: 'cephalotes', climate: 'tropical', name: 'Cephalotes', latin: 'Cephalotes sp. – teknőshangya', difficulty: 'Közepes', diffLevel: 2, model: 'cephalotes', tint: 0x1b1814,
     blurb: 'Fán élő, páncélozott hangya. Faüregekben fészkel; a lapos fejű katonák a bejáratot a saját fejükkel zárják el. A táplálékot elsősorban a fákon és azok környezetében gyűjti.',
     blurbIso: 'Élő ászkát alig tud elfogni (nem vadász jellegű); az elpusztult ászkák tetemét viszont hazaviszi. A pókok ellen páncélja és a fejjel elzárt bejárat véd.',
     size: { queen: 8.4, worker: 6.2, soldier: 7.4 }, speed: { queen: 3.4, worker: 4.2 }, run: 1.4,
@@ -39,7 +39,7 @@ export const SPECIES = {
     colorWorker: 0x7a5636,
   },
   odonto: {
-    id: 'odonto', climate: 'tropical', name: 'Odontomachus', latin: 'Odontomachus sp. – csapdakapcsú hangya', difficulty: 'Könnyű–közepes', diffLevel: 1, model: 'odonto', tint: 0xffffff,
+    id: 'odonto', climate: 'tropical', name: 'Odontomachus', latin: 'Odontomachus sp. – csapdakapcsú hangya', difficulty: 'Könnyű–közepes', diffLevel: 1, model: 'odonto', tint: 0x7a4a30,
     blurb: 'Aktív, gyors reagálású vadász. A tágra nyitott rágókat a zsákmány közelében hirtelen összecsapja. A vadászat energiát és sérülésveszélyt jelent, a csapás nem használható korlátlanul.',
     blurbIso: 'A legjobb ászkavadász: a közepes ászkák elejthetők, a nagyok csak többedmagukkal. Pókok ellen visszatámadhat, és a rágók csapásával elugorhat a veszély elől – de a nagy pók ellen így is alulmarad.',
     size: { queen: 11, worker: 9.5 }, speed: { queen: 6.5, worker: 8.4 }, run: 1.9,

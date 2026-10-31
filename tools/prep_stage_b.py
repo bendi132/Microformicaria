@@ -8,8 +8,8 @@ n = len(v)
 CFG = {
   # thr: vastagsági küszöb a vékony végtagokhoz; head_x/gaster_x: a fej és a potroh határa kanonikus (előre=+X) koordinátában
   'ponera':     dict(thr=0.10, head_x=0.25, gaster_x=-0.20, ant=lambda c, s, mn: c[0] > 0.5, leg=lambda c, s, mn: s >= 300, grow=0.17),
-  'cephalotes': dict(thr=0.25, head_x=4.98, gaster_x=2.45,  ant=lambda c, s, mn: 5.5 < c[0] < 6.7 and c[1] < -1.2 and s < 300, leg=lambda c, s, mn: s >= 400 and c[0] < 5.0 and c[1] < -1.0, grow=0.40),
-  'odonto':     dict(thr=0.06, head_x=0.37, gaster_x=-0.15, ant=lambda c, s, mn: c[0] > 0.5 and s > 300 and abs(c[2]) > 0.1, leg=lambda c, s, mn: s >= 500 and mn[1] < -0.05 and c[0] < 0.6, grow=0.07),
+  'cephalotes': dict(thr=0.12, head_x=0.33, gaster_x=-0.18, ant=lambda c, s, mn: False, leg=lambda c, s, mn: s >= 900, grow=0.16),
+  'odonto':     dict(thr=0.04, head_x=0.37, gaster_x=-0.15, ant=lambda c, s, mn: c[0] > 0.5 and 300 < s < 800 and abs(c[2]) > 0.1, leg=lambda c, s, mn: s >= 1000 and c[0] < 0.6, grow=0.06),
   'proceratium': dict(thr=0.12, head_x=0.45, gaster_x=-0.25, ant=lambda c, s, mn: c[0] > 0.7 and s > 300, leg=lambda c, s, mn: s >= 700 and abs(c[2]) > 0.15 and c[1] < 0.1 and c[0] < 0.6, grow=0.15),
   'springtail': dict(thr=0.12, head_x=0.50, gaster_x=-99, ant=lambda c, s, mn: c[0] > 0.7 and s > 300 and c[1] < 0.3, leg=lambda c, s, mn: s >= 300 and abs(c[2]) > 0.15 and c[1] < 0.1 and c[0] < 0.6, grow=0.15),
 }[which]
@@ -88,7 +88,8 @@ gas_piv = (np.array([CFG['gaster_x'], float(np.median(v[gas, 1])), 0.0]) - off) 
 m = trimesh.Trimesh(v2, f, process=False); nrm = m.vertex_normals
 attrs = {'_PART': (part, 1), '_LID': (lid, 1), '_W': (w, 1), '_PIVOT': (piv2, 3)}
 mesh = dict(name=which, positions=v2, normals=nrm, indices=f, attrs=attrs, roughness=0.55,
-            color=[0.07, 0.06, 0.05, 1] if which in ('ponera', 'proceratium') else ([0.55, 0.52, 0.48, 1] if which == 'springtail' else None) or ([0.32, 0.20, 0.13, 1] if which == 'cephalotes' else [1, 1, 1, 1]))
+            color=[0.07, 0.06, 0.05, 1] if which in ('ponera', 'proceratium') else ([0.55, 0.52, 0.48, 1] if which == 'springtail' else None) or ([0.07, 0.065, 0.06, 1] if which == 'cephalotes' else [1, 1, 1, 1]))
+if len(col) and which == 'odonto': col = np.clip(col * np.array([0.55, 0.36, 0.24]) * 1.35, 0, 1)   # a forrás halvány; a faj sötét vörösesbarna
 if len(col): mesh['attrs']['COLOR_0'] = (np.c_[col, np.ones(len(col))].astype(np.float32), 4)
 extras = dict(bodyLength=1.0, headPivot=head_piv.tolist(), gasterPivot=gas_piv.tolist(), legs=len(legs), antennae=len(ants),
               bounds=[(v2.min(0)).tolist(), (v2.max(0)).tolist()], height=float(v2[:, 1].max()), origBodyLength=float(bl))
