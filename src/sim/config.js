@@ -11,7 +11,7 @@ export const ANIMALS = ['ant', 'isopod', 'spider', 'springtail']; // a játékba
 
 export const SPECIES = {
   ponera: {
-    id: 'ponera', climate: 'temperate', name: 'Ponera', latin: 'Ponera sp.', difficulty: 'Nehéz', diffLevel: 3, model: 'ponera', tint: 0x1a1512,
+    id: 'ponera', climate: 'temperate', name: 'Ponera', latin: 'Ponera sp.', difficulty: 'Nehéz', diffLevel: 3, model: 'ponera', tint: 0x8b4a2b,
     blurb: 'Rejtőzködő, talajlakó ragadozó hangya. Lassú, óvatos, keskeny járatokat váj; apró ízeltlábúakra vadászik. Kis kolónia, a királynő és a fiasítás védelme kiemelt feladat.',
     blurbIso: 'Csak a kisebb ászkákat tudja elejteni (fullánkkal bénítja). A nagyobb ászkák számára túl veszélyesek. Pókok elől a szűk járatok védik: a nagyobb pókok nem férnek be.',
     size: { queen: 4.6, worker: 3.6 }, speed: { queen: 4.2, worker: 5.2 }, run: 1.5,
