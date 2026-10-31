@@ -68,7 +68,7 @@ async function startGame(opts, loaded) {
   G.view = new WorldView(G.scene, renderer, S.quality); G.view.sun.castShadow = !!S.shadow; G.view.build(sim);
   G.layer = new CreatureLayer(G.scene); await G.layer.load(sim.speciesId);
   G.env = new EnvView(G.scene, renderer, SPECIES[sim.speciesId].climate, sim.seed); G.env.build().catch((e) => console.warn('env', e));
-  const q = sim.queen; G.orbit.x = q ? q.x : 0; G.orbit.z = q ? q.z : 0; G.orbit.y = 0; G.orbit.dist = 55; G.orbit.pitch = 0.95;
+  const q = sim.queen; G.orbit.x = q ? q.x : 0; G.orbit.z = q ? q.z : 0; G.orbit.y = 0; G.orbit.dist = 55; G.orbit.pitch = 0.95; G.follow = true; setFollowBtn();
   G.mode = 'game'; G.speed = 1; G.paused = false; G.nestView = false; G.sel = q ? { kind: 'ant', id: q.id } : null; G.fpv = false; G.logIdx = sim.logs.length; G.autoT = 0; G.over = false;
   buildDirs(sim); setSpeed(1); show('hud'); $('loading').style.display = 'none'; $('bNestV').classList.remove('on'); resize();
 }
@@ -85,6 +85,8 @@ function setSpeed(k) { G.speed = k; G.paused = false; for (const [id, v] of [['b
 $('bS1').onclick = () => setSpeed(1); $('bS2').onclick = () => setSpeed(2); $('bS4').onclick = () => setSpeed(4); $('bS8').onclick = () => setSpeed(8);
 $('bPause').onclick = () => { G.paused = !G.paused; $('bPause').classList.toggle('on', G.paused); };
 $('bTop').onclick = () => { G.orbit.pitch = 1.5; G.orbit.yaw = 0; };
+$('bFollow').onclick = () => { G.follow = !G.follow; setFollowBtn(); };
+function setFollowBtn() { $('bFollow').classList.toggle('on', !!G.follow); }
 $('bNestV').onclick = () => toggleNest();
 function toggleNest() { G.nestView = !G.nestView; $('bNestV').classList.toggle('on', G.nestView); }
 $('bDig').onclick = () => { G.dig = !G.dig; $('bDig').classList.toggle('on', G.dig); $('digOpts').style.display = G.dig ? '' : 'none'; if (G.dig && !G.nestView) toggleNest(); };
@@ -157,12 +159,12 @@ function placeOrbitCam(dt) {
 }
 
 // ---------------------------------------------------------------- bemenet
-const KEYMAP = { KeyW: 'w', KeyA: 'a', KeyS: 's', KeyD: 'd', ShiftLeft: 'shift', ShiftRight: 'shift', Space: 'space' };
+const KEYMAP = { KeyW: 'w', KeyA: 'a', KeyS: 's', KeyD: 'd', ArrowUp: 'w', ArrowDown: 's', ArrowLeft: 'a', ArrowRight: 'd', ShiftLeft: 'shift', ShiftRight: 'shift', Space: 'space' };
 window.addEventListener('keydown', (e) => {
   if (G.mode !== 'game' || e.target.tagName === 'SELECT') return; const k = KEYMAP[e.code]; if (k) { G.keys[k] = true; if (k === 'space' && G.fpv) { G.sim.input.jump = true; e.preventDefault(); } }
   if (G.fpv) { const inp = G.sim.input; if (e.code === 'KeyE') { inp.use = true; inp.useHold = true; } else if (e.code === 'KeyF') inp.drop = true; else if (e.code === 'KeyQ' || e.code === 'Tab') { exitFpv(); e.preventDefault(); } return; }
   if (e.code === 'KeyT') $('bTop').click(); else if (e.code === 'KeyN') toggleNest(); else if (e.code === 'KeyF') enterFpv(); else if (e.code === 'Space') { $('bPause').click(); e.preventDefault(); }
-  else if (e.code === 'Escape') { if (G.dig) $('bDig').click(); else { show('pause'); G.paused = true; } } else if (e.code === 'KeyC') { G.follow = !G.follow; }
+  else if (e.code === 'Escape') { if (G.dig) $('bDig').click(); else { show('pause'); G.paused = true; } } else if (e.code === 'KeyC') { G.follow = !G.follow; setFollowBtn(); }
   else if (e.code.startsWith('Digit')) { const v = { 1: 1, 2: 2, 3: 4, 4: 8 }[e.code.slice(5)]; if (v) setSpeed(v); }
 });
 window.addEventListener('keyup', (e) => { const k = KEYMAP[e.code]; if (k) G.keys[k] = false; if (G.fpv && e.code === 'KeyE') G.sim.input.useHold = false; });
@@ -180,7 +182,11 @@ window.addEventListener('mouseup', (e) => {
 window.addEventListener('mousemove', (e) => {
   if (G.fpv && document.pointerLockElement) { const s = 0.0024 * S.sens, inp = G.sim.input; inp.yawD -= e.movementX * s; inp.pitchD += (S.inv ? 1 : -1) * e.movementY * s; return; }
   if (!drag) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.moved += Math.abs(dx) + Math.abs(dy); drag.x = e.clientX; drag.y = e.clientY;
-  if (drag.b === 2 || (drag.b === 0 && drag.moved > 5)) { G.orbit.yaw -= dx * 0.006; G.orbit.pitch += dy * 0.005; } else if (drag.b === 1) { const sp = G.orbit.dist * 0.002, sy = Math.sin(G.orbit.yaw), cy = Math.cos(G.orbit.yaw); G.orbit.x -= (dx * cy - dy * sy) * sp; G.orbit.z -= (-dx * sy - dy * cy) * sp; G.follow = false; }
+  if (drag.b === 2) { G.orbit.yaw -= dx * 0.006; G.orbit.pitch += dy * 0.005; }          // jobb gomb: forgatás
+  else if (drag.b === 0 || drag.b === 1) {                                                     // bal (vagy középső) gomb: mozgatás a térképen
+    const sp = G.orbit.dist * 0.002, sy = Math.sin(G.orbit.yaw), cy = Math.cos(G.orbit.yaw);
+    G.orbit.x -= (dx * cy - dy * sy) * sp; G.orbit.z -= (-dx * sy - dy * cy) * sp; G.follow = false; setFollowBtn();
+  }
 });
 canvas.addEventListener('wheel', (e) => { if (G.mode !== 'game' || G.fpv) return; G.orbit.dist *= Math.exp(e.deltaY * 0.0011); e.preventDefault(); }, { passive: false });
 canvas.addEventListener('dblclick', () => { if (G.mode === 'game' && !G.fpv && G.sel && G.sel.kind === 'ant') enterFpv(); });

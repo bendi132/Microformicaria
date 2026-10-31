@@ -53,7 +53,7 @@ export const SPECIES = {
     colorWorker: 0xffffff,
   },
   proceratium: {
-    id: 'proceratium', climate: 'temperate', name: 'Proceratium', latin: 'Proceratium sp. – tojásrabló hangya', difficulty: 'Nehéz', diffLevel: 3, model: 'proceratium', tint: 0x120f0d,
+    id: 'proceratium', climate: 'temperate', name: 'Proceratium', latin: 'Proceratium sp. – tojásrabló hangya', difficulty: 'Nehéz', diffLevel: 3, model: 'proceratium', tint: 0xc4561f,
     blurb: 'Rejtőzködő talajlakó specialista: nem az élő zsákmányra, hanem ízeltlábúak petéire vadászik. Az ugróvillások, az ászkák és a pókok petéit lopja el. Lassú, óvatos, kis kolónia.',
     blurbIso: 'Az élő ászkát és ugróvillást békén hagyja, de a petéiket (az ugróvillás tojáscsomóit, az anyaászka költőzsákját, a pók petezsákját) fosztogatja. A pókfészek őrzője a legnagyobb veszély.',
     size: { queen: 5.0, worker: 4.0 }, speed: { queen: 3.8, worker: 4.6 }, run: 1.5,
