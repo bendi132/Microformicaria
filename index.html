@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="hu">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MICROFORMICARIA</title>
+<script type="importmap">{"imports":{"three":"./vendor/three/three.module.js"}}</script>
+<style>
+:root{--bg:#0d0a07;--panel:rgba(22,16,10,.78);--line:rgba(220,180,120,.25);--fg:#eadfce;--dim:#a8977f;--acc:#e0a24a;--bad:#d9573f;--good:#8fbf5a;--water:#6fb3e0}
+*{box-sizing:border-box}html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:14px/1.35 "Segoe UI",system-ui,sans-serif;overflow:hidden;user-select:none}
+canvas#gl{position:fixed;inset:0;width:100%;height:100%;display:block}
+.screen{position:fixed;inset:0;display:none}.screen.on{display:block}
+button{font:inherit;color:var(--fg);background:rgba(60,42,24,.7);border:1px solid var(--line);border-radius:6px;padding:7px 14px;cursor:pointer}
+button:hover:not(:disabled){background:rgba(110,76,36,.85);border-color:var(--acc)}button:disabled{opacity:.4;cursor:default}button.on{background:rgba(150,100,40,.9);border-color:var(--acc)}
+#title .box{position:absolute;left:7vw;top:50%;transform:translateY(-50%)}
+#title h1{margin:0 0 6px;font:700 clamp(34px,6vw,76px)/1 Georgia,serif;letter-spacing:.14em;text-shadow:0 4px 30px #000}
+#title .sub{color:var(--dim);letter-spacing:.3em;font-size:12px;margin-bottom:34px;text-transform:uppercase}
+#title .menu{display:flex;flex-direction:column;gap:10px;width:260px}#title .menu button{padding:12px 18px;font-size:17px;text-align:left;letter-spacing:.06em}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;backdrop-filter:blur(6px)}
+#species .list{position:absolute;left:3vw;top:8vh;width:230px;display:flex;flex-direction:column;gap:7px;max-height:84vh;overflow:auto}
+#species .list button{text-align:left;padding:10px 12px}#species .list small{display:block;color:var(--dim)}
+#species .info{position:absolute;right:3vw;top:8vh;width:min(420px,38vw);padding:18px 20px}
+#species h2{margin:0;font:700 28px Georgia,serif}#species .lat{color:var(--dim);font-style:italic;margin-bottom:10px}
+#species .tag{display:inline-block;font-size:11px;padding:1px 7px;border-radius:9px;margin-right:6px;border:1px solid var(--line)}
+.bio{color:#cdbf9f}.game{color:#e6c27a}
+#species .bot{position:absolute;left:50%;bottom:5vh;transform:translateX(-50%);display:flex;gap:10px;align-items:center}
+.dots i{display:inline-block;width:10px;height:10px;border-radius:50%;background:#4a3a28;margin-right:3px}.dots i.f{background:var(--acc)}
+#settings .box{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:420px;padding:22px}#settings label{display:flex;justify-content:space-between;align-items:center;margin:12px 0;gap:12px}
+select,input[type=range]{background:#2a2016;color:var(--fg);border:1px solid var(--line);border-radius:5px;padding:4px}
+#hud{pointer-events:none}#hud .card,#hud button,#hud input{pointer-events:auto}
+#hud .tl{position:absolute;left:12px;top:12px;padding:10px 12px;width:268px}
+#hud .tr{position:absolute;right:12px;top:12px;display:flex;gap:6px;padding:6px}
+#hud .bl{position:absolute;left:12px;bottom:12px;padding:8px 10px;width:268px}
+#hud .br{position:absolute;right:12px;bottom:12px;padding:10px 12px;width:260px;display:none}
+#hud .bc{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);padding:6px;display:flex;gap:6px;align-items:center}
+.bar{height:7px;background:#2c2218;border-radius:4px;overflow:hidden;flex:1}.bar>i{display:block;height:100%;background:var(--good);width:50%}
+.row{display:flex;align-items:center;gap:8px;margin:4px 0}.row .ic{width:20px;text-align:center}.row .v{width:34px;text-align:right;color:var(--dim);font-size:12px}
+.dirrow{display:flex;align-items:center;gap:6px;margin:2px 0}.dirrow input{flex:1}
+.clock{display:flex;justify-content:space-between;align-items:center;font-size:15px;margin-bottom:6px}
+#vig{position:fixed;inset:0;pointer-events:none;box-shadow:inset 0 0 160px 40px rgba(200,20,10,0);transition:box-shadow .3s}
+#fpv{pointer-events:none}#fpv .cross{position:absolute;left:50%;top:50%;width:26px;height:26px;margin:-13px;border:2px solid rgba(255,255,255,.55);border-radius:50%;transition:all .12s}
+#fpv .cross::after{content:"";position:absolute;left:50%;top:50%;width:3px;height:3px;margin:-1.5px;background:#fff;border-radius:50%}
+#fpv .cross.prey{border-color:#ff8a5a;transform:scale(1.25)}#fpv .cross.egg{border-color:#f5f0b0;transform:scale(1.2)}#fpv .cross.enemy{border-color:#ff3a2a;transform:scale(1.35)}#fpv .cross.src{border-color:#7fc8ff;transform:scale(1.15)}
+#fpv .bars{position:absolute;left:50%;bottom:22px;transform:translateX(-50%);width:300px;padding:8px 10px}
+#fpv .keys{position:absolute;right:16px;bottom:16px;display:flex;gap:6px}#fpv .key{padding:2px 8px;border:1px solid var(--line);border-radius:5px;background:rgba(0,0,0,.4);color:var(--dim);font-size:12px}
+#fpv .carry{position:absolute;left:50%;top:58%;transform:translateX(-50%);font-size:20px}
+#toast{position:fixed;left:50%;top:70px;transform:translateX(-50%);padding:10px 18px;background:rgba(120,20,10,.9);border-radius:8px;display:none;font-weight:600}
+#click{position:fixed;left:50%;top:60%;transform:translateX(-50%);color:var(--dim);display:none;background:rgba(0,0,0,.55);padding:6px 14px;border-radius:6px}
+#ind{position:fixed;inset:0;pointer-events:none}#ind b{position:absolute;color:#ff4a3a;font-size:26px;text-shadow:0 0 8px #000;margin:-13px}
+#pause .box{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);padding:20px;display:flex;flex-direction:column;gap:9px;width:250px}
+#loading{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;font:700 22px Georgia,serif;letter-spacing:.2em;z-index:9}
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<div id="vig"></div><div id="ind"></div>
+<section id="title" class="screen on"><div class="box"><h1>MICROFORMICARIA</h1><div class="sub">hangya-kolónia szimulátor</div>
+<div class="menu"><button id="bNew">Új játék</button><button id="bCont">Folytatás</button><button id="bSpecies">Fajok</button><button id="bSet">Beállítások</button></div></div></section>
+<section id="species" class="screen"><div class="list" id="spList"></div><div class="info card" id="spInfo"></div>
+<div class="bot card" style="padding:8px 12px"><button id="spBack">← Vissza</button><span id="diffWrap">Nehézség: <select id="diffSel"><option value="easy">Könnyű</option><option value="normal" selected>Normál</option><option value="hard">Nehéz</option></select></span><button id="spStart" class="on">Indítás</button></div></section>
+<section id="settings" class="screen"><div class="box card"><h2 style="margin:0 0 6px">Beállítások</h2>
+<label>Grafikai minőség<select id="sQual"><option value="low">Alacsony</option><option value="medium" selected>Közepes</option><option value="high">Magas</option></select></label>
+<label>Árnyékok<select id="sShadow"><option value="1" selected>Be</option><option value="0">Ki</option></select></label>
+<label>Felbontás-skála<input id="sScale" type="range" min="0.5" max="1" step="0.05" value="1"></label>
+<label>Egér-érzékenység<input id="sSens" type="range" min="0.3" max="2.5" step="0.1" value="1"></label>
+<label>Egér Y-tengely megfordítása<select id="sInv"><option value="0" selected>Nem</option><option value="1">Igen</option></select></label>
+<label>Automatikus mentés (percenként)<select id="sAuto"><option value="1" selected>Be</option><option value="0">Ki</option></select></label>
+<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px"><button id="setBack">Kész</button></div></div></section>
+<section id="hud" class="screen">
+ <div class="tl card"><div class="clock"><span id="hClock">Nap 1 · 07:00</span><span id="hWx">☀</span></div>
+  <div class="row"><span class="ic">👑</span><span style="width:22px;color:var(--dim)">⚡</span><div class="bar"><i id="qE"></i></div><span style="width:22px;color:var(--dim)">💧</span><div class="bar"><i id="qH" style="background:var(--water)"></i></div><span style="width:22px;color:var(--dim)">♥</span><div class="bar"><i id="qL" style="background:var(--bad)"></i></div></div>
+  <div class="row" style="justify-content:space-between"><span id="hWork">🐜 0</span><span id="hBrood">🥚0 🐛0 🫘0</span><span id="hClim">🌡 – 💧 –</span></div>
+  <div class="row"><span class="ic">🍖</span><div class="bar"><i id="sP" style="background:#c0705a"></i></div><span class="ic">🍯</span><div class="bar"><i id="sS" style="background:#e0a24a"></i></div><span class="ic">💧</span><div class="bar"><i id="sW" style="background:var(--water)"></i></div></div></div>
+ <div class="tr card"><button id="bPause">⏸</button><button id="bS1" class="on">1×</button><button id="bS2">2×</button><button id="bS4">4×</button><button id="bS8">8×</button><span style="width:8px"></span><button id="bTop" title="Felülnézet (T)">⬒</button><button id="bNestV" title="Fészek-metszet (N)">🕳</button><button id="bSave" title="Mentés">💾</button><button id="bMenu" title="Menü">☰</button></div>
+ <div class="bl card" id="dirs"></div>
+ <div class="bc card" id="tools"><button id="bDig" title="Új kamra ásása: kattints a talajra">⛏</button><span id="digOpts" style="display:none"><select id="digRole"><option value="brood">Fiasítás</option><option value="store">Raktár</option><option value="rest">Pihenő</option></select> <select id="digDepth"><option value="-5">sekély</option><option value="-10" selected>közepes</option><option value="-16">mély</option></select></span><button id="bPoss" title="Irányítás first personben (F)" disabled>👁</button></div>
+ <div class="br card" id="sel"></div></section>
+<section id="fpv" class="screen"><div class="cross" id="cross"></div><div class="carry" id="fCarry"></div>
+ <div class="bars card"><div class="row"><span class="ic">⚡</span><div class="bar"><i id="fE"></i></div><span class="ic">💧</span><div class="bar"><i id="fH" style="background:var(--water)"></i></div><span class="ic">♥</span><div class="bar"><i id="fL" style="background:var(--bad)"></i></div></div><div class="row" id="fMand" style="display:none"><span class="ic">🦷</span><div class="bar"><i id="fM" style="background:#ddd"></i></div></div></div>
+ <div class="keys"><span class="key">WASD</span><span class="key">⇧</span><span class="key">LMB</span><span class="key" id="kR">RMB</span><span class="key">E</span><span class="key">F</span><span class="key" id="kJ" style="display:none">␣</span><span class="key">Q ⟲</span></div></section>
+<section id="pause" class="screen"><div class="box card"><button id="pResume">Folytatás</button><button id="pSave">Mentés</button><button id="pSet">Beállítások</button><button id="pQuit">Kilépés a főmenübe</button></div></section>
+<div id="toast"></div><div id="click">Kattints a folytatáshoz</div><div id="loading">MICROFORMICARIA</div>
+<script type="module" src="src/main.js"></script>
+</body></html>

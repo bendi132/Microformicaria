@@ -1,0 +1,23 @@
+<!doctype html><meta charset="utf-8"><body style="margin:0;background:#222"><script type="importmap">{"imports":{"three":"../vendor/three/three.module.js"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import {loadCreatureGeometry, CreatureBatch} from '../src/render/rig.js';
+const q=new URLSearchParams(location.search); const view=q.get('v')||'a'; const t0=parseFloat(q.get('t')||'1.2'); const act=q.get('act')||'walk';
+const r=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});r.setSize(1200,700);document.body.appendChild(r.domElement);
+const s=new THREE.Scene();s.background=new THREE.Color(0x8a8f84);
+s.add(new THREE.HemisphereLight(0xffffff,0x554433,1.6));const d=new THREE.DirectionalLight(0xffffff,2.2);d.position.set(3,6,4);s.add(d);
+const floor=new THREE.Mesh(new THREE.PlaneGeometry(100,100),new THREE.MeshStandardMaterial({color:0x6b5a45}));floor.rotation.x=-Math.PI/2;s.add(floor);
+const defs=[['ponera',0,4.5,0x16120f],['cephalotes',0,7,0x6a4a30],['odonto',0,11,0xffffff],['isopod',1,7,0x77716a],['spider',2,8,0xffffff]];
+const batches=[];
+for(let i=0;i<defs.length;i++){const [n,k,size,col]=defs[i];const g=await loadCreatureGeometry(`../assets/models/${n}.glb`);
+ const b=new CreatureBatch(g,{kind:k,capacity:2,color:col});s.add(b.mesh);batches.push([b,size,i]);}
+const cam=new THREE.PerspectiveCamera(35,1200/700,0.1,500);
+if(view==='a')cam.position.set(2,26,34);else if(view==='t')cam.position.set(0,40,0.01);else cam.position.set(0,6,30);
+cam.lookAt(0,2,0);
+const mv=act==='walk'?1:0, atk=act==='atk';
+for(const [b,size,i] of batches){b.begin();const x=(i-2)*10;
+ const open=(act==='open')?1:0;
+ b.add(new THREE.Vector3(x,0,0),0.6*(view==='s'?0:1),0,0,size,[t0*6,mv,atk?1:0,0.5],[0.3,atk?1:open,act==='curl'?1:0,atk?1:0],0xffffff);
+ b.end(t0);}
+r.render(s,cam);window.DONE=true;
+</script>

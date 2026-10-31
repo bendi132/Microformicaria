@@ -1,0 +1,12 @@
+const {chromium}=require('playwright');
+(async()=>{const b=await chromium.launch({args:['--use-gl=swiftshader','--enable-unsafe-swiftshader','--ignore-gpu-blocklist','--use-angle=swiftshader']});
+const p=await b.newPage({viewport:{width:1280,height:720}});p.setDefaultTimeout(150000);
+p.on('pageerror',e=>console.log('pageerror',e.message.slice(0,500)));
+await p.addInitScript(()=>{localStorage.setItem('mf.settings',JSON.stringify({quality:'low',shadow:0,scale:0.6,sens:1,inv:0,auto:0}));});
+await p.goto('http://localhost:8080/index.html');await p.waitForFunction("document.getElementById('loading').style.display==='none'");
+const sp=process.argv[2]||'ponera';
+await p.evaluate(`window.__startGame({species:'${sp}',difficulty:'normal'})`);
+await p.waitForFunction("window.__G.sim&&document.getElementById('loading').style.display==='none'");
+await p.waitForFunction('window.__G.env&&window.__G.env.placed&&window.__G.env.placed.length>=(window.__G.sim.speciesId==="odonto"||window.__G.sim.speciesId==="cephalotes"?19:18)');await p.waitForTimeout(3000);
+await p.evaluate(process.argv[3]||"window.__G.orbit.dist=1500;window.__G.orbit.pitch=0.5");
+await p.waitForTimeout(2500);await p.screenshot({path:process.argv[4]||'/tmp/s_wide.png'});await b.close();})();

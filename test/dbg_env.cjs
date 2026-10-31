@@ -1,0 +1,11 @@
+const {chromium}=require('playwright');
+(async()=>{const b=await chromium.launch({args:['--use-gl=swiftshader','--enable-unsafe-swiftshader','--ignore-gpu-blocklist','--use-angle=swiftshader']});
+const p=await b.newPage({viewport:{width:640,height:360}});p.setDefaultTimeout(150000);
+p.on('console',m=>console.log('c',m.type(),m.text().slice(0,200)));p.on('response',r=>{if(r.status()>=400)console.log('HTTP',r.status(),r.url())});p.on('pageerror',e=>console.log('pageerror',e.message.slice(0,500)));
+await p.addInitScript(()=>{localStorage.setItem('mf.settings',JSON.stringify({quality:'low',shadow:0,scale:0.4,sens:1,inv:0,auto:0}));});
+await p.goto('http://localhost:8080/index.html');await p.waitForFunction("document.getElementById('loading').style.display==='none'");
+await p.evaluate(`window.__startGame({species:'${process.argv[2]||'ponera'}',difficulty:'normal'})`);
+await p.waitForFunction("window.__G.sim&&document.getElementById('loading').style.display==='none'");
+await p.waitForTimeout(40000);
+console.log(await p.evaluate(async()=>{const T=await import('three');const e=window.__G.env;return e.group.children.map((c,i)=>{const bx=new T.Box3().setFromObject(c);const k=e.placed[i];return k.key+' '+[bx.min.x,bx.min.y,bx.min.z,bx.max.x,bx.max.y,bx.max.z].map(v=>Math.round(v)).join(',');}).join('\n');}));
+await b.close();})();

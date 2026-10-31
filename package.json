@@ -1,0 +1,18 @@
+{
+  "name": "microformicaria",
+  "version": "0.2.0",
+  "description": "Val\u00f3s idej\u0171 3D hangyakol\u00f3nia-szimul\u00e1tor (Three.js) - \u00e1szk\u00e1k \u00e9s p\u00f3kok",
+  "main": "index.js",
+  "scripts": {
+    "start": "node server.mjs",
+    "assets": "bash tools/build_assets.sh",
+    "test": "node test/sim.test.mjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "three": "0.160.0"
+  },
+  "type": "module"
+}
