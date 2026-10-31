@@ -11,7 +11,7 @@ export const ANIMALS = ['ant', 'isopod', 'spider', 'springtail']; // a játékba
 
 export const SPECIES = {
   ponera: {
-    id: 'ponera', climate: 'temperate', name: 'Ponera', latin: 'Ponera sp.', difficulty: 'Nehéz', diffLevel: 3, model: 'ponera', tint: 0x8b4a2b,
+    id: 'ponera', gait: { swing: 0.8, stride: 0.234 }, climate: 'temperate', name: 'Ponera', latin: 'Ponera sp.', difficulty: 'Nehéz', diffLevel: 3, model: 'ponera', tint: 0x8b4a2b,
     blurb: 'Rejtőzködő, talajlakó ragadozó hangya. Lassú, óvatos, keskeny járatokat váj; apró ízeltlábúakra vadászik. Kis kolónia, a királynő és a fiasítás védelme kiemelt feladat.',
     blurbIso: 'Csak a kisebb ászkákat tudja elejteni (fullánkkal bénítja). A nagyobb ászkák számára túl veszélyesek. Pókok elől a szűk járatok védik: a nagyobb pókok nem férnek be.',
     size: { queen: 4.6, worker: 3.6 }, speed: { queen: 4.2, worker: 5.2 }, run: 1.5,
@@ -25,7 +25,7 @@ export const SPECIES = {
     colorWorker: 0x1a1512,
   },
   cephalotes: {
-    id: 'cephalotes', climate: 'tropical', name: 'Cephalotes', latin: 'Cephalotes sp. – teknőshangya', difficulty: 'Közepes', diffLevel: 2, model: 'cephalotes', tint: 0x1b1814,
+    id: 'cephalotes', gait: { swing: 0.6, stride: 0.419 }, climate: 'tropical', name: 'Cephalotes', latin: 'Cephalotes sp. – teknőshangya', difficulty: 'Közepes', diffLevel: 2, model: 'cephalotes', tint: 0x1b1814,
     blurb: 'Fán élő, páncélozott hangya. Faüregekben fészkel; a lapos fejű katonák a bejáratot a saját fejükkel zárják el. A táplálékot elsősorban a fákon és azok környezetében gyűjti.',
     blurbIso: 'Élő ászkát alig tud elfogni (nem vadász jellegű); az elpusztult ászkák tetemét viszont hazaviszi. A pókok ellen páncélja és a fejjel elzárt bejárat véd.',
     size: { queen: 8.4, worker: 6.2, soldier: 7.4 }, speed: { queen: 3.4, worker: 4.2 }, run: 1.4,
@@ -39,7 +39,7 @@ export const SPECIES = {
     colorWorker: 0x7a5636,
   },
   odonto: {
-    id: 'odonto', climate: 'tropical', name: 'Odontomachus', latin: 'Odontomachus sp. – csapdakapcsú hangya', difficulty: 'Könnyű–közepes', diffLevel: 1, model: 'odonto', tint: 0x7a4a30,
+    id: 'odonto', gait: { swing: 0.6, stride: 0.466 }, climate: 'tropical', name: 'Odontomachus', latin: 'Odontomachus sp. – csapdakapcsú hangya', difficulty: 'Könnyű–közepes', diffLevel: 1, model: 'odonto', tint: 0x7a4a30,
     blurb: 'Aktív, gyors reagálású vadász. A tágra nyitott rágókat a zsákmány közelében hirtelen összecsapja. A vadászat energiát és sérülésveszélyt jelent, a csapás nem használható korlátlanul.',
     blurbIso: 'A legjobb ászkavadász: a közepes ászkák elejthetők, a nagyok csak többedmagukkal. Pókok ellen visszatámadhat, és a rágók csapásával elugorhat a veszély elől – de a nagy pók ellen így is alulmarad.',
     size: { queen: 11, worker: 9.5 }, speed: { queen: 6.5, worker: 8.4 }, run: 1.9,
@@ -53,7 +53,7 @@ export const SPECIES = {
     colorWorker: 0xffffff,
   },
   proceratium: {
-    id: 'proceratium', climate: 'temperate', name: 'Proceratium', latin: 'Proceratium sp. – tojásrabló hangya', difficulty: 'Nehéz', diffLevel: 3, model: 'proceratium', tint: 0xc4561f,
+    id: 'proceratium', gait: { swing: 0.65, stride: 0.389 }, climate: 'temperate', name: 'Proceratium', latin: 'Proceratium sp. – tojásrabló hangya', difficulty: 'Nehéz', diffLevel: 3, model: 'proceratium', tint: 0xe0701c,
     blurb: 'Rejtőzködő talajlakó specialista: nem az élő zsákmányra, hanem ízeltlábúak petéire vadászik. Az ugróvillások, az ászkák és a pókok petéit lopja el. Lassú, óvatos, kis kolónia.',
     blurbIso: 'Az élő ászkát és ugróvillást békén hagyja, de a petéiket (az ugróvillás tojáscsomóit, az anyaászka költőzsákját, a pók petezsákját) fosztogatja. A pókfészek őrzője a legnagyobb veszély.',
     size: { queen: 5.0, worker: 4.0 }, speed: { queen: 3.8, worker: 4.6 }, run: 1.5,

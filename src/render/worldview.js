@@ -226,6 +226,8 @@ export class WorldView {
     this.moistT += dt; if (this.moistT > 4) { this.moistT = 0; this.updateMoistureColors(); }
     this.dynT += dt; if (this.dynT > 0.25) { this.dynT = 0; this.updateDynamic(sim); }
     this.ensureEntrance(sim); this.updateLighting(sim.env); this.updateRain(dt, sim.env.rain || 0);
+    if (this._nv !== nestView) { this._nv = nestView; const keep = new Set([this.terrain, this.entrance, this.farGround, ...(this.limbMeshes || [])]); for (const c of this.group.children) if (!keep.has(c) && c.userData.nestKeep !== true) c.visible = !nestView; }   // metszetnézetben a felszíni rendetlenség (fű, avar, kövek) nem takarja a fészket
+    this.farGround.visible = !nestView;   // a messzi talajlap (y=-1,2) eltakarná a föld alatti fészket
     // metszetnézet: a talaj áttetsző, hogy a járatok látszódjanak
     const mat = this.terrainMat; const target = nestView ? 0.16 : 1; mat.opacity += (target - mat.opacity) * Math.min(1, dt * 6); mat.transparent = mat.opacity < 0.99; mat.depthWrite = !mat.transparent || mat.opacity > 0.6;
     if (this.barkMat) { const bt = nestView ? 0.22 : 1; this.barkMat.opacity += (bt - this.barkMat.opacity) * Math.min(1, dt * 6); this.barkMat.transparent = this.barkMat.opacity < 0.99; }

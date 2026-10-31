@@ -9,7 +9,7 @@ export const PART = { BODY: 0, LEG: 1, ANTENNA: 2, MANDIBLE: 3, GASTER: 4, HEAD:
 const GLSL_ATTR = /* glsl */`
 attribute float aPart; attribute float aLid; attribute float aW; attribute vec3 aPivot;
 attribute vec4 iA; attribute vec4 iB;
-uniform float uKind; uniform float uTime; uniform vec3 uNeck; uniform vec3 uGaster; uniform float uAmp;
+uniform float uKind; uniform float uTime; uniform vec3 uNeck; uniform vec3 uGaster; uniform float uAmp; uniform float uSwing;
 mat3 rotY(float a){float c=cos(a),s=sin(a);return mat3(c,0.,-s, 0.,1.,0., s,0.,c);}
 mat3 rotZ(float a){float c=cos(a),s=sin(a);return mat3(c,s,0., -s,c,0., 0.,0.,1.);}
 mat3 rotX(float a){float c=cos(a),s=sin(a);return mat3(1.,0.,0., 0.,c,s, 0.,-s,c);}
@@ -24,8 +24,8 @@ if (uKind < 0.5 || uKind > 2.5) {            // ---- hangya / ugróvilla
     float k = floor(lid*0.5); float sd = mod(lid,2.0);
     float grp = mod(k + sd, 2.0);
     float f = ph + grp*3.14159;
-    float swing = sin(f) * 0.55 * mv * uAmp;
-    float lift = max(0.0, cos(f)) * 0.60 * mv * uAmp;
+    float mvc = smoothstep(0.03, 0.2, mv); float swing = sin(f) * uSwing * mvc;
+    float lift = max(0.0, cos(f)) * (0.35 + uSwing * 0.5) * mvc;
     mat3 R = rotY(swing*side*wt) * rotX(-side*lift*wt);
     // állva is finom súlyáthelyezés
     p = rotAbout(R, p, aPivot);
@@ -112,7 +112,7 @@ export function loadCreatureGeometry(url) {
 
 // Egy faj (modell) összes példányát egyetlen InstancedMesh rajzolja.
 export class CreatureBatch {
-  constructor({ geometry, material, extras }, { kind, capacity, color = 0xffffff, castShadow = true, amp = 1 }) {
+  constructor({ geometry, material, extras }, { kind, capacity, color = 0xffffff, castShadow = true, amp = 1, swing = 0.55 }) {
     this.kind = kind; this.capacity = capacity; this.count = 0; this.extras = extras;
     this.height = extras.height || 0.3; this.bounds = extras.bounds;
     const geo = geometry.clone();
@@ -120,7 +120,7 @@ export class CreatureBatch {
     geo.setAttribute('iB', new THREE.InstancedBufferAttribute(new Float32Array(capacity * 4), 4).setUsage(THREE.DynamicDrawUsage));
     this.iA = geo.getAttribute('iA'); this.iB = geo.getAttribute('iB');
     this.uniforms = {
-      uKind: { value: kind }, uTime: { value: 0 }, uAmp: { value: amp },
+      uKind: { value: kind }, uTime: { value: 0 }, uAmp: { value: amp }, uSwing: { value: swing },
       uNeck: { value: new THREE.Vector3(...(extras.headPivot || [0.2, 0.15, 0])) },
       uGaster: { value: new THREE.Vector3(...(extras.gasterPivot || [-0.15, 0.1, 0])) },
     };

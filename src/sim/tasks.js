@@ -602,7 +602,7 @@ function manual(sim, a, dt) {
     }
     placeAnt(sim, a);
     // bejárat: ha ráérünk, belép (E-vel) – vagy ha a bejáratba sétálunk
-    if (n) { const e = n.nodes[0]; const ent = entrancePos(sim); if (ent.k === 'g' && dist(a.x, a.z, e.x, e.z) < 1.3 && (inp.use || inp.fwd > 0)) { if (!(n.plug.active && a.caste !== 'soldier')) { a.loc = 'nest'; a.node = n.entranceId; a.path = null; a.nseg = null; placeInNode(sim, a); a.lookIn = true; } } }
+    if (n) { const e = n.nodes[0]; const ent = entrancePos(sim); if (ent.k === 'g' && dist(a.x, a.z, e.x, e.z) < Math.max(3, e.r + a.len * 0.9) && (inp.use || inp.fwd > 0)) { if (!(n.plug.active && a.caste !== 'soldier')) { a.loc = 'nest'; a.node = n.entranceId; a.path = null; a.nseg = null; placeInNode(sim, a); a.lookIn = true; } } }
     if (n && sp.nest.type === 'tree') { const tb = treeBase(sim); if (dist(a.x, a.z, tb.x, tb.z) < tb.r + 1.2 && inp.fwd > 0) { a.loc = 'limb'; a.limb = 0; a.ls = 0.8; a.lth = Math.atan2(a.z - tb.z, a.x - tb.x); } }
   } else if (a.loc === 'limb') {
     const L = w.limbs[a.limb]; const sstep = spd * dt;

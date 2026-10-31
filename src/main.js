@@ -151,7 +151,7 @@ function placeOrbitCam(dt) {
   const sp = (o.dist * 0.9) * dt; const kx = (G.keys.d ? 1 : 0) - (G.keys.a ? 1 : 0), kz = (G.keys.s ? 1 : 0) - (G.keys.w ? 1 : 0);
   if (kx || kz) { G.follow = false; const sy = Math.sin(o.yaw), cy = Math.cos(o.yaw); o.x += (kx * cy + kz * sy) * sp; o.z += (-kx * sy + kz * cy) * sp; }
   const lim = G.sim.world.half + 10; o.x = Math.max(-lim, Math.min(lim, o.x)); o.z = Math.max(-lim, Math.min(lim, o.z)); o.pitch = Math.max(0.12, Math.min(1.55, o.pitch)); o.dist = Math.max(4, Math.min(260, o.dist));
-  const gy = heightAt(G.sim.world, Math.max(-90, Math.min(90, o.x)), Math.max(-90, Math.min(90, o.z))); o.y += ((G.nestView ? -6 : gy) - o.y) * Math.min(1, dt * 5);
+  const gy = heightAt(G.sim.world, Math.max(-90, Math.min(90, o.x)), Math.max(-90, Math.min(90, o.z))); const under = G.nestView && f && f.loc === 'nest' ? f.y : -6; o.y += ((G.nestView ? under : gy) - o.y) * Math.min(1, dt * 5);
   const cp = Math.cos(o.pitch) * o.dist; G.cam.position.set(o.x + Math.sin(o.yaw) * cp, o.y + Math.sin(o.pitch) * o.dist, o.z + Math.cos(o.yaw) * cp); G.cam.up.set(0, 1, 0); G.cam.lookAt(o.x, o.y, o.z);
   G.cam.near = Math.max(0.05, o.dist * 0.02);
   if (G.cam.position.y < gy + 0.6 && !G.nestView) G.cam.position.y = gy + 0.6;
@@ -208,6 +208,12 @@ function click(cx, cy) {
 }
 // figyelmeztető nyilak a közeli pókokra
 const ind = $('ind'); const arrows = [];
+function updateHome(a) {
+  const el = $('home'); const sim = G.sim; if (!a || a.loc === 'nest' || !sim.nest) { el.style.display = 'none'; return; } const e = sim.nest.nodes[sim.nest.entranceId] || sim.nest.nodes[0]; const gy = e.kind === 'entrance' && e.y !== undefined ? e.y : heightAt(sim.world, e.x, e.z);
+  const d = Math.hypot(e.x - a.x, e.z - a.z); if (d < 8) { el.style.display = 'none'; return; }
+  v3.set(e.x, gy + 1, e.z).project(G.cam); let x = v3.x, y = v3.y; if (v3.z > 1) { x = -x; y = -y; } const on = v3.z <= 1 && Math.abs(x) < 0.9 && Math.abs(y) < 0.85; if (!on) { const m = Math.max(Math.abs(x), Math.abs(y), 1e-3); x *= 0.88 / m; y *= 0.82 / m; }
+  el.style.display = 'block'; el.style.left = ((x * 0.5 + 0.5) * innerWidth) + 'px'; el.style.top = ((-y * 0.5 + 0.5) * innerHeight) + 'px'; el.style.opacity = on ? 0.9 : 0.7;
+}
 function updateArrows(a0) {
   const sim = G.sim; const list = []; if (a0) for (const s of sim.spiders) { if (s.dead || s.state === 'lair') continue; const d = Math.hypot(s.x - a0.x, s.z - a0.z); if (d < 60) list.push([s, d]); }
   while (arrows.length < list.length) { const b = document.createElement('b'); b.textContent = '▲'; ind.appendChild(b); arrows.push(b); }
@@ -229,13 +235,16 @@ function frame(now) {
     sim.advance(dt, G.speed); if (G.fpv && !sim.player.active) exitFpv();
   }
   const ctl = G.fpv ? sim.controlTarget() : null; const under = !!ctl && ctl.loc === 'nest';
-  G.view.update(dt, sim, G.nestView || under);
+  G.view.update(dt, sim, G.nestView || under); if (G.env) G.env.group.visible = !(G.nestView || under);
   { const fx = ctl ? ctl.x : G.orbit.x, fz = ctl ? ctl.z : G.orbit.z; G.view.uniforms.uFocus.value.set(fx, fz, ctl ? 3.5 : Math.min(60, 8 + G.orbit.dist * 0.3)); }
   if (under) { G.scene.background.set(0x120b06); G.scene.fog.color.set(0x120b06); G.scene.fog.near = 8; G.scene.fog.far = 60; G.view.hemi.intensity = 0.05; G.view.sun.intensity = 0; }
+  { const sa = !G.fpv && G.sel && G.sel.kind === 'ant' ? selEntity() : null; if (sa && sa.loc === 'nest' && G.autoNestId !== sa.id) { G.autoNestId = sa.id; if (!G.nestView) toggleNest(); } }
+  if (G.nestView && !under) { G.scene.background.set(0x1c130c); G.scene.fog.color.set(0x1c130c); G.scene.fog.near = 60; G.scene.fog.far = 420; G.view.hemi.intensity = 1.5; G.view.sun.intensity = 0.9; }
   G.layer.update(sim, performance.now() / 1000, G.nestView, G.cam.position, ctl);
   if (G.fpv && ctl) placeFpvCam(ctl, dt); else placeOrbitCam(dt);
+  if (G.fpv) updateHome(ctl); else $('home').style.display = 'none';
   // kijelölés-gyűrű
-  hudT += dt; if (hudT > 0.2) { hudT = 0; if (G.fpv) updateFpvHud(); else updateHud(); const foc = ctl || sim.queen || null; updateArrows(foc); }
+  hudT += dt; if (hudT > 0.2) { hudT = 0; if (G.fpv) { updateFpvHud(); } else updateHud(); const foc = ctl || sim.queen || null; updateArrows(foc); }
   sim.fx.length = 0;
   G.autoT += dt; if (S.auto && G.autoT > 60) { G.autoT = 0; saveGame(false); }
   renderer.render(G.scene, G.cam);
