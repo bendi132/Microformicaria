@@ -194,12 +194,12 @@ canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 let drag = null;
 canvas.addEventListener('mousedown', (e) => {
   if (G.mode !== 'game') return;
-  if (G.fpv && G.topNest) { drag = { x: e.clientX, y: e.clientY, b: e.button, moved: 0, nest: true }; return; }
+  if (G.fpv && G.topNest) { if (e.button === 0) G.sim.input.dig = true; drag = { x: e.clientX, y: e.clientY, b: e.button, moved: 0, nest: true }; return; }
   if (G.fpv) { if (!document.pointerLockElement) { canvas.requestPointerLock(); return; } if (e.button === 0) G.sim.input.act1 = true; if (e.button === 2) G.sim.input.act2 = true; return; }
   drag = { x: e.clientX, y: e.clientY, b: e.button, moved: 0 };
 });
 window.addEventListener('mouseup', (e) => {
-  if (G.fpv && G.topNest) { drag = null; return; }
+  if (G.fpv && G.topNest) { if (e.button === 0 && G.sim) G.sim.input.dig = false; drag = null; return; }
   if (G.fpv) { if (e.button === 2 && G.sim) G.sim.input.act2 = false; return; }
   if (!drag) return; const d = drag; drag = null; if (d.b === 0 && d.moved < 5 && G.mode === 'game') click(e.clientX, e.clientY);
 });

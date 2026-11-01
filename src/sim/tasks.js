@@ -3,7 +3,7 @@
 import { SPECIES, SPIDER, DAY, TASK_HU } from './config.js';
 import { navigate, entrancePos, baseSpeed, damageAnt, killAnt, treeBase } from './ant.js';
 import { steerGround, placeAnt, placeInNode, setNestPath, moveNest } from './motion.js';
-import { node, nodeDepth, digWork, nearestNode, chambers, findPath, neighbors } from './nest.js';
+import { node, nodeDepth, digWork, nearestNode, chambers, findPath, neighbors, addNode, addEdge } from './nest.js';
 import { heightAt, moistureAt, nearestCover, limbPoint, obstaclesAt } from './world.js';
 import { colonyNeeds, workers, queen, layEgg, broodChamber, restChamber, storeCap, chamberQuality } from './colony.js';
 import { killIsopod } from './isopod.js';
@@ -603,14 +603,14 @@ function manual(sim, a, dt) {
     }
     placeAnt(sim, a);
     // bejárat: ha ráérünk, belép (E-vel) – vagy ha a bejáratba sétálunk
-    if (n) { const e = n.nodes[0]; const ent = entrancePos(sim); if (ent.k === 'g' && dist(a.x, a.z, e.x, e.z) < Math.max(3, e.r + a.len * 0.9) && (inp.use || inp.fwd > 0)) { if (!(n.plug.active && a.caste !== 'soldier')) { a.loc = 'nest'; a.node = n.entranceId; a.path = null; a.nseg = null; placeInNode(sim, a); a.lookIn = true; } } }
+    if (n) { const e = n.nodes[0]; const ent = entrancePos(sim); if (ent.k === 'g' && dist(a.x, a.z, e.x, e.z) < Math.max(3, e.r + a.len * 0.9) && sim.t > (a.noEnterUntil || 0) && (inp.use || inp.fwd > 0)) { if (!(n.plug.active && a.caste !== 'soldier')) { a.loc = 'nest'; a.node = n.entranceId; a.path = null; a.nseg = null; placeInNode(sim, a); a.lookIn = true; } } }
     if (n && sp.nest.type === 'tree') { const tb = treeBase(sim); if (dist(a.x, a.z, tb.x, tb.z) < tb.r + 1.2 && inp.fwd > 0) { a.loc = 'limb'; a.limb = 0; a.ls = 0.8; a.lth = Math.atan2(a.z - tb.z, a.x - tb.x); } }
   } else if (a.loc === 'limb') {
     const L = w.limbs[a.limb]; const sstep = spd * dt;
     if (mag > 0.01) { a.ls += (-Math.cos(0) * 0 + inp.fwd) * sstep * 0.9; a.lth += (inp.strafe * sstep * 0.9) / L.r; a.moved = sstep * Math.min(1, mag); }
     if (a.ls < 0) { if (a.limb === 0) { const tb = treeBase(sim); a.loc = 'ground'; a.x = tb.x + Math.cos(a.lth) * (tb.r + 1.8); a.z = tb.z + Math.sin(a.lth) * (tb.r + 1.8); a.ls = 0; } else { const P = w.limbs[L.parent]; const old = a.limb; a.limb = L.parent; a.ls = L.sP; a.lth = L.thP; } }
     else if (a.ls > L.len) a.ls = L.len; else for (const C of w.limbs) if (C.parent === a.limb && Math.abs(a.ls - C.sP) < 1.2 && Math.abs(angDiff(a.lth, C.thP)) < 0.4 && inp.use) { a.limb = C.id; a.ls = 0.8; a.lth = C.thP; }
-    if (n && n.site.kind === 'cavity') { const cav = w.cavities[n.site.cavityId]; if (a.limb === cav.limb && Math.hypot(a.ls - cav.s, angDiff(a.lth, cav.th) * L.r) < Math.max(3, cav.entrance * 1.1 + a.len * 0.5) && (inp.use || inp.fwd > 0) && !(n.plug.active && a.caste !== 'soldier')) { a.loc = 'nest'; a.node = n.entranceId; a.path = null; a.nseg = null; placeInNode(sim, a); } }
+    if (n && n.site.kind === 'cavity') { const cav = w.cavities[n.site.cavityId]; if (a.limb === cav.limb && Math.hypot(a.ls - cav.s, angDiff(a.lth, cav.th) * L.r) < Math.max(3, cav.entrance * 1.1 + a.len * 0.5) && sim.t > (a.noEnterUntil || 0) && (inp.use || inp.fwd > 0) && !(n.plug.active && a.caste !== 'soldier')) { a.loc = 'nest'; a.node = n.entranceId; a.path = null; a.nseg = null; placeInNode(sim, a); } }
     if (a.loc === 'limb') placeAnt(sim, a);
   } else if (a.loc === 'nest') {
     manualNest(sim, a, dt, spd);
@@ -642,27 +642,50 @@ function manual(sim, a, dt) {
   if (inp.drop && a.carry) { inp.drop = false; if (a.loc === 'nest') deposit(sim, a); else a.carry = null; }
   a.anim.mv = a.moved > 0.0001 ? 1 : 0;
 }
+function exitToSurface(sim, a) {
+  const n = sim.nest; const ep = entrancePos(sim);
+  if (a.carry && a.carry.kind === 'soil') { sim.world.pellets = sim.world.pellets || []; sim.world.pellets.push({ x: ep.x + sim.rng.range(-1.5, 1.5), z: ep.z + sim.rng.range(-1.5, 1.5), s: sim.rng.range(0.25, 0.5) }); if (sim.world.pellets.length > 260) sim.world.pellets.shift(); a.carry = null; }   // a kitermelt földet a bejáratnál kiviszi
+  a.anim.act = 0; a.nseg = null; a.noEnterUntil = sim.t + 1.6; if (ep.k === 'l') { a.loc = 'limb'; a.limb = ep.limb; a.ls = ep.s; a.lth = ep.th; } else { a.loc = 'ground'; a.x = ep.x; a.z = ep.z; } placeAnt(sim, a);
+}
+// A játékos fúrása: a járat zsákutcás végén (LMB nyomva tartva) a hangya előre ás; a kitermelt föld a bejáratnál kerül ki.
+function playerDig(sim, a, dt, nd) {
+  const sp = S(sim), n = sim.nest, inp = sim.input; if (sp.nest.type !== 'soil' || nd.kind === 'entrance') return false;
+  const deg = n.edges.filter((e) => (e.a === nd.id || e.b === nd.id)).length; if (deg !== 1 && nd.kind !== 'chamber') return false;
+  if (n.nodes.length > 90) return false;
+  a.anim.mv = 0; a.anim.act = 3; a.anim.open = 0.4 + 0.4 * Math.abs(Math.sin(sim.t * 7)); a.anim.curl = 0.2;
+  const rate = sp.nest.digRate * (a.caste === 'queen' ? 0.8 : 1) * dt * 2.2; a.digP = (a.digP || 0) + rate; a.load = (a.load || 0) + rate;
+  if (a.load > 5.5 && !a.carry) { a.carry = { kind: 'soil' }; a.load = 0; }
+  if (a.digP >= 3.84) {
+    a.digP = 0; const step = 2.4; const ny = clamp(nd.y - 0.15, -22, heightAt(sim.world, nd.x, nd.z) - 1.5), nx = clamp(nd.x + Math.sin(a.yaw) * step, -sim.world.half + 4, sim.world.half - 4), nz = clamp(nd.z + Math.cos(a.yaw) * step, -sim.world.half + 4, sim.world.half - 4);
+    const nn = addNode(n, { x: nx, y: ny, z: nz, r: sp.nest.tunnelW * 0.5, kind: 'tunnel' }); addEdge(n, nd.id, nn.id, sp.nest.tunnelW); a.node = nn.id; placeInNode(sim, a); sim.nestDirty = true;
+  }
+  return true;
+}
 function manualNest(sim, a, dt, spd) {
   const n = sim.nest, inp = sim.input;
   const nd = node(n, a.node); if (!nd) return;
+  if (a.anim.act === 3 && !inp.dig) a.anim.act = 0;
   if (!a.nseg) {
     a.moved = 0; placeInNode(sim, a);
+    if (inp.dig && playerDig(sim, a, dt, nd)) return;
     if (Math.abs(inp.fwd) > 0.2) {
-      const fx = Math.sin(a.yaw), fz = Math.cos(a.yaw); let best = null, bd = -2;
-      for (const nb of neighbors(n, a.node)) { if (nb.e.collapsed) continue; const m = node(n, nb.id); if (!m || m.ready === false) continue; let dx = m.x - nd.x, dz = m.z - nd.z; const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l; const dot = (dx * fx + dz * fz) * Math.sign(inp.fwd); if (dot > bd) { bd = dot; best = m; } }
-      if (best && bd > -0.2) { a.nseg = { from: a.node, to: best.id, t: 0 }; }
-      else if (a.node === n.entranceId && inp.use && !(n.plug.active && a.caste !== 'soldier')) {   // kilépés a felszínre: E a bejáratnál
-        const ep = entrancePos(sim); if (ep.k === 'l') { a.loc = 'limb'; a.limb = ep.limb; a.ls = ep.s; a.lth = ep.th; } else { a.loc = 'ground'; a.x = ep.x; a.z = ep.z; } a.nseg = null; placeAnt(sim, a);
-      }
+      const fx = Math.sin(a.yaw), fz = Math.cos(a.yaw); let best = null, bd = -2, bshaft = false;
+      for (const nb of neighbors(n, a.node)) { if (nb.e.collapsed) continue; const m = node(n, nb.id); if (!m || m.ready === false) continue; let dx = m.x - nd.x, dz = m.z - nd.z; const h = Math.hypot(dx, dz); const l = h || 1; dx /= l; dz /= l; const shaft = h < 2.5; const dot = (dx * fx + dz * fz) * Math.sign(inp.fwd); const sc = shaft ? Math.max(dot, -0.45) + 0.3 : dot; if (sc > bd) { bd = sc; best = m; bshaft = shaft; } }
+      // függőleges aknák (vízszintes eltérés < 2,5 mm) szinte bármely irányból bejárhatók; a bejáratnál a "visszafelé" irány kilép a felszínre
+      const okay = best && (bshaft ? bd > -0.1 + 0.0 : bd > -0.2);
+      if (okay && !(a.node === n.entranceId && bshaft && bd < 0.05)) { a.nseg = { from: a.node, to: best.id, t: 0 }; }
+      else if (a.node === n.entranceId && !(n.plug.active && a.caste !== 'soldier')) exitToSurface(sim, a);   // természetes kijövetel a bejáratnál
     }
+    if (a.node === n.entranceId && inp.use && !(n.plug.active && a.caste !== 'soldier') && !a.nseg) exitToSurface(sim, a);
     return;
   }
   const A = node(n, a.nseg.from), B = node(n, a.nseg.to); const L = Math.max(0.5, Math.hypot(B.x - A.x, B.y - A.y, B.z - A.z));
+  if (inp.dig && a.nseg.t > 0.98 && playerDig(sim, a, dt, B)) { return; }
   a.nseg.t += (inp.fwd * spd * 0.75 * dt) / L; a.moved = Math.abs(inp.fwd) * spd * 0.75 * dt;
   const t = clamp(a.nseg.t, 0, 1); a.x = A.x + (B.x - A.x) * t; a.y = A.y + (B.y - A.y) * t - 0.4; a.z = A.z + (B.z - A.z) * t;
-  const tgtYaw = Math.atan2(B.x - A.x, B.z - A.z); a.yaw = turnToward(a.yaw, tgtYaw + (a.nseg.t < 0 ? Math.PI : 0), dt * 3); a.pitch = Math.atan2(B.y - A.y, Math.hypot(B.x - A.x, B.z - A.z)) * -1;
+  const tgtYaw = Math.atan2(B.x - A.x, B.z - A.z); a.yaw = turnToward(a.yaw, tgtYaw + (inp.fwd < 0 ? Math.PI : 0), dt * 5); a.pitch = Math.atan2(B.y - A.y, Math.hypot(B.x - A.x, B.z - A.z)) * -1;   // a hangya a haladás irányába néz (nem hátrafelé megy)
   if (a.nseg.t >= 1) { a.node = B.id; a.nseg = null; placeInNode(sim, a); }
-  else if (a.nseg.t <= 0) { a.nseg = null; placeInNode(sim, a); }
+  else if (a.nseg.t <= 0) { const from = a.nseg.from; a.nseg = null; placeInNode(sim, a); if (from === n.entranceId && inp.fwd < 0 && !(n.plug.active && a.caste !== 'soldier')) exitToSurface(sim, a); }
 }
 function nearbyUse(sim, a) {
   const w = sim.world; let best = null, bd = 3.4;

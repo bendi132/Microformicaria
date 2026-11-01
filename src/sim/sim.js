@@ -169,4 +169,4 @@ export class Sim {
     return s;
   }
 }
-export function freshInput() { return { fwd: 0, strafe: 0, yawD: 0, pitchD: 0, sprint: false, act1: false, act2: false, use: false, useHold: false, jump: false, drop: false }; }
+export function freshInput() { return { fwd: 0, strafe: 0, yawD: 0, pitchD: 0, sprint: false, act1: false, act2: false, use: false, useHold: false, jump: false, drop: false, dig: false }; }
