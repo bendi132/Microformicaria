@@ -44,6 +44,7 @@ export class CreatureLayer {
     const soil = soilTextures(256); this.nestTex = soil.map; this.woodTex = rottenWoodTextures(256).map; for (const t of [this.nestTex, this.woodTex]) if (t) t.wrapS = t.wrapT = THREE.RepeatWrapping;
     this.silk = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 16, 12), new THREE.MeshStandardMaterial({ roughness: 0.9, color: 0xf2f0e6 }), 24); this.silk.count = 0; this.silk.castShadow = true; this.group.add(this.silk);
     this.carryMesh = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 14, 10), new THREE.MeshStandardMaterial({ roughness: 0.4, color: 0xffffff }), 300); this.carryMesh.count = 0; this.carryMesh.castShadow = true; this.group.add(this.carryMesh);
+    this.crumbs = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 0), new THREE.MeshStandardMaterial({ roughness: 1, color: 0xffffff, emissive: 0x2a1a0c, emissiveIntensity: 0.5 }), 240); this.crumbs.count = 0; this.crumbs.frustumCulled = false; this.group.add(this.crumbs);
     this.headLight = new THREE.PointLight(0xffd9a0, 0, 40, 1.6); this.group.add(this.headLight);
     this.nestMats = {}; this.loaded = true; this.M = new THREE.Matrix4(); this.Q = new THREE.Quaternion(); this.S = new THREE.Vector3(); this.C = new THREE.Color();
   }
@@ -84,6 +85,14 @@ export class CreatureLayer {
       }
     }
     antB.end(time);
+    // ---- fúrás közben szálló földmorzsák (a fúró hangya feje előtt indul, hátrafelé hullik)
+    { let cn = 0; const cr = this.crumbs; cr.visible = !!nestView || !!(controlled && controlled.loc === 'nest');
+      if (cr.visible) for (const a of sim.ants) {
+        if (a.dead || a.loc !== 'nest' || a.task !== 'dig' || a.st !== 'work') continue; const sx = Math.sin(a.yaw), sz = Math.cos(a.yaw);
+        for (let i = 0; i < 6 && cn < 240; i++) { const ph = (time * 1.7 + i / 6 + a.id * 0.37) % 1, s = 0.12 + 0.1 * ((i * 7 + a.id) % 5) / 5, d = a.len * (0.5 + ph * 0.9), lat = (((i * 13 + a.id) % 7) - 3) * a.len * 0.05 * ph, h = a.len * (0.1 + 4 * ph * (1 - ph) * 0.55);
+          this.inst(cr, cn, a.x - sx * (d - a.len) * 0 + sx * a.len * 0.45 - sx * d * 0.0 - sx * (ph * a.len * 1.2) + sz * lat, a.y + a.len * 0.2 + h, a.z + sz * a.len * 0.45 - sz * (ph * a.len * 1.2) - sx * lat, s, s, s, i % 2 ? 0x8a6a48 : 0x6e5438); cn++; }
+      }
+      cr.count = cn; cr.instanceMatrix.needsUpdate = true; if (cr.instanceColor) cr.instanceColor.needsUpdate = true; }
     // ---- ászkák
     for (const p of sim.isopods) {
       if (p.state === 'hidden' && !p.dead) continue; const y = heightAt(w, p.x, p.z); this.groundUp(w, p.x, p.z, up);
@@ -121,7 +130,7 @@ export class CreatureLayer {
     const showB = nestView || !!(controlled && controlled.loc === 'nest'); const cnt = [0, 0, 0]; const [mE, mL, mP] = this.broodMeshes; for (const m of this.broodMeshes) m.visible = showB;
     if (showB && sim.nest) for (const b of sim.brood) {
       if (b.carried) continue; const nd = node(sim.nest, b.node); if (!nd) continue;
-      const rr = Math.max(0.6, nd.r), kz = nd.kind === 'chamber' ? 0.58 : 1; const x = nd.x + b.ox * Math.max(0, rr - 1.4) * 0.72, z = nd.z + b.oz * Math.max(0, rr - 1.4) * 0.72; const dd = Math.min(0.98, Math.hypot(x - nd.x, z - nd.z) / rr), y = nd.y - rr * kz * Math.sqrt(1 - dd * dd) + 0.04; const wob = Math.sin(time * 1.6 + b.ox * 40);   // y: a kamra aljának tényleges magassága ott, ahol a fiasítás fekszik const wob = Math.sin(time * 1.6 + b.ox * 40) ;
+      const rr = Math.max(0.6, nd.r), kz = nd.kind === 'chamber' ? 0.55 : 0.95; const x = nd.x + b.ox * Math.max(0, rr - 1.4) * 0.72, z = nd.z + b.oz * Math.max(0, rr - 1.4) * 0.72; const dd = Math.min(0.98, Math.hypot(x - nd.x, z - nd.z) / rr), y = nd.y - rr * kz * Math.sqrt(1 - dd * dd) + 0.04; const wob = Math.sin(time * 1.6 + b.ox * 40);   // y: a kamra aljának tényleges magassága ott, ahol a fiasítás fekszik const wob = Math.sin(time * 1.6 + b.ox * 40) ;
       const wsz = this.sp.size.worker || 4; let mesh, k, sc, col;
       if (b.stage === 'egg') { mesh = mE; k = 0; sc = 0.62; col = 0xf6f2e4; }
       else if (b.stage === 'larva') { mesh = mL; k = 1; sc = (1.1 + b.prog * 1.7) * (1 + wob * 0.025); col = b.fed < 0.3 ? 0xc9c3b3 : 0xf1e8cf; }
@@ -133,48 +142,43 @@ export class CreatureLayer {
     if (controlled && controlled.loc === 'nest') { this.headLight.intensity = 450; this.headLight.position.set(controlled.x, controlled.y + controlled.len * 0.9, controlled.z); } else this.headLight.intensity = 0;
     this.updateNest(sim, nestView || (controlled && controlled.loc === 'nest'));
   }
-  // ---- fészek: járatok és kamrák (metszet)
+  // ---- fészek: járatok és kamrák (metszet). Egyetlen, zárt, simított hálóban: félcső-járatok + félellipszoid-kamrák,
+  // a pereme felé sötétedő csúcsszínnel (olcsó környezeti takarás), hogy tiszta, hibátlan, "hangyafarm" jellegű kép legyen.
   updateNest(sim, visible) {
     const n = sim.nest; this.nestGroup.visible = !!(visible && n); if (!n) return;
     let sig = n.nodes.length + '/' + n.edges.length; for (const nd of n.nodes) sig += (nd.kind === 'chamber' ? Math.round(nd.r * 4) : '') + (nd.role || '') + (nd.ready === false ? 'x' : '') + (nd.flood > 0 ? 'f' : '');
     for (const e of n.edges) if (e.collapsed) sig += 'c';
     if (sig === this.nestSig) return; this.nestSig = sig;
-    while (this.nestGroup.children.length) { const c = this.nestGroup.children.pop(); c.geometry && c.geometry.dispose(); }
-    const wood = n.site.kind === 'cavity';
-    const soilCol = wood ? 0x8a6234 : 0x6b4a2e, wallCol = wood ? 0x5a3c1e : 0x4a3220;
-    // egy összefüggő csőhálózat: minden járat egy sima cső, a csomópontoknál gömbbel zárva
-    const tubes = [], balls = [], floods = [];
-    const up = new THREE.Vector3(0, 1, 0);
+    while (this.nestGroup.children.length) { const o = this.nestGroup.children.pop(); o.geometry && o.geometry.dispose(); }
+    const wood = n.site.kind === 'cavity'; const P = [], C = [], UV = [], IDX = [];
+    const vn = (x, y, z) => Math.sin(x * 1.9 + Math.sin(y * 2.3 + z * 1.1)) * 0.5 + Math.sin(y * 2.7 + Math.sin(z * 1.7 + x * 2.1)) * 0.3 + Math.sin(z * 2.1 + x * 1.3 + y * 0.7) * 0.2;   // -1..1
+    const floorCol = (nd) => new THREE.Color(nd.flood > 0 ? 0x6aa0d0 : wood ? (nd.kind === 'chamber' ? 0xc9a070 : 0xb08a58) : (ROLE_COL[nd.role] ?? (nd.kind === 'chamber' ? ROLE_COL.null : 0x9a7a54)));
+    const rimCol = new THREE.Color(wood ? 0x3a2412 : 0x2b1c10); const tmpC = new THREE.Color();
+    const push = (x, y, z, k, base) => { P.push(x, y, z); UV.push(x * 0.16, z * 0.16); tmpC.copy(rimCol).lerp(base, Math.min(1, Math.max(0, k))); C.push(tmpC.r, tmpC.g, tmpC.b); return P.length / 3 - 1; };
+    const grid = (rows, cols, vtx, wrap) => { const b = P.length / 3; for (let i = 0; i < rows; i++) for (let j = 0; j < cols; j++) vtx(i, j); for (let i = 0; i < rows - 1; i++) for (let j = 0; j < cols - 1 + (wrap ? 1 : 0); j++) { const j2 = (j + 1) % cols; const a0 = b + i * cols + j, a1 = b + i * cols + j2, a2 = b + (i + 1) * cols + j, a3 = b + (i + 1) * cols + j2; IDX.push(a0, a2, a1, a1, a2, a3); } };
+    // kamra / csomópont: alsó fél ellipszoid, szabálytalan peremmel (a sima, kétszomszédos járatcsomópontokat a cső fedi, azokat kihagyjuk)
+    const deg = new Map(); for (const e of n.edges) { deg.set(e.a, (deg.get(e.a) || 0) + 1); deg.set(e.b, (deg.get(e.b) || 0) + 1); }
+    const tunnelCol = floorCol({ kind: 'tunnel' });
+    for (const nd of n.nodes) {
+      if (nd.ready === false && nd.kind !== 'chamber') continue; if (nd.kind !== 'chamber' && (deg.get(nd.id) || 0) === 2) continue; const chamber = nd.kind === 'chamber'; const r = Math.max(0.7, nd.r), ky = chamber ? 0.55 : 0.95; const base = nd.kind === 'chamber' ? floorCol(nd) : (nd.flood > 0 ? floorCol(nd) : tunnelCol); const R = 7, S = 28;
+      grid(R, S, (i, j) => { const al = (i / (R - 1)) * (Math.PI / 2), be = (j / S) * Math.PI * 2; const wob = 1 + (chamber ? 0.11 : 0.05) * vn(nd.x + Math.cos(be) * 2, nd.id * 1.7, nd.z + Math.sin(be) * 2) + 0.04 * vn(nd.x * 3 + be, al, nd.z);
+        const hr = r * Math.cos(al) * wob, dp = -ky * r * Math.sin(al) * (1 + 0.06 * vn(nd.x + be, nd.y, nd.z + al)); push(nd.x + Math.cos(be) * hr, nd.y + dp, nd.z + Math.sin(be) * hr, Math.sin(al) * 1.1 + 0.4, base); }, true);
+    }
+    // járatok: alsó fél cső (felül nyitott), a csomópontokhoz simulva
+    const Yv = new THREE.Vector3(0, 1, 0);
     for (const e of n.edges) {
       const A = node(n, e.a), B = node(n, e.b); if (!A || !B) continue; if (A.ready === false && B.ready === false) continue;
-      const pa = new THREE.Vector3(A.x, A.y, A.z), pb = new THREE.Vector3(B.x, B.y, B.z); const L = pa.distanceTo(pb); if (L < 0.05) continue;
-      const rr = Math.max(0.55, e.w * 0.5);
-      const mid = pa.clone().add(pb).multiplyScalar(0.5); const dir = pb.clone().sub(pa).normalize(); mid.addScaledVector(new THREE.Vector3(-dir.z, 0, dir.x), 0.0);
-      const curve = new THREE.LineCurve3(pa, pb);
-      const g = new THREE.TubeGeometry(curve, 2, rr, 12, false);
-      (e.collapsed ? floods : tubes).push(g);
+      const d = new THREE.Vector3(B.x - A.x, B.y - A.y, B.z - A.z); const L = d.length(); if (L < 0.01) continue; d.normalize();
+      const U = Yv.clone().addScaledVector(d, -d.dot(Yv)); if (U.lengthSq() < 1e-4) U.set(0, 0, 1); U.normalize(); const Sd = new THREE.Vector3().crossVectors(d, U).normalize();
+      const rr = Math.max(0.55, e.w * 0.5); const base = e.collapsed ? new THREE.Color(0xa04a34) : tunnelCol; const R = Math.max(2, Math.ceil(L / 0.7)), S = 15;
+      grid(R, S, (i, j) => { const t = i / (R - 1), th = (j / (S - 1)) * Math.PI; const cx = A.x + d.x * L * t, cy = A.y + d.y * L * t, cz = A.z + d.z * L * t; const wob = 1 + 0.04 * vn(cx * 0.9, cy * 0.9, cz * 0.9);
+        const px = cx + (Math.cos(th) * Sd.x - Math.sin(th) * U.x) * rr * wob, py = cy + (Math.cos(th) * Sd.y - Math.sin(th) * U.y) * rr * wob, pz = cz + (Math.cos(th) * Sd.z - Math.sin(th) * U.z) * rr * wob; push(px, py, pz, Math.sin(th) * 1.0 + 0.45, base); }, false);
     }
-    for (const nd of n.nodes) {
-      if (nd.ready === false && nd.kind !== 'chamber') continue;
-      const chamber = nd.kind === 'chamber'; const r = Math.max(0.6, nd.r);
-      const g = new THREE.SphereGeometry(1, 20, 14); g.scale(r, chamber ? r * 0.62 : r, r); g.translate(nd.x, nd.y, nd.z);
-      (nd.flood > 0 ? floods : balls).push(g);
-    }
-    const build = (list, color, emissive) => {
-      if (!list.length) return null; const geo = mergeGeometries(list.map((g) => g.index ? g.toNonIndexed() : g)); list.forEach((g) => g.dispose());
-      geo.computeVertexNormals(); const col = new THREE.Color(color), vals = [];
-      const pos = geo.attributes.position; const cc = new Float32Array(pos.count * 3);
-      for (let i = 0; i < pos.count; i++) { const v = 0.8 + 0.2 * Math.sin(pos.getX(i) * 9.1 + pos.getZ(i) * 7.3 + pos.getY(i) * 5.7); cc[i * 3] = col.r * v; cc[i * 3 + 1] = col.g * v; cc[i * 3 + 2] = col.b * v; }
-      geo.setAttribute('color', new THREE.BufferAttribute(cc, 3));
-      const m = new THREE.Mesh(geo, this.nestMat(wood, emissive)); m.receiveShadow = true; return m;
-    };
-    const tubeM = build(tubes, wallCol, 0x120a04); if (tubeM) this.nestGroup.add(tubeM);
-    const ballM = build(balls, soilCol, 0x120a04); if (ballM) this.nestGroup.add(ballM);
-    const floodM = build(floods, 0x3f6f9c, 0x06101a); if (floodM) this.nestGroup.add(floodM);
-    // kamrák szerepe: a fiasítás/raktár kamra színe gyenge fényfolt a falon
-    for (const nd of n.nodes) if (nd.kind === 'chamber' && nd.role && ROLE_COL[nd.role]) { const m = new THREE.Mesh(new THREE.SphereGeometry(Math.max(0.6, nd.r) * 0.98, 12, 8), new THREE.MeshBasicMaterial({ color: ROLE_COL[nd.role], transparent: true, opacity: 0.08, depthWrite: false, side: THREE.BackSide })); m.position.set(nd.x, nd.y, nd.z); m.scale.y = 0.62; this.nestGroup.add(m); }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(C, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(UV, 2)); g.setIndex(IDX); g.computeVertexNormals();
+    if (!this.caveMat) this.caveMat = {}; const key = wood ? 'w' : 's';
+    if (!this.caveMat[key]) { const tx = wood ? this.woodTex : this.nestTex; if (tx) tx.repeat.set(1, 1); this.caveMat[key] = new THREE.MeshStandardMaterial({ vertexColors: true, map: tx || null, roughness: 1, side: THREE.DoubleSide, emissive: 0x5a3a1c, emissiveIntensity: 0.9 }); }
+    const mesh = new THREE.Mesh(g, this.caveMat[key]); mesh.frustumCulled = false; this.nestGroup.add(mesh);
+    // a bejárat fénye: innen jön be a "felszín" (iránymutató)
+    const en = node(n, n.entranceId); if (en) { const gl = new THREE.Mesh(new THREE.CircleGeometry(Math.max(0.9, en.r * 1.5), 24), new THREE.MeshBasicMaterial({ color: 0xfff0c8, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false })); gl.rotation.x = -Math.PI / 2; gl.position.set(en.x, en.y + 0.15, en.z); this.nestGroup.add(gl); }
   }
-  nestMat(wood, emissive) {
-    const k = (wood ? 'w' : 's') + emissive; if (!this.nestMats[k]) this.nestMats[k] = new THREE.MeshStandardMaterial({ vertexColors: true, map: (wood ? this.woodTex : this.nestTex) || null, emissive, emissiveIntensity: 1, roughness: 0.95, side: THREE.DoubleSide, transparent: false });
-    return this.nestMats[k];
-  }}
+}

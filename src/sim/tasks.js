@@ -418,13 +418,14 @@ function nurse(sim, a, dt) {
 // ---------------------------------------------------------------- ásás és javítás
 function dig(sim, a, dt) {
   const sp = S(sim), n = sim.nest; if (!n) return setTask(a, 'idle');
-  const job = n.jobs.find((j) => j.active); if (!job) { setTask(a, 'idle'); return; }
+  const job = n.jobs.find((j) => j.active); if (!job) { a.anim.act = 0; setTask(a, 'idle'); return; }
+  if (a.st !== 'work' && a.anim.act === 3) a.anim.act = 0;
   if (a.st === '' || a.st === 'go') {
     const r = navigate(sim, a, { k: 'n', node: job.cur }, 1, dt);
     if (a.loc === 'nest' && a.node === job.cur && !a.path) { a.st = 'work'; a.load = 0; }
     else if (r === 'blocked') { a.st = ''; setTask(a, 'idle'); }
   } else if (a.st === 'work') {
-    a.anim.mv = 0; a.anim.open = 0.4 + 0.4 * Math.abs(Math.sin(sim.t * 7)); a.anim.curl = 0.2;
+    a.anim.mv = 0; a.anim.act = 3; a.anim.open = 0.4 + 0.4 * Math.abs(Math.sin(sim.t * 7)); a.anim.curl = 0.2;
     const rate = sp.nest.digRate * (a.caste === 'queen' ? 0.8 : 1) * 1.0;
     const face = node(n, job.cur); if (!face) { a.st = ''; return; }
     const changed = digWork(n, sp, sim.world, job, rate * dt * 2.2); a.load += rate * dt * 2.2;
@@ -650,7 +651,7 @@ function manualNest(sim, a, dt, spd) {
       const fx = Math.sin(a.yaw), fz = Math.cos(a.yaw); let best = null, bd = -2;
       for (const nb of neighbors(n, a.node)) { if (nb.e.collapsed) continue; const m = node(n, nb.id); if (!m || m.ready === false) continue; let dx = m.x - nd.x, dz = m.z - nd.z; const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l; const dot = (dx * fx + dz * fz) * Math.sign(inp.fwd); if (dot > bd) { bd = dot; best = m; } }
       if (best && bd > -0.2) { a.nseg = { from: a.node, to: best.id, t: 0 }; }
-      else if (a.node === n.entranceId && inp.fwd > 0 && !(n.plug.active && a.caste !== 'soldier')) {
+      else if (a.node === n.entranceId && inp.use && !(n.plug.active && a.caste !== 'soldier')) {   // kilépés a felszínre: E a bejáratnál
         const ep = entrancePos(sim); if (ep.k === 'l') { a.loc = 'limb'; a.limb = ep.limb; a.ls = ep.s; a.lth = ep.th; } else { a.loc = 'ground'; a.x = ep.x; a.z = ep.z; } a.nseg = null; placeAnt(sim, a);
       }
     }

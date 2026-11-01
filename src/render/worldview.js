@@ -226,13 +226,8 @@ export class WorldView {
     this.moistT += dt; if (this.moistT > 4) { this.moistT = 0; this.updateMoistureColors(); }
     this.dynT += dt; if (this.dynT > 0.25) { this.dynT = 0; this.updateDynamic(sim); }
     this.ensureEntrance(sim); this.updateLighting(sim.env); this.updateRain(dt, sim.env.rain || 0);
-    if (this._nv !== nestView) { this._nv = nestView; const keep = new Set([this.terrain, this.entrance, this.farGround, ...(this.limbMeshes || [])]); for (const c of this.group.children) if (!keep.has(c) && c.userData.nestKeep !== true) c.visible = !nestView; }   // metszetnézetben a felszíni rendetlenség (fű, avar, kövek) nem takarja a fészket
-    this.farGround.visible = !nestView;   // a messzi talajlap (y=-1,2) eltakarná a föld alatti fészket
-    // metszetnézet: a talaj áttetsző, hogy a járatok látszódjanak
-    // metszetnézet: vágósík a talaj fölött, így a járatok és a kamrák szabadon látszanak (nem áttetsző talaj)
-    const mat = this.terrainMat; mat.opacity = 1; mat.transparent = false; mat.depthWrite = true;
-    if (nestView && sim.nest) { const e = sim.nest.nodes[0]; const top = e ? e.y + 0.6 : 0; if (!this._clip) this._clip = new THREE.Plane(new THREE.Vector3(0, -1, 0), top); this._clip.constant = top; mat.clippingPlanes = [this._clip]; }
-    else mat.clippingPlanes = null;
-    if (this.barkMat) { if (nestView) { this.barkMat.clippingPlanes = this._clip ? [this._clip] : null; } else this.barkMat.clippingPlanes = null; }
+    // metszetnézet: a talaj és a felszíni rendetlenség (fű, avar, kövek) eltűnik, a háttér a "föld keresztmetszete"; a fa kérge áttetsző
+    if (this._nv !== nestView) { this._nv = nestView; const keep = new Set([this.terrain, this.farGround, ...(this.limbMeshes || [])]); for (const c of this.group.children) if (!keep.has(c)) c.visible = !nestView; this.farGround.visible = !nestView; this.terrain.visible = !nestView; }
+    if (this.barkMat) { const bt = nestView ? 0.16 : 1; this.barkMat.opacity += (bt - this.barkMat.opacity) * Math.min(1, dt * 6); this.barkMat.transparent = this.barkMat.opacity < 0.99; this.barkMat.depthWrite = !this.barkMat.transparent; this.barkMat.clippingPlanes = null; }
   }
 }

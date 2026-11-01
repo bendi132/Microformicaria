@@ -17,6 +17,7 @@ vec3 rotAbout(mat3 R, vec3 p, vec3 pv){return pv + R*(p-pv);}
 `;
 const GLSL_DEFORM = /* glsl */`
 vec3 p = position; float part = aPart; float mv = iA.y; float ph = iA.x; float lid = aLid;
+float dig = (iA.z > 2.5 && iA.z < 3.5) ? 1.0 : 0.0;    // act = 3: földet fúr
 float side = aPivot.z >= 0.0 ? 1.0 : -1.0;       // +Z = bal oldal
 float wt = smoothstep(0.0, 0.85, aW);
 if (uKind < 0.5 || uKind > 2.5) {            // ---- hangya / ugróvilla
@@ -25,7 +26,8 @@ if (uKind < 0.5 || uKind > 2.5) {            // ---- hangya / ugróvilla
     float grp = mod(k + sd, 2.0);
     float f = ph + grp*3.14159;
     float mvc = smoothstep(0.03, 0.2, mv); float swing = sin(f) * uSwing * mvc;
-    float lift = max(0.0, cos(f)) * (0.35 + uSwing * 0.5) * mvc;
+    if (dig > 0.5 && k < 0.5) { float fd = uTime * 13.0 + sd * 3.14159; swing = sin(fd) * 0.55; }     // fúrás: az első láb kaparja a földet
+    float lift = max(0.0, cos(f)) * (0.35 + uSwing * 0.5) * mvc; if (dig > 0.5 && k < 0.5) lift = max(0.0, cos(uTime * 13.0 + sd * 3.14159)) * 0.5;
     mat3 R = rotY(swing*side*wt) * rotX(-side*lift*wt);
     // állva is finom súlyáthelyezés
     p = rotAbout(R, p, aPivot);
@@ -46,7 +48,7 @@ if (uKind < 0.5 || uKind > 2.5) {            // ---- hangya / ugróvilla
     p = rotAbout(rotZ(-iB.z*1.5*wt), p, aPivot);
   }
   if (part > 1.5 && part < 3.5 || (part > 4.5 && part < 5.5)) {    // fej-csoport: fejforgatás a nyakon át
-    p = rotAbout(rotY(iB.x)*rotZ(-0.12*iB.w), p, uNeck);
+    p = rotAbout(rotY(iB.x)*rotZ(-0.12*iB.w - dig*(0.45 + 0.2*sin(uTime*9.0))), p, uNeck);   // fúrás: a fej lefelé, ütemesen
   }
   p.y += abs(sin(ph))*0.012*mv*uAmp;               // járás közbeni finom emelkedés
   p.z += sin(ph)*0.006*mv;

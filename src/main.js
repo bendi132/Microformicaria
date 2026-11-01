@@ -134,8 +134,8 @@ function enterFpv() {
   const en = selEntity(); if (!en || G.sel.kind !== 'ant') return; if (!G.sim.possess(en.id)) return;
   G.fpv = true; show('fpv'); G.fpvPos = null; G.cam.fov = 78; G.cam.near = 0.03; G.cam.updateProjectionMatrix(); canvas.requestPointerLock && canvas.requestPointerLock();
 }
-function exitFpv() { if (!G.fpv) return; G.sim && G.sim.release(); G.fpv = false; G.cam.fov = 50; G.cam.near = 0.05; G.cam.updateProjectionMatrix(); if (document.pointerLockElement) document.exitPointerLock(); show('hud'); const a = G.sel && selEntity(); if (a) { G.orbit.x = a.x; G.orbit.z = a.z; } $('click').style.display = 'none'; }
-document.addEventListener('pointerlockchange', () => { if (G.fpv) $('click').style.display = document.pointerLockElement ? 'none' : 'block'; });
+function exitFpv() { if (!G.fpv) return; G.topNest = false; $('cross').style.display = ''; G.sim && G.sim.release(); G.fpv = false; G.cam.fov = 50; G.cam.near = 0.05; G.cam.updateProjectionMatrix(); if (document.pointerLockElement) document.exitPointerLock(); show('hud'); const a = G.sel && selEntity(); if (a) { G.orbit.x = a.x; G.orbit.z = a.z; } $('click').style.display = 'none'; }
+document.addEventListener('pointerlockchange', () => { if (G.fpv && !G.topNest) $('click').style.display = document.pointerLockElement ? 'none' : 'block'; });
 const fv = { p: new THREE.Vector3(), t: new THREE.Vector3(), u: new THREE.Vector3() };
 function placeFpvCam(a, dt) {
   const f = [0, 0, 1], up = [0, 1, 0]; G.layer.antFrame(G.sim, a, f, up);
@@ -145,6 +145,28 @@ function placeFpvCam(a, dt) {
   const pl = a.pitchLook || 0, c = Math.cos(pl), s = Math.sin(pl);
   fv.t.set(G.fpvPos.x + f[0] * c + up[0] * s, G.fpvPos.y + f[1] * c + up[1] * s, G.fpvPos.z + f[2] * c + up[2] * s);
   G.cam.position.copy(G.fpvPos); G.cam.up.set(up[0], up[1], up[2]); G.cam.lookAt(fv.t);
+}
+// ---- föld alatti felülnézet: belépéskor a fészekbe automatikusan átvált; a hangya továbbra is a játékos irányítása alatt áll
+G.nestCam = { yaw: 0, pitch: 1.38, dist: 24 }; G.nestT = new THREE.Vector3();
+function setTopNest(on) {
+  G.topNest = on; G.fpvPos = null; $('cross').style.display = on ? 'none' : '';
+  if (on) { if (document.pointerLockElement) document.exitPointerLock(); $('click').style.display = 'none'; G.cam.fov = 46; G.cam.near = 0.05; G.nestT.set(0, 0, 0); G.nestFresh = true; }
+  else if (G.fpv) { G.cam.fov = 78; G.cam.near = 0.03; $('click').style.display = document.pointerLockElement ? 'none' : 'block'; }
+  G.cam.updateProjectionMatrix();
+}
+function nestInput(a, inp, dt) {
+  const k = G.keys, dx = (k.d ? 1 : 0) - (k.a ? 1 : 0), dz = (k.s ? 1 : 0) - (k.w ? 1 : 0); inp.strafe = 0; inp.sprint = !!k.shift;
+  if (!dx && !dz) { inp.fwd = 0; return; }
+  const sy = Math.sin(G.nestCam.yaw), cy = Math.cos(G.nestCam.yaw); const wx = dx * cy + dz * sy, wz = -dx * sy + dz * cy, l = Math.hypot(wx, wz) || 1;
+  const want = Math.atan2(wx, wz); let diff = ((want - (a.yaw || 0) + Math.PI * 3) % (Math.PI * 2)) - Math.PI; inp.yawD = diff * Math.min(1, dt * 12);
+  const n = G.sim.nest;
+  if (a.nseg && n) { const A = n.nodes.find((q) => q.id === a.nseg.from), B = n.nodes.find((q) => q.id === a.nseg.to); if (A && B) { const sx = B.x - A.x, sz = B.z - A.z, sl = Math.hypot(sx, sz) || 1; inp.fwd = (wx / l) * (sx / sl) + (wz / l) * (sz / sl) >= -0.05 ? 1 : -1; return; } }
+  inp.fwd = 1;
+}
+function placeNestCam(a, dt) {
+  const o = G.nestCam, t = G.nestT; if (G.nestFresh) { t.set(a.x, a.y, a.z); G.nestFresh = false; } else t.lerp(fv.p.set(a.x, a.y, a.z), Math.min(1, dt * 6));
+  o.pitch = Math.max(0.6, Math.min(1.5, o.pitch)); o.dist = Math.max(8, Math.min(80, o.dist)); const cp = Math.cos(o.pitch) * o.dist;
+  G.cam.position.set(t.x + Math.sin(o.yaw) * cp, t.y + Math.sin(o.pitch) * o.dist, t.z + Math.cos(o.yaw) * cp); G.cam.up.set(0, 1, 0); G.cam.lookAt(t);
 }
 function placeOrbitCam(dt) {
   const o = G.orbit; const f = G.sel && selEntity(); if (G.follow && f) { o.x += (f.x - o.x) * Math.min(1, dt * 4); o.z += (f.z - o.z) * Math.min(1, dt * 4); }
@@ -172,23 +194,26 @@ canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 let drag = null;
 canvas.addEventListener('mousedown', (e) => {
   if (G.mode !== 'game') return;
+  if (G.fpv && G.topNest) { drag = { x: e.clientX, y: e.clientY, b: e.button, moved: 0, nest: true }; return; }
   if (G.fpv) { if (!document.pointerLockElement) { canvas.requestPointerLock(); return; } if (e.button === 0) G.sim.input.act1 = true; if (e.button === 2) G.sim.input.act2 = true; return; }
   drag = { x: e.clientX, y: e.clientY, b: e.button, moved: 0 };
 });
 window.addEventListener('mouseup', (e) => {
+  if (G.fpv && G.topNest) { drag = null; return; }
   if (G.fpv) { if (e.button === 2 && G.sim) G.sim.input.act2 = false; return; }
   if (!drag) return; const d = drag; drag = null; if (d.b === 0 && d.moved < 5 && G.mode === 'game') click(e.clientX, e.clientY);
 });
 window.addEventListener('mousemove', (e) => {
   if (G.fpv && document.pointerLockElement) { const s = 0.0024 * S.sens, inp = G.sim.input; inp.yawD -= e.movementX * s; inp.pitchD += (S.inv ? 1 : -1) * e.movementY * s; return; }
   if (!drag) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.moved += Math.abs(dx) + Math.abs(dy); drag.x = e.clientX; drag.y = e.clientY;
+  if (drag.nest) { G.nestCam.yaw -= dx * 0.006; G.nestCam.pitch += dy * 0.005; return; }
   if (drag.b === 2) { G.orbit.yaw -= dx * 0.006; G.orbit.pitch += dy * 0.005; }          // jobb gomb: forgatás
   else if (drag.b === 0 || drag.b === 1) {                                                     // bal (vagy középső) gomb: mozgatás a térképen
     const sp = G.orbit.dist * 0.002, sy = Math.sin(G.orbit.yaw), cy = Math.cos(G.orbit.yaw);
     G.orbit.x -= (dx * cy - dy * sy) * sp; G.orbit.z -= (-dx * sy - dy * cy) * sp; G.follow = false; setFollowBtn();
   }
 });
-canvas.addEventListener('wheel', (e) => { if (G.mode !== 'game' || G.fpv) return; G.orbit.dist *= Math.exp(e.deltaY * 0.0011); e.preventDefault(); }, { passive: false });
+canvas.addEventListener('wheel', (e) => { if (G.mode !== 'game') return; if (G.fpv && !G.topNest) return; if (G.topNest) { G.nestCam.dist *= Math.exp(e.deltaY * 0.0011); e.preventDefault(); return; } G.orbit.dist *= Math.exp(e.deltaY * 0.0011); e.preventDefault(); }, { passive: false });
 canvas.addEventListener('dblclick', () => { if (G.mode === 'game' && !G.fpv && G.sel && G.sel.kind === 'ant') enterFpv(); });
 const ray = new THREE.Raycaster(), v3 = new THREE.Vector3();
 function click(cx, cy) {
@@ -209,9 +234,9 @@ function click(cx, cy) {
 // figyelmeztető nyilak a közeli pókokra
 const ind = $('ind'); const arrows = [];
 function updateHome(a) {
-  const el = $('home'); const sim = G.sim; if (!a || a.loc === 'nest' || !sim.nest) { el.style.display = 'none'; return; } const e = sim.nest.nodes[sim.nest.entranceId] || sim.nest.nodes[0]; const gy = e.kind === 'entrance' && e.y !== undefined ? e.y : heightAt(sim.world, e.x, e.z);
-  const d = Math.hypot(e.x - a.x, e.z - a.z); if (d < 8) { el.style.display = 'none'; return; }
-  v3.set(e.x, gy + 1, e.z).project(G.cam); let x = v3.x, y = v3.y; if (v3.z > 1) { x = -x; y = -y; } const on = v3.z <= 1 && Math.abs(x) < 0.9 && Math.abs(y) < 0.85; if (!on) { const m = Math.max(Math.abs(x), Math.abs(y), 1e-3); x *= 0.88 / m; y *= 0.82 / m; }
+  const el = $('home'); const sim = G.sim; if (!a || !sim.nest) { el.style.display = 'none'; return; } const e = sim.nest.nodes[sim.nest.entranceId] || sim.nest.nodes[0]; const inNest = a.loc === 'nest'; const gy = e.y !== undefined ? e.y : heightAt(sim.world, e.x, e.z);
+  const d = Math.hypot(e.x - a.x, e.z - a.z); if (!inNest && d < 8) { el.style.display = 'none'; return; }
+  v3.set(e.x, gy + (inNest ? 0.5 : 1), e.z).project(G.cam); let x = v3.x, y = v3.y; if (v3.z > 1) { x = -x; y = -y; } const on = v3.z <= 1 && Math.abs(x) < 0.9 && Math.abs(y) < 0.85; if (!on) { const m = Math.max(Math.abs(x), Math.abs(y), 1e-3); x *= 0.88 / m; y *= 0.82 / m; }
   el.style.display = 'block'; el.style.left = ((x * 0.5 + 0.5) * innerWidth) + 'px'; el.style.top = ((-y * 0.5 + 0.5) * innerHeight) + 'px'; el.style.opacity = on ? 0.9 : 0.7;
 }
 function updateArrows(a0) {
@@ -231,17 +256,19 @@ function frame(now) {
   if (G.mode === 'menu') { menu.render(dt); return; }
   const sim = G.sim; if (!sim || !G.view) return;
   if (!G.paused) {
-    if (G.fpv) { const k = G.keys, inp = sim.input; inp.fwd = (k.w ? 1 : 0) - (k.s ? 1 : 0); inp.strafe = (k.a ? 1 : 0) - (k.d ? 1 : 0); inp.sprint = !!k.shift; }
+    if (G.fpv) { const k = G.keys, inp = sim.input; const c0 = sim.controlTarget();
+      if (c0 && c0.loc === 'nest') nestInput(c0, inp, dt);          // föld alatt felülnézet: a billentyűk a képernyő irányait jelentik
+      else { inp.fwd = (k.w ? 1 : 0) - (k.s ? 1 : 0); inp.strafe = (k.a ? 1 : 0) - (k.d ? 1 : 0); inp.sprint = !!k.shift; } }
     sim.advance(dt, G.speed); if (G.fpv && !sim.player.active) exitFpv();
   }
   const ctl = G.fpv ? sim.controlTarget() : null; const under = !!ctl && ctl.loc === 'nest';
   G.view.update(dt, sim, G.nestView || under); if (G.env) G.env.group.visible = !(G.nestView || under);
   { const fx = ctl ? ctl.x : G.orbit.x, fz = ctl ? ctl.z : G.orbit.z; G.view.uniforms.uFocus.value.set(fx, fz, ctl ? 3.5 : Math.min(60, 8 + G.orbit.dist * 0.3)); }
-  if (under) { G.scene.background.set(0x120b06); G.scene.fog.color.set(0x120b06); G.scene.fog.near = 8; G.scene.fog.far = 60; G.view.hemi.intensity = 0.05; G.view.sun.intensity = 0; }
   { const sa = !G.fpv && G.sel && G.sel.kind === 'ant' ? selEntity() : null; if (sa && sa.loc === 'nest' && G.autoNestId !== sa.id) { G.autoNestId = sa.id; if (!G.nestView) toggleNest(); G.orbit.pitch = 1.5; G.orbit.dist = 22; G.follow = true; setFollowBtn(); } }
-  if (G.nestView && !under) { G.scene.background.set(0x1c130c); G.scene.fog.color.set(0x1c130c); G.scene.fog.near = 60; G.scene.fog.far = 420; G.view.hemi.intensity = 1.5; G.view.sun.intensity = 0.9; }
-  G.layer.update(sim, performance.now() / 1000, G.nestView, G.cam.position, ctl);
-  if (G.fpv && ctl) placeFpvCam(ctl, dt); else placeOrbitCam(dt);
+  if (G.nestView || under) { G.scene.background.set(0x1c130c); G.scene.fog.color.set(0x1c130c); G.scene.fog.near = 60; G.scene.fog.far = 420; G.view.hemi.intensity = 1.5; G.view.sun.intensity = 0.9; }
+  if (under !== !!G.topNest) setTopNest(under);
+  G.layer.update(sim, performance.now() / 1000, G.nestView || under, G.cam.position, under ? null : ctl);
+  if (G.fpv && ctl && under) placeNestCam(ctl, dt); else if (G.fpv && ctl) placeFpvCam(ctl, dt); else placeOrbitCam(dt);
   if (G.fpv) updateHome(ctl); else $('home').style.display = 'none';
   // kijelölés-gyűrű
   hudT += dt; if (hudT > 0.2) { hudT = 0; if (G.fpv) { updateFpvHud(); } else updateHud(); const foc = ctl || sim.queen || null; updateArrows(foc); }
