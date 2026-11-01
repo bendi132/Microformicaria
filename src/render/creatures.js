@@ -140,21 +140,41 @@ export class CreatureLayer {
     for (const e of n.edges) if (e.collapsed) sig += 'c';
     if (sig === this.nestSig) return; this.nestSig = sig;
     while (this.nestGroup.children.length) { const c = this.nestGroup.children.pop(); c.geometry && c.geometry.dispose(); }
-    const wood = n.site.kind === 'cavity';   // fás fészek: ugyanaz a járat/kamra rendszer, de faanyagban
-    const mat = (c, em) => { const k = c + '_' + em + wood; if (!this.nestMats[k]) this.nestMats[k] = new THREE.MeshStandardMaterial({ color: new THREE.Color(wood ? new THREE.Color(c).lerp(new THREE.Color(0xb98a52), 0.45) : c).lerp(new THREE.Color(0xffffff), 0.55), map: (wood ? this.woodTex : this.nestTex) || null, emissive: em, emissiveIntensity: 1.2, roughness: 1, side: THREE.DoubleSide, transparent: true, opacity: 0.93 }); return this.nestMats[k]; };
-    const Y = new THREE.Vector3(0, 1, 0);
-    for (const nd of n.nodes) {
-      if (nd.ready === false && nd.kind !== 'chamber') continue;
-      const chamber = nd.kind === 'chamber'; const col = chamber ? (ROLE_COL[nd.role] ?? ROLE_COL.null) : 0x7b5b3d;
-      const g = new THREE.SphereGeometry(1, 28, 10, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2); const m = new THREE.Mesh(g, mat(nd.flood > 0 ? 0x5a8fc4 : col, nd.ready === false ? 0x331100 : 0x3a2410));
-      const r = Math.max(0.6, nd.r); m.position.set(nd.x, nd.y, nd.z); m.scale.set(r, chamber ? r * 0.58 : r, r); this.nestGroup.add(m);
-    }
+    const wood = n.site.kind === 'cavity';
+    const soilCol = wood ? 0x8a6234 : 0x6b4a2e, wallCol = wood ? 0x5a3c1e : 0x4a3220;
+    // egy összefüggő csőhálózat: minden járat egy sima cső, a csomópontoknál gömbbel zárva
+    const tubes = [], balls = [], floods = [];
+    const up = new THREE.Vector3(0, 1, 0);
     for (const e of n.edges) {
       const A = node(n, e.a), B = node(n, e.b); if (!A || !B) continue; if (A.ready === false && B.ready === false) continue;
-      const d = tmpV.set(B.x - A.x, B.y - A.y, B.z - A.z); const L = d.length(); if (L < 0.01) continue;
-      const rr = Math.max(0.5, e.w * 0.5); const g = new THREE.CylinderGeometry(rr, rr, L, 14, 1, true, Math.PI / 2, Math.PI); const m = new THREE.Mesh(g, mat(e.collapsed ? 0xb04030 : 0x7b5b3d, e.collapsed ? 0x300808 : 0x3a2410));   // félcső: felül nyitott, hogy beláthassunk
-      const dn = d.clone().normalize(); const sx = new THREE.Vector3().crossVectors(dn, Y); if (sx.lengthSq() < 1e-6) sx.set(1, 0, 0); sx.normalize(); const zz = new THREE.Vector3().crossVectors(sx, dn).normalize();
-      m.position.set((A.x + B.x) / 2, (A.y + B.y) / 2, (A.z + B.z) / 2); m.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(sx, dn, zz)); this.nestGroup.add(m);
+      const pa = new THREE.Vector3(A.x, A.y, A.z), pb = new THREE.Vector3(B.x, B.y, B.z); const L = pa.distanceTo(pb); if (L < 0.05) continue;
+      const rr = Math.max(0.55, e.w * 0.5);
+      const mid = pa.clone().add(pb).multiplyScalar(0.5); const dir = pb.clone().sub(pa).normalize(); mid.addScaledVector(new THREE.Vector3(-dir.z, 0, dir.x), 0.0);
+      const curve = new THREE.LineCurve3(pa, pb);
+      const g = new THREE.TubeGeometry(curve, 2, rr, 12, false);
+      (e.collapsed ? floods : tubes).push(g);
     }
+    for (const nd of n.nodes) {
+      if (nd.ready === false && nd.kind !== 'chamber') continue;
+      const chamber = nd.kind === 'chamber'; const r = Math.max(0.6, nd.r);
+      const g = new THREE.SphereGeometry(1, 20, 14); g.scale(r, chamber ? r * 0.62 : r, r); g.translate(nd.x, nd.y, nd.z);
+      (nd.flood > 0 ? floods : balls).push(g);
+    }
+    const build = (list, color, emissive) => {
+      if (!list.length) return null; const geo = mergeGeometries(list.map((g) => g.index ? g.toNonIndexed() : g)); list.forEach((g) => g.dispose());
+      geo.computeVertexNormals(); const col = new THREE.Color(color), vals = [];
+      const pos = geo.attributes.position; const cc = new Float32Array(pos.count * 3);
+      for (let i = 0; i < pos.count; i++) { const v = 0.8 + 0.2 * Math.sin(pos.getX(i) * 9.1 + pos.getZ(i) * 7.3 + pos.getY(i) * 5.7); cc[i * 3] = col.r * v; cc[i * 3 + 1] = col.g * v; cc[i * 3 + 2] = col.b * v; }
+      geo.setAttribute('color', new THREE.BufferAttribute(cc, 3));
+      const m = new THREE.Mesh(geo, this.nestMat(wood, emissive)); m.receiveShadow = true; return m;
+    };
+    const tubeM = build(tubes, wallCol, 0x120a04); if (tubeM) this.nestGroup.add(tubeM);
+    const ballM = build(balls, soilCol, 0x120a04); if (ballM) this.nestGroup.add(ballM);
+    const floodM = build(floods, 0x3f6f9c, 0x06101a); if (floodM) this.nestGroup.add(floodM);
+    // kamrák szerepe: a fiasítás/raktár kamra színe gyenge fényfolt a falon
+    for (const nd of n.nodes) if (nd.kind === 'chamber' && nd.role && ROLE_COL[nd.role]) { const m = new THREE.Mesh(new THREE.SphereGeometry(Math.max(0.6, nd.r) * 0.98, 12, 8), new THREE.MeshBasicMaterial({ color: ROLE_COL[nd.role], transparent: true, opacity: 0.08, depthWrite: false, side: THREE.BackSide })); m.position.set(nd.x, nd.y, nd.z); m.scale.y = 0.62; this.nestGroup.add(m); }
   }
-}
+  nestMat(wood, emissive) {
+    const k = (wood ? 'w' : 's') + emissive; if (!this.nestMats[k]) this.nestMats[k] = new THREE.MeshStandardMaterial({ vertexColors: true, map: (wood ? this.woodTex : this.nestTex) || null, emissive, emissiveIntensity: 1, roughness: 0.95, side: THREE.DoubleSide, transparent: false });
+    return this.nestMats[k];
+  }}

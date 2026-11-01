@@ -18,7 +18,7 @@ const saveSettings = () => { try { localStorage.setItem(SET_KEY, JSON.stringify(
 
 // ---------------------------------------------------------------- renderer
 const canvas = $('gl');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' }); renderer.localClippingEnabled = true;
 renderer.shadowMap.enabled = !!S.shadow; renderer.shadowMap.type = THREE.PCFSoftShadowMap; renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.25;
 function resize() { const k = S.scale * Math.min(window.devicePixelRatio, 2); renderer.setPixelRatio(k); renderer.setSize(window.innerWidth, window.innerHeight, false); canvas.style.width = '100%'; canvas.style.height = '100%'; if (G.cam) { G.cam.aspect = innerWidth / innerHeight; G.cam.updateProjectionMatrix(); } }
@@ -238,7 +238,7 @@ function frame(now) {
   G.view.update(dt, sim, G.nestView || under); if (G.env) G.env.group.visible = !(G.nestView || under);
   { const fx = ctl ? ctl.x : G.orbit.x, fz = ctl ? ctl.z : G.orbit.z; G.view.uniforms.uFocus.value.set(fx, fz, ctl ? 3.5 : Math.min(60, 8 + G.orbit.dist * 0.3)); }
   if (under) { G.scene.background.set(0x120b06); G.scene.fog.color.set(0x120b06); G.scene.fog.near = 8; G.scene.fog.far = 60; G.view.hemi.intensity = 0.05; G.view.sun.intensity = 0; }
-  { const sa = !G.fpv && G.sel && G.sel.kind === 'ant' ? selEntity() : null; if (sa && sa.loc === 'nest' && G.autoNestId !== sa.id) { G.autoNestId = sa.id; if (!G.nestView) toggleNest(); } }
+  { const sa = !G.fpv && G.sel && G.sel.kind === 'ant' ? selEntity() : null; if (sa && sa.loc === 'nest' && G.autoNestId !== sa.id) { G.autoNestId = sa.id; if (!G.nestView) toggleNest(); G.orbit.pitch = 1.5; G.orbit.dist = 22; G.follow = true; setFollowBtn(); } }
   if (G.nestView && !under) { G.scene.background.set(0x1c130c); G.scene.fog.color.set(0x1c130c); G.scene.fog.near = 60; G.scene.fog.far = 420; G.view.hemi.intensity = 1.5; G.view.sun.intensity = 0.9; }
   G.layer.update(sim, performance.now() / 1000, G.nestView, G.cam.position, ctl);
   if (G.fpv && ctl) placeFpvCam(ctl, dt); else placeOrbitCam(dt);
