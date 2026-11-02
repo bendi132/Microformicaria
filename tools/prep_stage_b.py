@@ -8,11 +8,11 @@ n = len(v)
 CFG = {
   # thr: vastagsági küszöb a vékony végtagokhoz; head_x/gaster_x: a fej és a potroh határa kanonikus (előre=+X) koordinátában
   'ponera':     dict(thr=0.10, head_x=0.25, gaster_x=-0.20, ant=lambda c, s, mn: c[0] > 0.5, leg=lambda c, s, mn: s >= 300, grow=0.17),
-  'cephalotes': dict(thr=0.12, head_x=0.33, gaster_x=-0.18, ant=lambda c, s, mn: False, leg=lambda c, s, mn: s >= 900, grow=0.16),
+  'cephalotes': dict(thr=0.12, head_x=0.33, gaster_x=-0.18, ant=lambda c, s, mn: False, leg=lambda c, s, mn: s >= 900, grow=0.16, ycut=0.19),
   'odonto':     dict(thr=0.04, head_x=0.37, gaster_x=-0.15, ant=lambda c, s, mn: c[0] > 0.5 and 300 < s < 800 and abs(c[2]) > 0.1, leg=lambda c, s, mn: s >= 1000 and c[0] < 0.6, grow=0.06),
   'proceratium': dict(thr=0.12, head_x=0.45, gaster_x=-0.25, ant=lambda c, s, mn: c[0] > 0.7 and s > 300, leg=lambda c, s, mn: s >= 700 and abs(c[2]) > 0.15 and c[1] < 0.1 and c[0] < 0.6, grow=0.15),
   'springtail': dict(thr=0.12, head_x=0.50, gaster_x=-99, ant=lambda c, s, mn: c[0] > 0.7 and s > 300 and c[1] < 0.3, leg=lambda c, s, mn: s >= 300 and abs(c[2]) > 0.15 and c[1] < 0.1 and c[0] < 0.6, grow=0.15),
-}[which]
+}[which if which != 'cephalotes_q' else 'cephalotes']
 part = np.zeros(n, np.float32); lid = np.zeros(n, np.float32); w = np.zeros(n, np.float32); piv = np.zeros((n, 3), np.float32)
 lab = vertex_components(n, f, th < CFG['thr'])
 ids, cnt = np.unique(lab[lab >= 0], return_counts=True)
@@ -60,6 +60,12 @@ for side_i, sl in enumerate(order):
 for j, (i, idx, cen) in enumerate(sorted(ants, key=lambda t: -t[2][2])):
     r = root_of(idx); dist = np.linalg.norm(v[idx] - r, axis=1); w[idx] = dist / dist.max()
     part[idx] = 2; lid[idx] = j; piv[idx] = r
+# a vékony héjszerű felületek (fejtető, tor) ne váljanak lábbá: a láb a magasságmetszet alatt marad, súlya a magasságból jön
+if 'ycut' in CFG and legs:
+    lv = np.concatenate([idx for _, idx, _ in legs]); feet0 = v[lv, 1].min(); nl = np.ones(n, bool); nl[lv] = False
+    bl0 = v[nl, 0].max() - v[nl, 0].min(); yc = feet0 + CFG['ycut'] * bl0
+    hi = (part == 1) & (v[:, 1] > yc); part[hi] = 0; w[hi] = 0; lid[hi] = 0
+    lg_ = part == 1; w[lg_] = np.clip((yc - v[lg_, 1]) / (yc - feet0), 0, 1); print('ycut: demoted', int(hi.sum()), 'leg verts', int(lg_.sum()))
 # rágók (csak Odontomachus): a fej elülső blokkja
 free = part == 0
 if which == 'odonto':
@@ -88,7 +94,15 @@ gas_piv = (np.array([CFG['gaster_x'], float(np.median(v[gas, 1])), 0.0]) - off) 
 m = trimesh.Trimesh(v2, f, process=False); nrm = m.vertex_normals
 attrs = {'_PART': (part, 1), '_LID': (lid, 1), '_W': (w, 1), '_PIVOT': (piv2, 3)}
 mesh = dict(name=which, positions=v2, normals=nrm, indices=f, attrs=attrs, roughness=0.55,
-            color=[0.07, 0.06, 0.05, 1] if which in ('ponera', 'proceratium') else ([0.55, 0.52, 0.48, 1] if which == 'springtail' else None) or ([0.07, 0.065, 0.06, 1] if which == 'cephalotes' else [1, 1, 1, 1]))
+            color=[0.07, 0.06, 0.05, 1] if which in ('ponera', 'proceratium', 'cephalotes_q') else ([0.55, 0.52, 0.48, 1] if which == 'springtail' else None) or ([0.07, 0.065, 0.06, 1] if which == 'cephalotes' else [1, 1, 1, 1]))
+if which == 'cephalotes_q':   # királynő: fekete, a potrohon krémszínű foltok; vörösbarna láb- és fejperem (referenciafotók szerint)
+    gv = part == 4; gx0, gx1 = v[gv, 0].min(), v[gv, 0].max(); gy = v[gv, 1].mean(); base = np.tile(np.array([0.045, 0.04, 0.036]), (n, 1))
+    u = (v[:, 0] - gx0) / (gx1 - gx0); lat = v[:, 2] / max(1e-6, np.abs(v[gv, 2]).max()); dors = v[:, 1] > gy - 0.02
+    for cu, cl, ru, rl in [(0.24, 0.5, 0.36, 0.62), (0.72, -0.45, 0.30, 0.55)]:
+        dd = ((u - cu) / ru) ** 2 + ((lat - cl) / rl) ** 2; m = gv & dors & (dd < 1); k = np.clip((1 - dd) * 2.2, 0, 1); base[m] = base[m] * (1 - k[m, None]) + np.array([0.97, 0.90, 0.66]) * k[m, None]
+    lg = part == 1; t = w[lg][:, None]; base[lg] = np.array([0.07, 0.05, 0.04]) * (1 - t) + np.array([0.30, 0.12, 0.06]) * t
+    hd = (part == 5) & (v[:, 0] > v[part == 5, 0].max() - 0.05); base[hd] = base[hd] * 0.4 + np.array([0.28, 0.10, 0.05]) * 0.6
+    col = np.clip(base, 0, 1) ** 2.2
 if len(col) and which == 'odonto':   # referenciafotók szerint, testrészenként; az eredeti színek csak az árnyalást adják
     lum = np.clip(col.mean(1) / max(col.mean(1).mean(), 1e-6), 0.6, 1.4)[:, None]
     base = np.tile(np.array([0.24, 0.07, 0.04]), (n, 1))                      # tora: sötét vörösesbarna
@@ -99,7 +113,7 @@ if len(col) and which == 'odonto':   # referenciafotók szerint, testrészenkén
     lg = part == 1; t = w[lg][:, None]
     base[lg] = np.array([0.80, 0.45, 0.10]) * (1 - t) + np.array([0.30, 0.12, 0.05]) * t   # láb: borostyán, a vége sötétedik
     col = np.clip(base * lum, 0, 1) ** 2.2
-if len(col): mesh['attrs']['COLOR_0'] = (np.c_[col, np.ones(len(col))].astype(np.float32), 4)
+if len(col) or which == 'cephalotes_q': mesh['attrs']['COLOR_0'] = (np.c_[col, np.ones(len(col))].astype(np.float32), 4)
 extras = dict(bodyLength=1.0, headPivot=head_piv.tolist(), gasterPivot=gas_piv.tolist(), legs=len(legs), antennae=len(ants),
               bounds=[(v2.min(0)).tolist(), (v2.max(0)).tolist()], height=float(v2[:, 1].max()), origBodyLength=float(bl))
 write_glb(OUT, [mesh], extras)

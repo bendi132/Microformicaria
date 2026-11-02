@@ -163,7 +163,7 @@ export function updateAnt(sim, a, dt) {
   const mvNow = clamp(a.moved / Math.max(0.0001, dt * baseSpeed(sim, a) * 0.8), 0, 1.5);
   a.anim.mvS = (a.anim.mvS || 0) + (mvNow - (a.anim.mvS || 0)) * Math.min(1, dt * 8);
   a.anim.mv = a.anim.mvS;
-  { const g = sp.gait; a.anim.phase += a.moved * Math.PI / (g.stride * a.len); }   // lábfázis a megtett úthoz kötve: a láb talpa nem csúszik
+  { const g = (sp.gaitCaste && sp.gaitCaste[a.caste]) || sp.gait; a.anim.phase += a.moved * Math.PI / (g.stride * a.len); }   // lábfázis a megtett úthoz kötve: a láb talpa nem csúszik
   a.anim.alert += ((a.stress > 30 || a.task === 'hunt' || a.task === 'fight' ? 0.8 : a.anim.mv > 0.2 ? 0.35 : 0.15) - a.anim.alert) * Math.min(1, dt * 3);
   a.anim.head += ((Math.sin(sim.t * 0.9 + a.id) * 0.25 * (a.anim.mv > 0.2 ? 0.4 : 1)) - a.anim.head) * Math.min(1, dt * 2);
 }

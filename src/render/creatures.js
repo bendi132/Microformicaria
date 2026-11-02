@@ -29,12 +29,14 @@ export class CreatureLayer {
   constructor(scene) { this.scene = scene; this.group = new THREE.Group(); scene.add(this.group); this.nestSig = ''; this.nestGroup = new THREE.Group(); this.group.add(this.nestGroup); this.loaded = false; }
   async load(speciesId) {
     const sp = SPECIES[speciesId]; this.sp = sp;
-    const [ant, iso, spi, spr] = await Promise.all(['ponera' === sp.model ? sp.model : sp.model, 'isopod', 'spider', 'springtail'].map((n) => loadCreatureGeometry(`assets/models/${n}.glb`)));
-    this.antB = new CreatureBatch(ant, { kind: 0, capacity: 400, color: sp.tint, swing: sp.gait.swing });
+    const names = [sp.model, sp.queenModel || sp.model, sp.soldierModel || sp.model, 'isopod', 'spider', 'springtail']; const uniq = {}; await Promise.all([...new Set(names)].map(async (n) => { uniq[n] = await loadCreatureGeometry(`assets/models/${n}.glb`); }));
+    const [ant, antQ, antS, iso, spi, spr] = names.map((n) => uniq[n]); const gc = (caste) => (sp.gaitCaste && sp.gaitCaste[caste]) || sp.gait;
+    this.antB = new CreatureBatch(ant, { kind: 0, capacity: 400, color: sp.tint, swing: gc('worker').swing });
+    this.queenB = new CreatureBatch(antQ, { kind: 0, capacity: 8, color: sp.tint, swing: gc('queen').swing }); this.soldB = new CreatureBatch(antS, { kind: 0, capacity: 120, color: sp.tint, swing: gc('soldier').swing });
     this.isoB = new CreatureBatch(iso, { kind: 1, capacity: 160, color: 0x7a746c });
     this.spiB = new CreatureBatch(spi, { kind: 2, capacity: 24, color: 0xffffff });
     this.sprB = new CreatureBatch(spr, { kind: 3, capacity: 320, color: 0x8d949c });
-    for (const b of [this.antB, this.isoB, this.spiB, this.sprB]) this.group.add(b.mesh);
+    for (const b of [this.antB, this.queenB, this.soldB, this.isoB, this.spiB, this.sprB]) this.group.add(b.mesh);
     // tojások / fiasítás / hordott tárgyak: egyszerű példányolt alakzatok
     const cap = new THREE.CapsuleGeometry(0.5, 1, 4, 10); cap.rotateZ(Math.PI / 2);
     this.eggMesh = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 14, 10), new THREE.MeshStandardMaterial({ roughness: 0.35, color: 0xffffff }), 900); this.eggMesh.count = 0; this.eggMesh.castShadow = true; this.group.add(this.eggMesh);
@@ -64,7 +66,7 @@ export class CreatureLayer {
   update(sim, time, nestView, camPos, controlled) {
     if (!this.loaded) return; const w = sim.world; this.up = this.up || new THREE.Vector3(0, 1, 0);
     const fwd = [0, 0, 1], up = [0, 1, 0], pos = tmpV; this.fpvAnt = controlled || null;
-    const { antB, isoB, spiB, sprB } = this; antB.begin(); isoB.begin(); spiB.begin(); sprB.begin();
+    const { antB, queenB, soldB, isoB, spiB, sprB } = this; antB.begin(); queenB.begin(); soldB.begin(); isoB.begin(); spiB.begin(); sprB.begin();
     let carryN = 0; const cm = this.carryMesh;
     const pushCarry = (x, y, z, r, color, flat) => { if (carryN >= 300) return; this.inst(cm, carryN, x, y, z, r, r * (flat || 1), r, color); carryN++; };
     // ---- hangyák
@@ -73,7 +75,7 @@ export class CreatureLayer {
       if (controlled && controlled.id === a.id) continue;
       this.antFrame(sim, a, fwd, up); const an = a.anim; pos.set(a.x, a.y, a.z);
       const scale = a.len * (a.caste === 'queen' ? 1 : 1);
-      antB.addBasis(pos, fwd, up, scale, [an.phase, an.mv, an.act, an.actT], [an.head, an.open, an.curl + (a.task === 'manual' ? 0 : 0), Math.max(an.alert, a.task === 'flee' ? 1 : 0)], a.caste === 'queen' ? 0xd8d0c8 : undefined);
+      (a.caste === 'queen' ? queenB : a.caste === 'soldier' ? soldB : antB).addBasis(pos, fwd, up, scale, [an.phase, an.mv, an.act, an.actT], [an.head, an.open, an.curl, Math.max(an.alert, a.task === 'flee' ? 1 : 0)], a.caste === 'queen' && !this.sp.queenModel ? 0xd8d0c8 : undefined);
       if (a.carry) {
         const k = a.carry.kind; const hx = a.x + fwd[0] * a.len * 0.52 + up[0] * a.len * 0.2, hy = a.y + fwd[1] * a.len * 0.52 + up[1] * a.len * 0.2 + (a.loc === 'nest' ? 0 : 0), hz = a.z + fwd[2] * a.len * 0.52 + up[2] * a.len * 0.2;
         if (k === 'eggs') { pushCarry(hx, hy + a.len * 0.05, hz, Math.max(0.35, a.len * 0.11), a.carry.owner === 'spider' ? 0xf3efe0 : a.carry.owner === 'isopod' ? 0xe9dcc0 : 0xf5f2d8); }
@@ -84,7 +86,7 @@ export class CreatureLayer {
         else if (k === 'brood') pushCarry(hx, hy + a.len * 0.05, hz, a.len * 0.1, 0xf4efe0);
       }
     }
-    antB.end(time);
+    antB.end(time); queenB.end(time); soldB.end(time);
     // ---- fúrás közben szálló földmorzsák (a fúró hangya feje előtt indul, hátrafelé hullik)
     { let cn = 0; const cr = this.crumbs; cr.visible = !!nestView || !!(controlled && controlled.loc === 'nest');
       if (cr.visible) for (const a of sim.ants) {

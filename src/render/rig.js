@@ -40,15 +40,18 @@ if (uKind < 0.5 || uKind > 2.5) {            // ---- hangya / ugróvilla
     float sgn = lid > 0.5 ? 1.0 : -1.0;
     float a = -sgn * iB.y * 0.75;
     p = rotAbout(rotY(a), p, aPivot);
-  } else if (part > 3.5 && part < 4.5) {           // potroh: lélegzés + szúrás/görbítés
+  }
+  if ((part > 3.5 && part < 4.5) || part < 0.5) {   // potroh: lélegzés + szúrás/görbítés; a törzs a nyél körül fokozatosan követi (nincs szakadás)
+    float wg = 1.0 - smoothstep(uGaster.x - 0.05, uGaster.x + 0.05, position.x);   // (fordított élű smoothstep nem definiált GLSL-ben)
     float br = sin(uTime*1.7+iA.x*0.2)*0.025;
-    p = rotAbout(rotZ(iB.z*0.95 + br + sin(ph*2.0)*0.03*mv), p, uGaster);
+    p = rotAbout(rotZ((iB.z*0.95 + br + sin(ph*2.0)*0.03*mv)*wg), p, uGaster);
   }
   if (part > 5.5) {                                // ugróvilla: a hasi villa kinyúlik ugráskor
     p = rotAbout(rotZ(-iB.z*1.5*wt), p, aPivot);
   }
-  if (part > 1.5 && part < 3.5 || (part > 4.5 && part < 5.5)) {    // fej-csoport: fejforgatás a nyakon át
-    p = rotAbout(rotY(iB.x)*rotZ(-0.12*iB.w - dig*(0.45 + 0.2*sin(uTime*9.0))), p, uNeck);   // fúrás: a fej lefelé, ütemesen
+  if (part < 0.5 || (part > 1.5 && part < 3.5) || (part > 4.5 && part < 5.5)) {    // fej-csoport: fejforgatás a nyakon át; a törzs/fej határán fokozatos súly (nem szakad el a háló)
+    float wn = (part > 1.5 && part < 3.5) ? 1.0 : smoothstep(uNeck.x - 0.05, uNeck.x + 0.05, position.x);
+    p = rotAbout(rotY(iB.x*wn)*rotZ((-0.12*iB.w - dig*(0.45 + 0.2*sin(uTime*9.0)))*wn), p, uNeck);   // fúrás: a fej lefelé, ütemesen
   }
   p.y += abs(sin(ph))*0.012*mv*uAmp;               // járás közbeni finom emelkedés
   p.z += sin(ph)*0.006*mv;
