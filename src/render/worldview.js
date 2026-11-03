@@ -140,24 +140,48 @@ export class WorldView {
     gi.count = c; gi.castShadow = this.qn !== 'low'; gi.receiveShadow = true; gi.frustumCulled = false; this.group.add(gi); this.grass = gi;
   }
   buildTree(sim) {
-    const w = sim.world; const barkMat = new THREE.MeshStandardMaterial({ map: this.tex.bark.map, normalMap: this.tex.bark.normalMap, roughness: 0.95, color: 0xcfc0ac });
+    const w = sim.world; const tl = new THREE.TextureLoader();
+    const bmap = tl.load('assets/env/trunk_bark.jpg'), bnrm = tl.load('assets/env/trunk_bark_n.jpg');
+    for (const t of [bmap, bnrm]) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4; } bmap.colorSpace = THREE.SRGBColorSpace;
+    // a feltöltött dzsungelfa-modell kéreg-fotója (lásd docs/KORNYEZET.md): a hangyák a pontos hengerfelszínen járnak, a kéreg a modell textúrája
+    const barkMat = new THREE.MeshStandardMaterial({ map: bmap, normalMap: bnrm, normalScale: new THREE.Vector2(1.4, 1.4), roughness: 0.95, color: 0xd8c9b4 });
     this.limbMeshes = []; this.barkMat = barkMat;
+    const sstep = (e0, e1, x) => { const t = Math.min(1, Math.max(0, (x - e0) / (e1 - e0))); return t * t * (3 - 2 * t); };
     for (const L of w.limbs) {
-      const b = limbBase(w, L); const g = new THREE.CylinderGeometry(L.r * 0.82, L.r, L.len, 40, 40, true); g.translate(0, L.len / 2, 0); const p = g.attributes.position;
-      for (let i = 0; i < p.count; i++) { const x = p.getX(i), y = p.getY(i), z = p.getZ(i); const a = Math.atan2(z, x); const n = fbm(a * 3 + L.id * 9, y * 0.15, 11, 3); const k = 1 + (n - 0.5) * 0.12 + Math.sin(a * 9 + y * 0.2) * 0.012; p.setXYZ(i, x * k, y, z * k); }
-      g.computeVertexNormals(); const uvA = g.attributes.uv; for (let i = 0; i < uvA.count; i++) uvA.setXY(i, uvA.getX(i) * 2, uvA.getY(i) * L.len / 20);
+      const b = limbBase(w, L); const nr = L.id === 0 ? 120 : 64, nh = L.id === 0 ? 170 : 90;
+      const g = new THREE.CylinderGeometry(L.r, L.r, L.len, nr, nh, true); g.translate(0, L.len / 2, 0); const p = g.attributes.position;
+      const holes = w.cavities.filter((c) => c.limb === L.id);
+      // a (s, theta) koordináta limbPoint-tal azonos értelmezésű: a hengerpalást szögét a limbPoint-bázishoz igazítjuk
+      const d = L.dir, up = Math.abs(d.y) > 0.9 ? { x: 1, y: 0, z: 0 } : { x: 0, y: 1, z: 0 };
+      let ux = d.y * up.z - d.z * up.y, uy = d.z * up.x - d.x * up.z, uz = d.x * up.y - d.y * up.x; const ul = Math.hypot(ux, uy, uz); ux /= ul; uy /= ul; uz /= ul;
+      const vx = d.y * uz - d.z * uy, vy = d.z * ux - d.x * uz, vz = d.x * uy - d.y * ux;
+      const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(d.x, d.y, d.z));
+      const U = new THREE.Vector3(ux, uy, uz), V = new THREE.Vector3(vx, vy, vz), tmp = new THREE.Vector3();
+      for (let i = 0; i < p.count; i++) {
+        let x = p.getX(i), y = p.getY(i), z = p.getZ(i); const a0 = Math.atan2(z, x);
+        const n = fbm(a0 * 3 + L.id * 9, y * 0.15, 11, 3); let k = 1 + (n - 0.5) * 0.05 + Math.sin(a0 * 9 + y * 0.2) * 0.008;
+        // a vertex világbeli iránya → theta (a limbPoint-bázisban)
+        tmp.set(x, 0, z).applyQuaternion(q); const th = Math.atan2(tmp.dot(V), tmp.dot(U));
+        for (const c of holes) {
+          const dth = Math.atan2(Math.sin(th - c.th), Math.cos(th - c.th)) * L.r, ds = y - c.s; const rr = Math.hypot(dth / 1.0, ds / 1.3) / (c.entrance * 0.5);
+          if (rr < 1.9) { const dep = c.entrance * 0.55 * (1 - sstep(0.85, 1.9, rr)); k -= dep / L.r; if (rr < 1.05) k -= c.entrance * 0.35 / L.r; }
+        }
+        p.setXYZ(i, x * k, y, z * k);
+      }
+      g.computeVertexNormals(); const uvA = g.attributes.uv; for (let i = 0; i < uvA.count; i++) uvA.setXY(i, uvA.getX(i) * 1.6 * (L.r / 15), uvA.getY(i) * L.len / 60);
       const m = new THREE.Mesh(g, barkMat); m.castShadow = m.receiveShadow = true; m.position.set(b.x, b.y, b.z);
-      m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(L.dir.x, L.dir.y, L.dir.z)); this.group.add(m); this.limbMeshes.push(m);
+      m.quaternion.copy(q); this.group.add(m); this.limbMeshes.push(m);
     }
-    // odúk bejáratai
-    const dark = new THREE.MeshBasicMaterial({ color: 0x050302 });
+    // odúk bejáratai: a furat mélyén sötét üreg, a peremén kéregpereme
+    const dark = new THREE.MeshBasicMaterial({ color: 0x050302 }), rimMat = new THREE.MeshStandardMaterial({ map: bmap, color: 0x6a5846, roughness: 1 });
     for (const cav of w.cavities) {
-      const p = limbPoint(w, cav.limb, cav.s, cav.th, {}); const g = new THREE.CircleGeometry(cav.entrance * 0.5, 28); const m = new THREE.Mesh(g, dark);
-      m.scale.set(1, 1.3, 1); m.position.set(p.x + p.nx * 0.06, p.y + p.ny * 0.06, p.z + p.nz * 0.06); m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), new THREE.Vector3(p.nx, p.ny, p.nz)); this.group.add(m);
-      const rim = new THREE.Mesh(new THREE.TorusGeometry(cav.entrance * 0.5, cav.entrance * 0.1, 8, 28), new THREE.MeshStandardMaterial({ color: 0x3a2a1c, roughness: 1 })); rim.scale.set(1, 1.3, 1); rim.position.copy(m.position); rim.quaternion.copy(m.quaternion); this.group.add(rim);
+      const p = limbPoint(w, cav.limb, cav.s, cav.th, {}); const dpt = cav.entrance * 0.55;
+      const g = new THREE.CircleGeometry(cav.entrance * 0.5, 28); const m = new THREE.Mesh(g, dark);
+      m.scale.set(1, 1.3, 1); m.position.set(p.x - p.nx * dpt * 0.7, p.y - p.ny * dpt * 0.7, p.z - p.nz * dpt * 0.7); m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), new THREE.Vector3(p.nx, p.ny, p.nz)); this.group.add(m);
+      const rim = new THREE.Mesh(new THREE.TorusGeometry(cav.entrance * 0.52, cav.entrance * 0.07, 8, 28), rimMat); rim.scale.set(1, 1.3, 1); rim.position.set(p.x - p.nx * dpt * 0.25, p.y - p.ny * dpt * 0.25, p.z - p.nz * dpt * 0.25); rim.quaternion.copy(m.quaternion); this.group.add(rim);
     }
     // gyökérkiszélesedés
-    const root = new THREE.Mesh(new THREE.ConeGeometry(w.limbs[0].r * 1.5, 7, 28, 1, true), barkMat); root.position.set(w.limbs[0].base.x, 2.5, w.limbs[0].base.z); this.group.add(root);
+    const root = new THREE.Mesh(new THREE.ConeGeometry(w.limbs[0].r * 1.5, 7, 40, 1, true), barkMat); root.position.set(w.limbs[0].base.x, 2.5, w.limbs[0].base.z); this.group.add(root);
   }
   // fészekbejárat (a szimuláció által választott helyen, amint létrejön a fészek)
   makeHole(e) {

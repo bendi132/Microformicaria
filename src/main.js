@@ -127,6 +127,7 @@ function updateFpvHud() {
   if (tg.length) { const k = tg[0]; cls = k.kind === 'spider' ? 'enemy' : k.kind === 'clutch' ? 'egg' : k.p.dead ? 'src' : 'prey'; }
   else { const ur = Math.max(3.4, a.len * 0.75 + 1.5); for (const d of sim.world.droplets) if (Math.hypot(d.x - a.x, d.z - a.z) < ur) { cls = 'src'; break; } if (!cls) for (const f of sim.world.foods) if (f.limb === undefined && Math.hypot(f.x - a.x, f.z - a.z) < ur) { cls = 'src'; break; } }
   $('cross').className = 'cross ' + cls;
+  if (sim.note) { toast(sim.note === 'noDig' ? 'Ez a faj nem ás a talajban' : 'Előbb fészek kell az ásáshoz', 2500); sim.note = null; }
 }
 
 // ---------------------------------------------------------------- first person
@@ -185,11 +186,17 @@ const KEYMAP = { KeyW: 'w', KeyA: 'a', KeyS: 's', KeyD: 'd', ArrowUp: 'w', Arrow
 window.addEventListener('keydown', (e) => {
   if (G.mode !== 'game' || e.target.tagName === 'SELECT') return; const k = KEYMAP[e.code]; if (k) { G.keys[k] = true; if (k === 'space' && G.fpv) { G.sim.input.jump = true; e.preventDefault(); } }
   if (G.fpv) { const inp = G.sim.input; if (e.code === 'KeyE') { inp.use = true; inp.useHold = true; } else if (e.code === 'KeyF') { if (!e.repeat) inp.climb = true; } else if (e.code === 'KeyG') inp.drop = true; else if (e.code === 'KeyX') { inp.digSurf = true; if (G.topNest) inp.dig = true; } else if (e.code === 'KeyQ' || e.code === 'Tab') { exitFpv(); e.preventDefault(); } return; }
+  if ((e.code === 'KeyE' || e.code === 'KeyX') && G.sel && G.sel.kind === 'ant' && !G.dig) { enterFpv(); if (G.fpv) { const inp = G.sim.input; if (e.code === 'KeyE') { inp.use = true; inp.useHold = true; } else inp.digSurf = true; } e.preventDefault(); return; }
   if (e.code === 'KeyT') $('bTop').click(); else if (e.code === 'KeyN') toggleNest(); else if (e.code === 'KeyF') enterFpv(); else if (e.code === 'Space') { $('bPause').click(); e.preventDefault(); }
   else if (e.code === 'Escape') { if (G.dig) $('bDig').click(); else { show('pause'); G.paused = true; } } else if (e.code === 'KeyC') { G.follow = !G.follow; setFollowBtn(); }
   else if (e.code.startsWith('Digit')) { const v = { 1: 1, 2: 2, 3: 4, 4: 8 }[e.code.slice(5)]; if (v) setSpeed(v); }
 });
 window.addEventListener('keyup', (e) => { const k = KEYMAP[e.code]; if (k) G.keys[k] = false; if (G.fpv && e.code === 'KeyE') G.sim.input.useHold = false; if (G.fpv && e.code === 'KeyX') { G.sim.input.digSurf = false; if (G.topNest) G.sim.input.dig = false; } });
+document.querySelectorAll('#fpv .key.kb').forEach((el) => {
+  const k = el.dataset.k, press = (on) => { if (!G.fpv || !G.sim) return; const inp = G.sim.input;
+    if (k === 'E') { inp.use = on; inp.useHold = on; } else if (k === 'X') { inp.digSurf = on; if (G.topNest) inp.dig = on; } else if (k === 'F') { if (on) inp.climb = true; } else if (k === 'G') { if (on) inp.drop = true; } };
+  el.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); press(true); }); el.addEventListener('pointerup', () => press(false)); el.addEventListener('pointerleave', () => press(false));
+});
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 let drag = null;
 canvas.addEventListener('mousedown', (e) => {
@@ -229,6 +236,8 @@ function click(cx, cy) {
   for (const s of sim.spiders) if (!s.dead && s.state !== 'lair') test('spider', s, s.len * 0.2);
   for (const p of sim.isopods) if (p.state !== 'hidden') test('isopod', p, p.len * 0.2);
   for (const p of sim.springtails) test('springtail', p, p.len * 0.2);
+  const cur = G.sel && G.sel.kind === 'ant' ? sim.ants.find((q) => q.id === G.sel.id && !q.dead) : null;
+  if (cur && best && (best.kind === 'isopod' || best.kind === 'springtail') && sim.order(cur.id, best.kind, best.id)) { G.orderMark = { kind: best.kind, id: best.id, t: performance.now() }; toast('🎯', 900, true); return; }
   G.sel = best; if (best && best.kind === 'ant') { const a = selEntity(); if (a) { G.orbit.x = a.x; G.orbit.z = a.z; } }
 }
 // figyelmeztető nyilak a közeli pókokra

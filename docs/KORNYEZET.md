@@ -24,3 +24,7 @@ Az értékek **játékmechanikai közelítések**, nem mért éghajlati adatok (
 
 A modellek skálázása a határolódoboz alapján történik (`src/render/envview.js`, `ENV_MODELS`). Ha egy "becsült" méret nem helyes, egyetlen számot kell átírni.
 A tömörített modellekhez (meshopt, KTX2/Basis) a három.js dekódolói a `vendor/three/jsm` alatt vannak.
+
+## Cephalotes-fa (kéreg és furatok)
+A fa törzse és ágai pontos hengerek (a hangyák a szimulációban ezen a felszínen járnak). A kéreg a feltöltött dzsungelfa/rönk-modell textúrájából készült (`assets/env/trunk_bark.jpg`, `trunk_bark_n.jpg`: a modell fotótextúrájából kivágott, tükrözéssel csempézhetővé tett kéregminta + lumináncia-alapú normáltérkép). A modell maga egy fekvő, félig beásott szkennelt rönk, ezért közvetlenül nem használható mászható törzsnek. A fészekbejáratok valódi furatok: a hengerháló a nyílás körül befelé hajlik, mélyén sötét üreg, peremén kéregperem.
+A méz / növényi nedv csak a Cephalotes fáján (törzs, ágak) található; a többi fajnál nincs földi mézfolt, és a gyűjtögetés súlya 0.

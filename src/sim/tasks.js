@@ -18,6 +18,7 @@ export function chooseTask(sim, a) {
   const sp = S(sim), c = sim.colony, rng = sim.rng;
   if (sim.player.active && sim.player.antId === a.id) { if (a.task !== 'manual') setTask(a, 'manual'); return; }
   if (a.task === 'manual') setTask(a, 'idle');
+  if (a.order) { if (sim.t < a.order.until && a.task === 'hunt' && (a.st === 'approach' || a.st === 'attack' || a.st === 'feed') && a.hyd > 18 && a.energy > 12) return; a.order = null; }
   // saját szükségletek
   if (a.hyd < 34) { if (a.task !== 'drink') setTask(a, 'drink'); return; }
   if (a.energy < 32) { if (a.task !== 'eat') setTask(a, 'eat'); return; }
@@ -29,7 +30,7 @@ export function chooseTask(sim, a) {
   const soldier = a.caste === 'soldier';
   const sc = {
     hunt: nd.protein * 1.5 * dir.hunt * (hunter ? 1 : 0) * (1 - danger * 0.9) * (soldier ? 0.25 : 1) * (a.age > 0.6 ? 1 : 0.3) * (a.energy > 45 ? 1 : 0.5),
-    forage: nd.sugar * 1.1 * dir.forage * (1 - danger * 0.85) * (soldier ? 0.3 : 1) * (a.age > 0.6 ? 1 : 0.3),
+    forage: (sp.nest.type === 'tree' ? 1 : 0) * nd.sugar * 1.1 * dir.forage * (1 - danger * 0.85) * (soldier ? 0.3 : 1) * (a.age > 0.6 ? 1 : 0.3),
     water: nd.water * 1.25 * dir.water * (1 - danger * 0.8) * (soldier ? 0.4 : 1),
     nurse: nd.nurse * 1.7 * dir.nurse * young,
     dig: nd.dig * 1.0 * dir.dig * (sp.nest.type === 'soil' ? 1 : 0),
@@ -291,7 +292,7 @@ function hunt(sim, a, dt) {
     const p = getTarget(sim, a.target); if (!p || (p.dead && p.foodLeft <= 0.1) || (p.dead && p.fresh <= 0)) { stat(sim, 'lost_gone'); a.st = 'search'; a.target = null; return; }
     const d = dist(a.x, a.z, p.x, p.z); const reach = H.reach * a.len + p.len * 0.4;
     if (p.kind === 'isopod' && p.state === 'hidden') { /* odatartás: a kő széléig */ }
-    if (d > sp.senses.prey * 2.4) { stat(sim, 'lost_far_' + p.kind); a.st = 'search'; a.target = null; return; }
+    if (d > sp.senses.prey * 2.4 && !a.order) { stat(sim, 'lost_far_' + p.kind); a.st = 'search'; a.target = null; return; }
     a.slow = (H.style === 'sting') && d < 8 && !p.dead;
     const sm = p.dead ? 1 : H.style === 'sting' ? (d < 8 ? 0.45 : 0.9) : H.style === 'snap' ? (d < 6 ? 0.6 : 1.15) : 0.85;
     navigate(sim, a, { k: 'g', x: p.x, z: p.z }, sm, dt, { arrive: reach * 0.8, ignoreObstacles: false });
@@ -625,6 +626,8 @@ function manual(sim, a, dt) {
   const spd = baseSpeed(sim, a) * (crouch ? 0.45 : sprint) * (0.5 + 0.5 * a.hp / a.maxHp);
   const src = a.loc === 'ground' && inp.use ? nearbyUse(sim, a) : null;      // evés/ivás közben a hangya a forrásnál marad
   const digging = a.loc === 'ground' && inp.digSurf && !a.climbing && sp.nest.type === 'soil' && !!n && !src;   // felszíni ásás (X)
+  if (inp.digSurf && !digging && !inp._noted) { inp._noted = true; sim.note = a.loc !== 'ground' ? null : a.climbing ? null : sp.nest.type !== 'soil' ? 'noDig' : !n ? 'noNest' : null; sim.noteT = sim.t; }
+  if (!inp.digSurf) inp._noted = false;
   const fwd = inp.fwd, str = inp.strafe; const mag = (src || digging) ? 0 : Math.hypot(fwd, str);
   a.anim.open = sp.id === 'odonto' ? (inp.act2 ? clamp(a.anim.open + dt * 7, 0, 1) : clamp(a.anim.open - dt * 6, 0, 1)) : (a.anim.open > 0 ? a.anim.open - dt * 4 : 0);
   if (a.loc === 'ground') {

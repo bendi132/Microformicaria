@@ -1,0 +1,25 @@
+<!doctype html><meta charset="utf-8"><script type="importmap">{"imports":{"three":"../vendor/three/three.module.js"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import {GLTFLoader} from '../vendor/three/addons/GLTFLoader.js';
+import {KTX2Loader} from '../vendor/three/jsm/loaders/KTX2Loader.js';
+import {MeshoptDecoder} from '../vendor/three/jsm/libs/meshopt_decoder.module.js';
+const r=new THREE.WebGLRenderer();
+const gl=new GLTFLoader().setKTX2Loader(new KTX2Loader().setTranscoderPath('../vendor/three/jsm/libs/basis/').detectSupport(r)).setMeshoptDecoder(MeshoptDecoder);
+const g=await gl.loadAsync('../assets/env/broken_trunk.glb');
+const out=[];g.scene.updateMatrixWorld(true);
+g.scene.traverse(o=>{if(o.isMesh){o.geometry.computeBoundingBox();const b=o.geometry.boundingBox;const attrs=Object.keys(o.geometry.attributes);out.push({n:o.name,v:o.geometry.attributes.position.count,idx:!!o.geometry.index,b:[b.min.toArray().map(x=>+x.toFixed(3)),b.max.toArray().map(x=>+x.toFixed(3))],attrs,mat:o.material.name,tex:!!o.material.map,m:o.matrixWorld.elements.map(x=>+x.toFixed(3))})}});
+
+const m=[];g.scene.traverse(o=>{if(o.isMesh)m.push(o)});const geo=m[0].geometry,P=geo.attributes.position,I=geo.index.array;
+const par=new Int32Array(P.count).map((_,i)=>i);const f=x=>{while(par[x]!==x){par[x]=par[par[x]];x=par[x]}return x};
+for(let i=0;i<I.length;i+=3){const a=f(I[i]),b=f(I[i+1]),c=f(I[i+2]);par[b]=a;par[c]=a}
+const comp=new Map();for(let i=0;i<P.count;i++){const k=f(i);let c=comp.get(k);if(!c){c={n:0,min:[1e9,1e9,1e9],max:[-1e9,-1e9,-1e9]};comp.set(k,c)}c.n++;for(let j=0;j<3;j++){const v=P.array[i*3+j];c.min[j]=Math.min(c.min[j],v);c.max[j]=Math.max(c.max[j],v)}}
+window.COMP=[...comp.values()].filter(c=>c.n>200).sort((a,b)=>b.n-a.n).map(c=>({n:c.n,min:c.min.map(x=>+x.toFixed(3)),max:c.max.map(x=>+x.toFixed(3))}));
+const tex=m[0].material.map;const W=tex.image.width||tex.source.data.width,H=tex.image.height||tex.source.data.height;window.TS=[W,H];
+const r2=new THREE.WebGLRenderer({preserveDrawingBuffer:true});r2.setSize(W,H,false);r2.setPixelRatio(1);
+const sc=new THREE.Scene();const quad=new THREE.Mesh(new THREE.PlaneGeometry(2,2),new THREE.MeshBasicMaterial({map:tex}));sc.add(quad);
+r2.render(sc,new THREE.OrthographicCamera(-1,1,1,-1,0,1));
+window.PNG=r2.domElement.toDataURL('image/png');
+window.GEO={p:Array.from(P.array),uv:Array.from(geo.attributes.uv.array),i:Array.from(I),flip:tex.flipY};
+window.DONE=true;window.OUT=out;console.log(JSON.stringify(out));
+</script>

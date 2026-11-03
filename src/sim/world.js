@@ -71,11 +71,7 @@ export function createWorld(seed, speciesId) {
     w.droplets.push({ id: id(), x: Math.cos(a) * d, z: Math.sin(a) * d, vol: rng.range(18, 36), max: 36, dew: true });
   }
   for (const c of w.covers) if (c.kind !== 'moss' && rng.chance(0.5)) w.droplets.push({ id: id(), x: c.x + rng.range(-1, 1) * c.r, z: c.z + rng.range(-1, 1) * c.r, vol: 20, max: 30, dew: true });
-  // növényi nedv (cukor) – mindenhol szórtan; fán több
-  for (let i = 0; i < (tree ? 6 : 5); i++) {
-    const a = rng.range(0, 6.28), d = rng.range(24, 70);
-    w.foods.push({ id: id(), kind: 'sap', x: Math.cos(a) * d, z: Math.sin(a) * d, amount: rng.range(20, 40), max: 40, regen: 0.02 });
-  }
+  // méz / növényi nedv: csak a Cephalotes fáján, a fa ágain és törzsén
   if (tree) {
     for (let i = 0; i < 6; i++) {
       const limb = i < 4 ? 0 : (i === 4 ? 1 : 2);

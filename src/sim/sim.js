@@ -51,6 +51,14 @@ export class Sim {
   }
   controlTarget() { return this.player.active ? this.ants.find((a) => a.id === this.player.antId) : null; }
   possess(id) { const a = this.ants.find((q) => q.id === id && !q.dead); if (!a) return false; this.player.active = true; this.player.antId = id; this.input = freshInput(); a.task = 'manual'; a.st = ''; a.carry = a.carry; return true; }
+  // közvetlen parancs a kijelölt hangyának: a megadott ászkát/ugróvillát (élőt vagy tetemet) vadássza le / egye meg
+  order(id, kind, tid) {
+    const a = this.ants.find((q) => q.id === id && !q.dead); const sp = SPECIES[this.speciesId];
+    if (!a || a.caste === 'queen' && !this.nest || this.player.antId === id && this.player.active) return false;
+    if (!sp.hunt.live && !sp.hunt.scavenge) return false; if (sp.hunt.eggs) return false;
+    const p = (kind === 'isopod' ? this.isopods : this.springtails).find((q) => q.id === tid); if (!p) return false;
+    a.task = 'hunt'; a.st = 'approach'; a.target = { kind, id: tid }; a.tmr = 0; a.lost = 0; a.noTarget = 0; a.wp = null; a.order = { until: this.t + 70 }; a.decide = 5; return true;
+  }
   release() { const a = this.controlTarget(); this.player.active = false; if (a) { a.task = 'idle'; a.decide = 0; a.nseg = null; a.hiding = false; a.slow = false; a.climbing = false; a.cb = 1; a._dig = false; } }
   createNest(site) { this.nest = createNest(this.world, this.speciesId, site); this.nestDirty = true; if (site.kind === 'cavity') { const first = this.nest.nodes.find((q) => q.kind === 'chamber' && q.ready); if (first) first.role = 'brood'; } return this.nest; }
   addDig(fromId, target, role) { if (!this.nest) return null; return addDigJob(this.nest, SPECIES[this.speciesId], this.world, fromId, target, role); }
