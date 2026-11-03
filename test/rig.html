@@ -8,7 +8,7 @@ const s=new THREE.Scene();s.background=new THREE.Color(0x8a8f84);
 s.add(new THREE.HemisphereLight(0xffffff,0x554433,1.6));const d=new THREE.DirectionalLight(0xffffff,2.2);d.position.set(3,6,4);s.add(d);
 const floor=new THREE.Mesh(new THREE.PlaneGeometry(100,100),new THREE.MeshStandardMaterial({color:0x6b5a45}));floor.rotation.x=-Math.PI/2;s.add(floor);
 const defs=[['cephalotes_soldier',0,8.5,0x2b2621],['cephalotes_queen',0,10.5,0xffffff],['cephalotes',0,7,0x2b2621],['ponera',0,4.5,0x8b4a2b]];
-const only=q.get('m'); if(only){defs.length=0;defs.push([only,0,+(q.get('size')||30),only==='cephalotes_queen'?0xffffff:0x2b2621]);} const batches=[];
+const only=q.get('m'); if(only){defs.length=0;defs.push([only,({isopod:1,spider:2,springtail:3})[only]||0,+(q.get('size')||30),only==='cephalotes_queen'?0xffffff:0x2b2621]);} const batches=[];
 for(let i=0;i<defs.length;i++){const [n,k,size,col]=defs[i];const g=await loadCreatureGeometry(`../assets/models/${n}.glb`);
  const b=new CreatureBatch(g,{kind:k,capacity:2,color:col});s.add(b.mesh);batches.push([b,size,i]);}
 const cam=new THREE.PerspectiveCamera(35,1200/700,0.1,500);
@@ -17,7 +17,7 @@ cam.lookAt(0,2,0);
 const mv=act==='walk'?1:0, atk=act==='atk';
 for(const [b,size,i] of batches){b.begin();const x=only?0:(i-1.5)*10;
  const open=(act==='open')?1:0;
- b.add(new THREE.Vector3(x,0,0),0.6*(view==='s'?0:1),0,0,size,[t0*6,mv,atk?1:0,0.5],[parseFloat(q.get('hy')||'0.3'),atk?1:open,act==='curl'?1:0,atk?1:0],0xffffff);
+ const dead=act==='dead', feed=act==='feed'; b.add(new THREE.Vector3(x,dead?size*b.height*0.95:0,0),0.6*(view==='s'?0:1),0,dead?Math.PI:0,size,[t0*6,dead?0:mv,dead?9:feed?4:(atk?1:0),feed?1:0.5],[parseFloat(q.get('hy')||'0.3'),atk?1:(feed?0.4:open),act==='curl'?1:0,dead?parseFloat(q.get('dry')||'0'):feed?0:(atk?1:0)],0xffffff);
  b.end(t0);}
 r.render(s,cam);window.DONE=true;
 </script>

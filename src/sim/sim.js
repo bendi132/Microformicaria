@@ -51,7 +51,7 @@ export class Sim {
   }
   controlTarget() { return this.player.active ? this.ants.find((a) => a.id === this.player.antId) : null; }
   possess(id) { const a = this.ants.find((q) => q.id === id && !q.dead); if (!a) return false; this.player.active = true; this.player.antId = id; this.input = freshInput(); a.task = 'manual'; a.st = ''; a.carry = a.carry; return true; }
-  release() { const a = this.controlTarget(); this.player.active = false; if (a) { a.task = 'idle'; a.decide = 0; a.nseg = null; a.hiding = false; a.slow = false; } }
+  release() { const a = this.controlTarget(); this.player.active = false; if (a) { a.task = 'idle'; a.decide = 0; a.nseg = null; a.hiding = false; a.slow = false; a.climbing = false; a.cb = 1; a._dig = false; } }
   createNest(site) { this.nest = createNest(this.world, this.speciesId, site); this.nestDirty = true; if (site.kind === 'cavity') { const first = this.nest.nodes.find((q) => q.kind === 'chamber' && q.ready); if (first) first.role = 'brood'; } return this.nest; }
   addDig(fromId, target, role) { if (!this.nest) return null; return addDigJob(this.nest, SPECIES[this.speciesId], this.world, fromId, target, role); }
   setRole(nodeId, role) { const n = node(this.nest, nodeId); if (n && n.kind === 'chamber') n.role = role; }
@@ -139,7 +139,7 @@ export class Sim {
     for (const a of this.ants) if (a.dead) { a.deadT = (a.deadT || 0) + H; }
     this.ants = this.ants.filter((a) => !a.dead || a.deadT < 0.01 ? true : false);
     if (this.player.active && !this.ants.some((a) => a.id === this.player.antId)) { this.player.active = false; }
-    this.spiders = this.spiders.filter((s) => { if (s.dead) { s.deadT = (s.deadT || 0) + H; if (s.deadT > 25) { const l = this.world.lairs.find((q) => q.id === s.lair); if (l) l.occupied = false; return false; } } return true; });
+    this.spiders = this.spiders.filter((s) => { if (s.dead) { if (s.food === undefined) { s.food = Math.pow(s.len, 3) * ISOPOD.energyPerMm3 * 0.8; s.foodLeft = s.food; s.fresh = 1; } s.deadT = (s.deadT || 0) + H; s.fresh -= H / (DAY * 1.4); const eaten = s.foodLeft <= 0.05; if (eaten) s.huskT = (s.huskT || 0) + H; if ((eaten && s.huskT > 30) || (!eaten && s.fresh <= 0) || (!eaten && s.deadT > 25 && !s.beingEaten && s.deadT > DAY * 0.8)) { const l = this.world.lairs.find((q) => q.id === s.lair); if (l) l.occupied = false; return false; } } return true; });
     for (const s of this.spiders) if (!s.dead && s.hp > 0) { const l = this.world.lairs.find((q) => q.id === s.lair); if (l) l.occupied = true; }
   }
   checkEnd() {
@@ -152,7 +152,8 @@ export class Sim {
     const w = this.world; const W = { ...w, moist: Array.from(w.moist) };
     return JSON.stringify({ v: SAVE_VERSION, seed: this.seed, speciesId: this.speciesId, difficulty: this.difficulty, t: this.t, rng: this.rng.getState(), nextId: this.nextId, world: W, nest: this.nest, nestSite: this.nestSite,
       ants: this.ants, isopods: this.isopods, springtails: this.springtails, spiders: this.spiders, clutches: this.clutches, brood: this.brood, colony: this.colony, env: this.env,
-      queenDead: this.queenDead, over: this.over, preyScarcity: this.preyScarcity, logs: this.logs.slice(-40), ecoT: this.ecoT, spiderCheck: this.spiderCheck });
+      queenDead: this.queenDead, over: this.over, preyScarcity: this.preyScarcity, logs: this.logs.slice(-40), ecoT: this.ecoT, spiderCheck: this.spiderCheck },
+      (k, v) => ((k === 'threat' || k === 'target') && v && typeof v === 'object' && v.kind && v.x !== undefined ? undefined : v));   // élő hivatkozások (zsákmány ↔ ragadozó) körkörösek: betöltéskor úgyis törlődnek
   }
   static deserialize(json) {
     const d = typeof json === 'string' ? JSON.parse(json) : json; if (d.v !== SAVE_VERSION) throw new Error('A mentés verziója nem kompatibilis.');
@@ -169,4 +170,4 @@ export class Sim {
     return s;
   }
 }
-export function freshInput() { return { fwd: 0, strafe: 0, yawD: 0, pitchD: 0, sprint: false, act1: false, act2: false, use: false, useHold: false, jump: false, drop: false, dig: false }; }
+export function freshInput() { return { fwd: 0, strafe: 0, yawD: 0, pitchD: 0, sprint: false, act1: false, act2: false, use: false, useHold: false, jump: false, drop: false, dig: false, climb: false, digSurf: false }; }

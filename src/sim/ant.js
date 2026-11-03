@@ -147,7 +147,7 @@ function decideReaction(sim, a, sp, d, C) {
 
 export function updateAnt(sim, a, dt) {
   if (a.dead) return;
-  const sp = SPECIES[sim.speciesId]; a.moved = 0;
+  const sp = SPECIES[sim.speciesId]; a.moved = 0; a._feed = false;
   physiology(sim, a, dt); if (a.dead) return;
   a.cd = Math.max(0, a.cd - dt); a.jumpCd = Math.max(0, a.jumpCd - dt); a.dodgeT = Math.max(0, a.dodgeT - dt);
   if (a.mand < 1) a.mand = Math.min(1, a.mand + dt * 0.004);
@@ -159,6 +159,8 @@ export function updateAnt(sim, a, dt) {
   if (a.decide <= 0 && a.task !== 'flee' && a.task !== 'fight' && a.task !== 'plug') { a.decide = 2.5 + sim.rng.range(0, 2.5); chooseTask(sim, a); }
   a.anim.mv = 0;
   runTask(sim, a, dt);
+  { const an = a.anim, tgt = a._feed ? 1 : 0; an.feedS = (an.feedS || 0) + (tgt - (an.feedS || 0)) * Math.min(1, dt * 6);   // evési póz: act = 4, a fej fokozatosan lehajlik
+    if (an.feedS > 0.03 && an.act !== 1 && an.act !== 3) { an.act = 4; an.actT = an.feedS; } else if (an.act === 4) { an.act = 0; an.actT = 0; } }
   // animációs változók
   const mvNow = clamp(a.moved / Math.max(0.0001, dt * baseSpeed(sim, a) * 0.8), 0, 1.5);
   a.anim.mvS = (a.anim.mvS || 0) + (mvNow - (a.anim.mvS || 0)) * Math.min(1, dt * 8);

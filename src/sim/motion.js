@@ -1,6 +1,6 @@
 // Mozgás: talajon (akadálykerüléssel), fészekjáratokban (gráf-úton) és a fán (végtag-felületen).
 import { clamp, turnToward, angDiff, dist } from '../core/util.js';
-import { heightAt, limbPoint, obstaclesAt } from './world.js';
+import { heightAt, limbPoint, obstaclesAt, climbHeight } from './world.js';
 import { node, findPath } from './nest.js';
 
 // ---- általános: egy entitás (hangya/ászka/pók) talajmozgása a (tx,tz) felé. Visszatér: távolság a célig.
@@ -39,9 +39,12 @@ export function steerGround(sim, e, tx, tz, speed, dt, opts = {}) {
 export function placeAnt(sim, a) {
   const w = sim.world;
   if (a.loc === 'ground') {
-    a.y = heightAt(w, a.x, a.z) + (a.leap || 0);
-    const hx = heightAt(w, a.x + 0.8, a.z) - heightAt(w, a.x - 0.8, a.z), hz = heightAt(w, a.x, a.z + 0.8) - heightAt(w, a.x, a.z - 0.8);
-    a.up = [-hx / 1.6, 1, -hz / 1.6]; const l = Math.hypot(...a.up); a.up = a.up.map((v) => v / l);
+    // mászás (kő / rönk teteje): a hangya a tárgy felületén jár, a felület dőlésének megfelelően
+    const surf = (x, z) => { const c = a.climbing ? climbHeight(w, x, z) : null; return c ? c.y : heightAt(w, x, z); };
+    const ty = surf(a.x, a.z) + (a.leap || 0);
+    if (a.climbing || a.cb > 0) { a.y += (ty - (a.y || 0)) * 0.3; if (Math.abs(ty - a.y) < 0.02) a.cb = 0; else if (!a.climbing) a.cb = (a.cb || 1) - 0.02; } else a.y = ty;
+    const hx = surf(a.x + 0.5, a.z) - surf(a.x - 0.5, a.z), hz = surf(a.x, a.z + 0.5) - surf(a.x, a.z - 0.5);
+    a.up = [-hx / 1.0, 1, -hz / 1.0]; const l = Math.hypot(...a.up); a.up = a.up.map((v) => v / l);
     a.pitch = 0;
   } else if (a.loc === 'limb') {
     const p = limbPoint(w, a.limb, a.ls, a.lth, {}); a.x = p.x; a.y = p.y; a.z = p.z; a.up = [p.nx, p.ny, p.nz];

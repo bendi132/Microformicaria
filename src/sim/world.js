@@ -146,6 +146,23 @@ export function obstaclesAt(w, x, z, rad) {
   for (const s of w.stones) if (Math.abs(s.x - x) < s.r + rad + 2 && Math.abs(s.z - z) < s.r + rad + 2) out.push({ x: s.x, z: s.z, r: s.r });
   return out;
 }
+// Mászható felületek (kövek, rönkök teteje): a felület abszolút magassága az (x, z) pontban, vagy null, ha nincs alatta tárgy.
+// A méretek a megjelenítéssel egyeznek (worldview: kő = ellipszoid, rönk = ellipszis keresztmetszetű henger).
+export function climbHeight(w, x, z) {
+  let best = null;
+  const g = heightAt(w, x, z);
+  for (const s of w.stones) {
+    if (s.trunk) continue; const dx = x - s.x, dz = z - s.z; if (Math.abs(dx) > s.r || Math.abs(dz) > s.r) continue;
+    const c = Math.cos(s.yaw), si = Math.sin(s.yaw), u = (dx * c - dz * si) / s.r, v = (dx * si + dz * c) / (s.r * s.sq), q = 1 - u * u - v * v; if (q <= 0) continue;
+    const y = heightAt(w, s.x, s.z) - s.h * 0.12 + s.h * 1.15 * Math.sqrt(q) * 0.97; if (y > g + 0.05 && (!best || y > best.y)) best = { y, kind: 'stone', id: s.id };
+  }
+  for (const l of w.logs) {
+    const dx = x - l.x, dz = z - l.z; if (Math.abs(dx) > l.len || Math.abs(dz) > l.len) continue;
+    const c = Math.cos(l.yaw), si = Math.sin(l.yaw), u = (dx * c - dz * si) / l.len, v = (dx * si + dz * c) / (l.wid * 0.5); if (Math.abs(u) > 0.5 || Math.abs(v) >= 1) continue;
+    const y = heightAt(w, l.x, l.z) + l.h * 0.55 + l.h * Math.sqrt(1 - v * v) * 0.97; if (y > g + 0.05 && (!best || y > best.y)) best = { y, kind: 'log', id: l.id };
+  }
+  return best;
+}
 // A fa felszíni pontja (végtag, s, th) -> 3D
 export function limbPoint(w, limbId, s, th, out = {}) {
   const L = w.limbs[limbId];

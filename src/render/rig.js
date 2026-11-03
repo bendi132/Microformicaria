@@ -20,6 +20,10 @@ vec3 p = position; float part = aPart; float mv = iA.y; float ph = iA.x; float l
 float dig = (iA.z > 2.5 && iA.z < 3.5) ? 1.0 : 0.0;    // act = 3: földet fúr
 float side = aPivot.z >= 0.0 ? 1.0 : -1.0;       // +Z = bal oldal
 float wt = smoothstep(0.0, 0.85, aW);
+float act = iA.z; float dead = (act > 8.5) ? 1.0 : 0.0;                          // act = 9: elpusztult (zsákmány holtpóza)
+float feed = (act > 3.5 && act < 4.5) ? clamp(iA.w, 0.0, 1.0) : 0.0;     // act = 4: étkezés (a fej lent, az első lábak a táplálékot fogják)
+float dry = dead * clamp(iB.w, 0.0, 1.0);                                  // kiszívott tetem: lapul
+float alertv = iB.w * (1.0 - dead);
 if (uKind < 0.5 || uKind > 2.5) {            // ---- hangya / ugróvilla
   if (part > 0.5 && part < 1.5) {                  // láb (tripod járás)
     float k = floor(lid*0.5); float sd = mod(lid,2.0);
@@ -28,13 +32,15 @@ if (uKind < 0.5 || uKind > 2.5) {            // ---- hangya / ugróvilla
     float mvc = smoothstep(0.03, 0.2, mv); float swing = sin(f) * uSwing * mvc;
     if (dig > 0.5 && k < 0.5) { float fd = uTime * 13.0 + sd * 3.14159; swing = sin(fd) * 0.55; }     // fúrás: az első láb kaparja a földet
     float lift = max(0.0, cos(f)) * (0.35 + uSwing * 0.5) * mvc; if (dig > 0.5 && k < 0.5) lift = max(0.0, cos(uTime * 13.0 + sd * 3.14159)) * 0.5;
+    if (feed > 0.01 && k < 0.5) { swing = mix(swing, -0.55, feed); lift = mix(lift, 0.75 + 0.12*sin(uTime*9.0 + sd*3.14159), feed); }   // étkezés: az első lábak előre nyúlnak és tartják
+    if (dead > 0.5) { swing = 0.12*sin(lid*2.3); lift = 1.0 + 0.15*sin(lid*3.1); }                                                                 // elpusztult: a lábak összehúzódnak
     mat3 R = rotY(swing*side*wt) * rotX(-side*lift*wt);
     // állva is finom súlyáthelyezés
     p = rotAbout(R, p, aPivot);
   } else if (part > 1.5 && part < 2.5) {           // csáp
-    float t = uTime*(2.0+3.0*iB.w) + lid*1.7;
-    float a = sin(t)*0.30*(0.35+iB.w) + sin(t*2.3+1.0)*0.12;
-    float b = sin(t*0.8+2.0)*0.18*(0.4+iB.w);
+    float t = uTime*(2.0+3.0*alertv) + lid*1.7;
+    float a = sin(t)*0.30*(0.35+alertv)*(1.0-0.6*feed) + sin(t*2.3+1.0)*0.12;
+    float b = sin(t*0.8+2.0)*0.18*(0.4+alertv) - 0.5*feed - 0.35*dead;
     p = rotAbout(rotY(a*wt)*rotZ(b*wt), p, aPivot);
   } else if (part > 2.5 && part < 3.5) {           // rágó (nyitás oldalra)
     float sgn = lid > 0.5 ? 1.0 : -1.0;
@@ -51,7 +57,7 @@ if (uKind < 0.5 || uKind > 2.5) {            // ---- hangya / ugróvilla
   }
   if (part < 0.5 || (part > 1.5 && part < 3.5) || (part > 4.5 && part < 5.5)) {    // fej-csoport: fejforgatás a nyakon át; a törzs/fej határán fokozatos súly (nem szakad el a háló)
     float wn = (part > 1.5 && part < 3.5) ? 1.0 : smoothstep(uNeck.x - 0.05, uNeck.x + 0.05, position.x);
-    p = rotAbout(rotY(iB.x*wn)*rotZ((-0.12*iB.w - dig*(0.45 + 0.2*sin(uTime*9.0)))*wn), p, uNeck);   // fúrás: a fej lefelé, ütemesen
+    p = rotAbout(rotY((iB.x + feed*0.07*sin(uTime*11.0))*wn)*rotZ((-0.12*alertv - dig*(0.45 + 0.2*sin(uTime*9.0)) - feed*(0.62 + 0.09*sin(uTime*16.0)))*wn), p, uNeck);   // fúrás: a fej lefelé, ütemesen
   }
   p.y += abs(sin(ph))*0.012*mv*uAmp;               // járás közbeni finom emelkedés
   p.z += sin(ph)*0.006*mv;
@@ -59,9 +65,10 @@ if (uKind < 0.5 || uKind > 2.5) {            // ---- hangya / ugróvilla
   if (part > 0.5 && part < 1.5) {
     float f = ph + lid*0.95 + (side < 0.0 ? 3.14159 : 0.0);
     float swing = sin(f)*0.50*mv; float lift = max(0.0, cos(f))*0.45*mv;
+    if (dead > 0.5) { swing = 0.15*sin(lid*2.0); lift = 1.0 + 0.15*sin(lid*3.1); }
     p = rotAbout(rotY(swing*side*wt)*rotX(-side*lift*wt), p, aPivot);
   } else if (part > 1.5 && part < 2.5) {
-    float t = uTime*3.0; p = rotAbout(rotY(sin(t)*0.35*wt), p, aPivot);
+    float t = uTime*3.0; p = rotAbout(rotY(sin(t)*0.35*wt*(1.0-dead))*rotZ(-0.5*dead*wt), p, aPivot);
   }
   p.z += sin(p.x*7.0 - ph*1.0)*0.012*mv*step(part,0.5);
   p.y += abs(sin(ph*0.5))*0.004*mv;
@@ -71,12 +78,13 @@ if (uKind < 0.5 || uKind > 2.5) {            // ---- hangya / ugróvilla
     float grp = mod(k + sd, 2.0);
     float f = ph + grp*3.14159;
     float swing = sin(f)*0.42*mv; float lift = max(0.0, cos(f))*0.78*mv;
-    float raise = iB.w*(k < 0.5 ? 0.35 : 0.0);
+    if (dead > 0.5) { swing = -0.35 + 0.1*sin(lid*1.7); lift = -1.8 - 0.12*sin(lid); }
+    float raise = alertv*(k < 0.5 ? 0.35 : 0.0);
     p = rotAbout(rotY(swing*side*wt)*rotX(-side*(lift+raise)*wt), p, aPivot);
   } else if (part > 1.5 && part < 2.5) {           // elülső végtagok: tapogatás / támadáskor felemelés és előrecsapás
     float t = uTime*2.2 + lid*2.0;
     float probe = sin(t)*0.22*(0.4+mv);
-    float up = iB.w*0.95;                          // éberség/ támadás: felemelés
+    float up = alertv*0.95;                          // éberség/ támadás: felemelés
     float strike = iA.z > 0.5 ? sin(clamp(iA.w,0.0,1.0)*3.14159)*0.7 : 0.0;
     p = rotAbout(rotY((probe + strike)*side*wt)*rotX(-side*up*wt), p, aPivot);
   } else if (part > 2.5 && part < 3.5) {           // tapogatók
@@ -87,6 +95,7 @@ if (uKind < 0.5 || uKind > 2.5) {            // ---- hangya / ugróvilla
   }
   p.y += abs(sin(ph))*0.01*mv;
 }
+if (dead > 0.5) { p.y *= 1.0 - 0.38*dry; p.z *= 1.0 - 0.22*dry; }                  // kiszívott, összelapult test
 vec3 transformed = p;
 `;
 

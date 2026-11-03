@@ -4,7 +4,7 @@ import { SPECIES, SPIDER, DAY, TASK_HU } from './config.js';
 import { navigate, entrancePos, baseSpeed, damageAnt, killAnt, treeBase } from './ant.js';
 import { steerGround, placeAnt, placeInNode, setNestPath, moveNest } from './motion.js';
 import { node, nodeDepth, digWork, nearestNode, chambers, findPath, neighbors, addNode, addEdge } from './nest.js';
-import { heightAt, moistureAt, nearestCover, limbPoint, obstaclesAt } from './world.js';
+import { heightAt, moistureAt, nearestCover, limbPoint, obstaclesAt, climbHeight } from './world.js';
 import { colonyNeeds, workers, queen, layEgg, broodChamber, restChamber, storeCap, chamberQuality } from './colony.js';
 import { killIsopod } from './isopod.js';
 import { dist, clamp, angDiff, turnToward } from '../core/util.js';
@@ -118,7 +118,7 @@ function eat(sim, a, dt) {
   if (a.loc !== 'nest') { const r = goHome(sim, a, dt); if (r === 'blocked') { setTask(a, sp.hunt.eggs || sp.hunt.live ? 'hunt' : 'forage'); a.self = true; } return; }
   if (c.store.prey + c.store.sugar < 0.5) { setTask(a, sp.hunt.live || sp.hunt.eggs ? 'hunt' : 'forage'); a.self = true; return; }
   if (a.carry) deposit(sim, a);
-  a.anim.mv = 0;
+  a.anim.mv = 0; a._feed = true; a.anim.open = 0.25 + 0.2 * Math.sin(sim.t * 13);
   const take = Math.min(2.2 * dt, c.store.sugar > 0.3 ? c.store.sugar : c.store.prey);
   if (c.store.sugar > 0.3) c.store.sugar -= take; else c.store.prey -= take;
   a.energy = Math.min(100, a.energy + take * EN * 1.6);
@@ -202,7 +202,7 @@ function forage(sim, a, dt) {
     if (near) { a.st = 'take'; a.tmr = 0; }
     if (r === 'blocked') { a.target = null; }
   } else if (a.st === 'take') {
-    const t = a.target; const ref = t.ref; a.anim.mv = 0; a.anim.open = 0.2;
+    const t = a.target; const ref = t.ref; if (ref.limb === undefined) feedPose(sim, a, ref.x, ref.z, t.kind === 'carcass' ? ref.len : 0.6, dt, t.kind === 'carcass' ? ref.yaw : undefined); else { a._feed = true; a.anim.mv = 0; a.anim.open = 0.3 + 0.2 * Math.sin(sim.t * 13); } if (t.kind === 'carcass') ref.beingEaten = sim.t;
     const left = t.kind === 'food' ? ref.amount : ref.foodLeft; if (left < 0.2) { a.st = 'go'; a.target = null; return; }
     const full = a.energy > 85 && (a.crop >= sp.crop[a.caste === 'queen' ? 'queen' : 'worker'] * 0.9);
     const eatRate = 1.4 * dt;
@@ -310,8 +310,8 @@ function hunt(sim, a, dt) {
     }
   } else if (a.st === 'feed') {
     const p = getTarget(sim, a.target); if (!p) { a.st = 'search'; return; }
-    a.anim.mv = 0; a.anim.open = 0.3 + 0.2 * Math.sin(sim.t * 9);
     if (p.state !== 'dead' && !p.dead) { a.st = 'attack'; return; }
+    feedPose(sim, a, p.x, p.z, p.len, dt, p.yaw); p.beingEaten = sim.t;
     const left = p.foodLeft; const cropMax = sp.crop[a.caste === 'queen' ? 'queen' : 'worker'];
     if (left < 0.12) { a.st = a.carry ? 'back' : 'search'; a.target = null; return; }
     if (a.energy < 90 && (a.self || a.energy < 70 || a.caste === 'queen')) { const x = Math.min(left, 1.5 * dt); p.foodLeft -= x; a.energy = Math.min(100, a.energy + x * EN); return; }
@@ -575,7 +575,37 @@ function fight(sim, a, dt) {
 function slide(sim, a, dx, dz) {
   const w = sim.world; const nx = clamp(a.x + dx, -w.half + 2, w.half - 2), nz = clamp(a.z + dz, -w.half + 2, w.half - 2);
   a.x = nx; a.z = nz;
-  for (const o of obstaclesAt(w, a.x, a.z, a.len)) { const ox = a.x - o.x, oz = a.z - o.z, od = Math.hypot(ox, oz), lim = o.r + a.len * 0.4; if (od < lim && od > 1e-3) { a.x = o.x + (ox / od) * lim; a.z = o.z + (oz / od) * lim; } }
+  if (!a.climbing) for (const o of obstaclesAt(w, a.x, a.z, a.len)) { const ox = a.x - o.x, oz = a.z - o.z, od = Math.hypot(ox, oz), lim = o.r + a.len * 0.4; if (od < lim && od > 1e-3) { a.x = o.x + (ox / od) * lim; a.z = o.z + (oz / od) * lim; } }
+}
+// Étkezési testhelyzet: a hangya a táplálék felé fordul és úgy áll meg, hogy a szája a táplálékon (a tetem testén) legyen; a fej lent, a rágók dolgoznak.
+// Az animációs állapotot (act = 4) az updateAnt építi a _feed jelzőből, a fejlehajlás finoman be- és kiúszik.
+export function feedPose(sim, a, tx, tz, tlen, dt, tyaw) {
+  a._feed = true; a.anim.open = 0.28 + 0.22 * Math.sin(sim.t * 13 + a.id); a.anim.mv = 0;
+  if (a.loc !== 'ground' || tx === undefined) return 0;
+  const dx = tx - a.x, dz = tz - a.z, d = Math.hypot(dx, dz) || 1e-3;
+  let edge = (tlen || 0) * 0.24;                                         // a tetem peremének távolsága a közepétől az ant irányában (ellipszis-közelítés)
+  if (tyaw !== undefined && tlen) { const phi = Math.atan2(-dx, -dz) - tyaw, A = tlen * 0.48, B = tlen * 0.28, cs = Math.cos(phi), sn = Math.sin(phi); edge = (A * B) / Math.hypot(B * cs, A * sn); }
+  const want = a.len * 0.44 + edge * 0.82, diff = d - want;
+  a.yaw = turnToward(a.yaw, Math.atan2(dx, dz), dt * 8);
+  if (Math.abs(diff) > 0.12) { const m = clamp(diff, -a.len * 1.0 * dt, a.len * 0.9 * dt); a.x += (dx / d) * m; a.z += (dz / d) * m; a.moved = Math.abs(m); placeAnt(sim, a); }
+  return diff;
+}
+// Felszíni ásás: a hangya a talajba ás (lábak kaparnak, a fej lent, morzsák szállnak); ~6 mp után új akna nyílik, és a hangya a föld alá kerül.
+// Az új kijárat ('exit') a fészek többi részéhez a felülnézetben továbbásva kapcsolható (a két járat találkozásakor összekapcsolódnak).
+function surfaceDig(sim, a, dt) {
+  const sp = S(sim), n = sim.nest, w = sim.world;
+  if (n.nodes.length > 90) return;
+  for (const e of n.nodes) if ((e.kind === 'entrance' || e.kind === 'exit') && dist(a.x, a.z, e.x, e.z) < e.r + a.len * 0.8) { a.anim.act = 0; return; }   // meglévő nyílás mellett nem ás újat
+  if (!a.digAt || dist(a.x, a.z, a.digAt.x, a.digAt.z) > 1.5) { a.digAt = { x: a.x, z: a.z }; a.digSurfP = 0; }
+  a.anim.mv = 0; a.anim.act = 3; a.anim.open = 0.4 + 0.4 * Math.abs(Math.sin(sim.t * 7)); a.anim.curl = 0.2; a.moved = 0;
+  a.digSurfP = (a.digSurfP || 0) + dt * Math.max(0.12, sp.nest.digRate * 0.34) * (a.caste === 'queen' ? 0.85 : 1);
+  a.pelT = (a.pelT || 0) - dt; if (a.pelT <= 0) { a.pelT = 0.55; w.pellets = w.pellets || []; const fx = Math.sin(a.yaw), fz = Math.cos(a.yaw), lat = sim.rng.range(-0.5, 0.5) * a.len; w.pellets.push({ x: a.x - fx * a.len * (0.7 + sim.rng.range(0, 0.6)) - fz * lat, z: a.z - fz * a.len * (0.7 + sim.rng.range(0, 0.6)) + fx * lat, s: sim.rng.range(0.22, 0.45) }); if (w.pellets.length > 260) w.pellets.shift(); }
+  if (a.digSurfP >= 1) {
+    a.digSurfP = 0; a.digAt = null; a.anim.act = 0; const gy = heightAt(w, a.x, a.z);
+    const ex = addNode(n, { x: a.x, y: gy, z: a.z, r: sp.nest.entranceW * 0.5, kind: 'exit' }); const sh = addNode(n, { x: a.x, y: gy - 2.4, z: a.z, r: sp.nest.tunnelW * 0.5, kind: 'tunnel' });
+    addEdge(n, ex.id, sh.id, sp.nest.tunnelW); sim.nestDirty = true; a.loc = 'nest'; a.node = sh.id; a.nseg = null; a.path = null; placeInNode(sim, a); a.noEnterUntil = sim.t + 1.2;
+    sim.log && sim.log('Új járat nyílt a felszínen. A felülnézetben továbbáshatod (bal egérgomb), hogy a fészekhez kapcsold.', 'good');
+  }
 }
 export function manualTargets(sim, a, range) {
   // hatótávon belüli lehetséges célpontok a hangya előtt (±60°)
@@ -591,9 +621,11 @@ function manual(sim, a, dt) {
   const sp = S(sim), inp = sim.input, n = sim.nest, w = sim.world;
   a.yaw += inp.yawD; inp.yawD = 0; a.pitchLook = clamp((a.pitchLook || 0) + inp.pitchD, -1.0, 0.9); inp.pitchD = 0;
   const sprint = inp.sprint && a.energy > 6 ? 1.7 : 1; const crouch = inp.act2 && sp.id !== 'odonto';
-  a.hiding = crouch; a.slow = crouch;
+  a.hiding = crouch; a.slow = crouch; if (a.loc !== 'nest' && a.anim.act === 3) a.anim.act = 0;
   const spd = baseSpeed(sim, a) * (crouch ? 0.45 : sprint) * (0.5 + 0.5 * a.hp / a.maxHp);
-  const fwd = inp.fwd, str = inp.strafe; const mag = Math.hypot(fwd, str);
+  const src = a.loc === 'ground' && inp.use ? nearbyUse(sim, a) : null;      // evés/ivás közben a hangya a forrásnál marad
+  const digging = a.loc === 'ground' && inp.digSurf && !a.climbing && sp.nest.type === 'soil' && !!n && !src;   // felszíni ásás (X)
+  const fwd = inp.fwd, str = inp.strafe; const mag = (src || digging) ? 0 : Math.hypot(fwd, str);
   a.anim.open = sp.id === 'odonto' ? (inp.act2 ? clamp(a.anim.open + dt * 7, 0, 1) : clamp(a.anim.open - dt * 6, 0, 1)) : (a.anim.open > 0 ? a.anim.open - dt * 4 : 0);
   if (a.loc === 'ground') {
     if (mag > 0.01) {
@@ -603,7 +635,7 @@ function manual(sim, a, dt) {
     }
     placeAnt(sim, a);
     // bejárat: ha ráérünk, belép (E-vel) – vagy ha a bejáratba sétálunk
-    if (n) { const e = n.nodes[0]; const ent = entrancePos(sim); if (ent.k === 'g' && dist(a.x, a.z, e.x, e.z) < Math.max(3, e.r + a.len * 0.9) && sim.t > (a.noEnterUntil || 0) && (inp.use || inp.fwd > 0)) { if (!(n.plug.active && a.caste !== 'soldier')) { a.loc = 'nest'; a.node = n.entranceId; a.path = null; a.nseg = null; placeInNode(sim, a); a.lookIn = true; } } }
+    if (n && !a.climbing) { const ent = entrancePos(sim); for (const e of n.nodes) { if (e.kind !== 'entrance' && e.kind !== 'exit') continue; if ((e.kind === 'entrance' && ent.k !== 'g') || e.ready === false) continue; if (dist(a.x, a.z, e.x, e.z) < Math.max(3, e.r + a.len * 0.9) && sim.t > (a.noEnterUntil || 0) && (inp.use || inp.fwd > 0) && !a.digSurfP) { if (!(n.plug.active && a.caste !== 'soldier')) { a.loc = 'nest'; a.node = e.id; a.path = null; a.nseg = null; placeInNode(sim, a); a.lookIn = true; } break; } } }
     if (n && sp.nest.type === 'tree') { const tb = treeBase(sim); if (dist(a.x, a.z, tb.x, tb.z) < tb.r + 1.2 && inp.fwd > 0) { a.loc = 'limb'; a.limb = 0; a.ls = 0.8; a.lth = Math.atan2(a.z - tb.z, a.x - tb.x); } }
   } else if (a.loc === 'limb') {
     const L = w.limbs[a.limb]; const sstep = spd * dt;
@@ -615,8 +647,22 @@ function manual(sim, a, dt) {
   } else if (a.loc === 'nest') {
     manualNest(sim, a, dt, spd);
   }
+  if (digging) surfaceDig(sim, a, dt); else if (a.digSurfP) { a.digSurfP = Math.max(0, a.digSurfP - dt * 0.25); if (!a.digSurfP) a.digAt = null; }
+  // ---- mászás (F): a hangya felmászik a kőre / rönkre, ismételt F-re leszáll; a tetején szabadon jár
+  a.climbCd = Math.max(0, (a.climbCd || 0) - dt);
+  if (inp.climb) {
+    inp.climb = false;
+    if (a.climbing) { a.climbing = false; a.cb = 1; a.climbCd = 0.3; }
+    else if (a.loc === 'ground' && a.climbCd <= 0) {
+      let ok = false; const fx = Math.sin(a.yaw), fz = Math.cos(a.yaw);
+      for (let d = 0.4; d <= a.len * 1.3 + 1; d += 0.4) if (climbHeight(w, a.x + fx * d, a.z + fz * d)) { ok = true; break; }
+      if (ok || climbHeight(w, a.x, a.z)) { a.climbing = true; a.climbGrace = 3; a.cb = 0; sim.event && sim.event('climb', a); }
+    }
+  }
+  if (a.climbing) { a.climbGrace = (a.climbGrace || 0) - dt; if (a.loc !== 'ground' || (a.climbGrace <= 0 && !climbHeight(w, a.x, a.z))) { a.climbing = false; a.cb = 1; } }
   // ---- műveletek
   const reach = sp.hunt.reach * a.len;
+  if (inp.use && !src && a.loc !== 'nest' && a.cd <= 0) { const tg0 = manualTargets(sim, a, Math.max(reach * 1.4, 3.2)); if (tg0.length && !tg0[0].p.dead && (tg0[0].kind === 'springtail' || tg0[0].kind === 'isopod')) inp.act1 = true; }   // E az élő zsákmányra: ütés/harapás
   if (inp.act1 && a.cd <= 0) {
     inp.act1 = false; const H = sp.hunt;
     const tg = manualTargets(sim, a, Math.max(reach * 1.4, 3.2));
@@ -633,7 +679,6 @@ function manual(sim, a, dt) {
   }
   if (inp.use) {
     // ivás / evés / tetem felvétele
-    const src = a.loc === 'ground' ? nearbyUse(sim, a) : null;
     if (src) useSource(sim, a, src, dt);
     if (a.loc === 'nest' && a.carry) { deposit(sim, a); inp.use = false; }
     else if (a.loc === 'nest') { const c = sim.colony; if (c.store.water > 1) { const t = Math.min(c.store.water, 1.6 * dt); c.store.water -= t; a.hyd = Math.min(100, a.hyd + t * 14); } }
@@ -642,14 +687,16 @@ function manual(sim, a, dt) {
   if (inp.drop && a.carry) { inp.drop = false; if (a.loc === 'nest') deposit(sim, a); else a.carry = null; }
   a.anim.mv = a.moved > 0.0001 ? 1 : 0;
 }
+// felszíni nyílás: az eredeti bejárat vagy a játékos által ásott kijárat ('exit')
+export const isExitNode = (n, id) => { if (id === n.entranceId) return true; const nd = node(n, id); return !!nd && nd.kind === 'exit'; };
 function exitToSurface(sim, a) {
-  const n = sim.nest; const ep = entrancePos(sim);
+  const n = sim.nest; let ep = entrancePos(sim); const cur = node(n, a.node); if (cur && cur.kind === 'exit') ep = { k: 'g', x: cur.x, z: cur.z };
   if (a.carry && a.carry.kind === 'soil') { sim.world.pellets = sim.world.pellets || []; sim.world.pellets.push({ x: ep.x + sim.rng.range(-1.5, 1.5), z: ep.z + sim.rng.range(-1.5, 1.5), s: sim.rng.range(0.25, 0.5) }); if (sim.world.pellets.length > 260) sim.world.pellets.shift(); a.carry = null; }   // a kitermelt földet a bejáratnál kiviszi
   a.anim.act = 0; a.nseg = null; a.noEnterUntil = sim.t + 1.6; if (ep.k === 'l') { a.loc = 'limb'; a.limb = ep.limb; a.ls = ep.s; a.lth = ep.th; } else { a.loc = 'ground'; a.x = ep.x; a.z = ep.z; } placeAnt(sim, a);
 }
 // A játékos fúrása: a járat zsákutcás végén (LMB nyomva tartva) a hangya előre ás; a kitermelt föld a bejáratnál kerül ki.
 function playerDig(sim, a, dt, nd) {
-  const sp = S(sim), n = sim.nest, inp = sim.input; if (sp.nest.type !== 'soil' || nd.kind === 'entrance') return false;
+  const sp = S(sim), n = sim.nest, inp = sim.input; if (sp.nest.type !== 'soil' || nd.kind === 'entrance' || nd.kind === 'exit') return false;
   const deg = n.edges.filter((e) => (e.a === nd.id || e.b === nd.id)).length; if (deg !== 1 && nd.kind !== 'chamber') return false;
   if (n.nodes.length > 90) return false;
   a.anim.mv = 0; a.anim.act = 3; a.anim.open = 0.4 + 0.4 * Math.abs(Math.sin(sim.t * 7)); a.anim.curl = 0.2;
@@ -658,6 +705,9 @@ function playerDig(sim, a, dt, nd) {
   if (a.digP >= 3.84) {
     a.digP = 0; const step = 2.4; const ny = clamp(nd.y - 0.15, -22, heightAt(sim.world, nd.x, nd.z) - 1.5), nx = clamp(nd.x + Math.sin(a.yaw) * step, -sim.world.half + 4, sim.world.half - 4), nz = clamp(nd.z + Math.cos(a.yaw) * step, -sim.world.half + 4, sim.world.half - 4);
     const nn = addNode(n, { x: nx, y: ny, z: nz, r: sp.nest.tunnelW * 0.5, kind: 'tunnel' }); addEdge(n, nd.id, nn.id, sp.nest.tunnelW); a.node = nn.id; placeInNode(sim, a); sim.nestDirty = true;
+    // ha a járat áttört egy másik járatba / kamrába, összekapcsolódnak
+    let best = null, bd = sp.nest.tunnelW * 1.5; for (const m of n.nodes) { if (m.id === nn.id || m.id === nd.id || m.ready === false) continue; if (n.edges.some((e) => (e.a === nn.id && e.b === m.id) || (e.b === nn.id && e.a === m.id))) continue; const dd = Math.hypot(m.x - nn.x, m.y - nn.y, m.z - nn.z) - (m.kind === 'chamber' ? m.r * 0.8 : m.r); if (dd < bd) { bd = dd; best = m; } }
+    if (best) { addEdge(n, nn.id, best.id, sp.nest.tunnelW); sim.log && sim.log('A kiásott járat összekapcsolódott a fészekkel.', 'good'); }
   }
   return true;
 }
@@ -673,10 +723,10 @@ function manualNest(sim, a, dt, spd) {
       for (const nb of neighbors(n, a.node)) { if (nb.e.collapsed) continue; const m = node(n, nb.id); if (!m || m.ready === false) continue; let dx = m.x - nd.x, dz = m.z - nd.z; const h = Math.hypot(dx, dz); const l = h || 1; dx /= l; dz /= l; const shaft = h < 2.5; const dot = (dx * fx + dz * fz) * Math.sign(inp.fwd); const sc = shaft ? Math.max(dot, -0.45) + 0.3 : dot; if (sc > bd) { bd = sc; best = m; bshaft = shaft; } }
       // függőleges aknák (vízszintes eltérés < 2,5 mm) szinte bármely irányból bejárhatók; a bejáratnál a "visszafelé" irány kilép a felszínre
       const okay = best && (bshaft ? bd > -0.1 + 0.0 : bd > -0.2);
-      if (okay && !(a.node === n.entranceId && bshaft && bd < 0.05)) { a.nseg = { from: a.node, to: best.id, t: 0 }; }
-      else if (a.node === n.entranceId && !(n.plug.active && a.caste !== 'soldier')) exitToSurface(sim, a);   // természetes kijövetel a bejáratnál
+      if (okay && !(isExitNode(n, a.node) && bshaft && bd < 0.05)) { a.nseg = { from: a.node, to: best.id, t: 0 }; }
+      else if (isExitNode(n, a.node) && !(n.plug.active && a.caste !== 'soldier')) exitToSurface(sim, a);   // természetes kijövetel a bejáratnál
     }
-    if (a.node === n.entranceId && inp.use && !(n.plug.active && a.caste !== 'soldier') && !a.nseg) exitToSurface(sim, a);
+    if (isExitNode(n, a.node) && inp.use && !(n.plug.active && a.caste !== 'soldier') && !a.nseg) exitToSurface(sim, a);
     return;
   }
   const A = node(n, a.nseg.from), B = node(n, a.nseg.to); const L = Math.max(0.5, Math.hypot(B.x - A.x, B.y - A.y, B.z - A.z));
@@ -685,18 +735,21 @@ function manualNest(sim, a, dt, spd) {
   const t = clamp(a.nseg.t, 0, 1); a.x = A.x + (B.x - A.x) * t; a.y = A.y + (B.y - A.y) * t - 0.4; a.z = A.z + (B.z - A.z) * t;
   const tgtYaw = Math.atan2(B.x - A.x, B.z - A.z); a.yaw = turnToward(a.yaw, tgtYaw + (inp.fwd < 0 ? Math.PI : 0), dt * 5); a.pitch = Math.atan2(B.y - A.y, Math.hypot(B.x - A.x, B.z - A.z)) * -1;   // a hangya a haladás irányába néz (nem hátrafelé megy)
   if (a.nseg.t >= 1) { a.node = B.id; a.nseg = null; placeInNode(sim, a); }
-  else if (a.nseg.t <= 0) { const from = a.nseg.from; a.nseg = null; placeInNode(sim, a); if (from === n.entranceId && inp.fwd < 0 && !(n.plug.active && a.caste !== 'soldier')) exitToSurface(sim, a); }
+  else if (a.nseg.t <= 0) { const from = a.nseg.from; a.nseg = null; placeInNode(sim, a); if (isExitNode(n, from) && inp.fwd < 0 && !(n.plug.active && a.caste !== 'soldier')) exitToSurface(sim, a); }
 }
 function nearbyUse(sim, a) {
-  const w = sim.world; let best = null, bd = 3.4;
+  const w = sim.world; let best = null, bd = Math.max(3.4, a.len * 0.75 + 1.5);      // a nagyobb hangya messzebbről is eléri (a száj a test elején van)
   for (const d of w.droplets) { const dd = dist(a.x, a.z, d.x, d.z); if (dd < bd && d.vol > 0.5) { bd = dd; best = { type: 'water', ref: d }; } }
   for (const f of w.foods) { if (f.limb !== undefined) continue; const dd = dist(a.x, a.z, f.x, f.z); if (dd < bd && f.amount > 0.4) { bd = dd; best = { type: 'food', ref: f }; } }
-  for (const lst of [sim.isopods, sim.springtails]) for (const p of lst) { if (!p.dead || p.foodLeft < 0.1) continue; const dd = dist(a.x, a.z, p.x, p.z) - p.len * 0.4; if (dd < bd) { bd = dd; best = { type: 'carcass', ref: p }; } }
+  for (const lst of [sim.isopods, sim.springtails, sim.spiders]) for (const p of lst) { if (!p.dead || !(p.foodLeft >= 0.1)) continue; const dd = dist(a.x, a.z, p.x, p.z) - p.len * 0.4; if (dd < bd) { bd = dd; best = { type: 'carcass', ref: p }; } }
+  for (const c of sim.clutches) { if (c.dead || c.n <= 0 || c.owner === 'spider') continue; const dd = dist(a.x, a.z, c.x, c.z) - 0.5; if (dd < bd) { bd = dd; best = { type: 'eggs', ref: c }; } }
   return best;
 }
 export function useSource(sim, a, src, dt) {
-  const sp = S(sim); a.anim.mv = 0; a.anim.open = 0.3;
-  if (src.type === 'water') { const g = Math.min(16 * dt, 100 - a.hyd); a.hyd += g; src.ref.vol -= g * 0.12; if (a.hyd >= 99 && !a.carry && a.caste !== 'queen') { const amt = Math.min(sp.carry * 0.9, src.ref.vol * 0.4); a.carry = { kind: 'water', amt }; src.ref.vol -= amt * 0.35; } }
-  else if (src.type === 'food') { const f = src.ref; const x = Math.min(f.amount, 1.4 * dt); f.amount -= x; if (a.energy < 98) a.energy = Math.min(100, a.energy + x * EN * (f.kind === 'sap' ? 1.5 : 1)); else if (!a.carry && a.caste !== 'queen') { const amt = Math.min(sp.carry, f.amount); f.amount -= amt; a.carry = { kind: f.kind === 'sap' ? 'sugar' : 'prey', amt }; } }
-  else { const p = src.ref; const x = Math.min(p.foodLeft, 1.5 * dt); if (a.energy < 98) { p.foodLeft -= x; a.energy = Math.min(100, a.energy + x * EN); } else if (!a.carry && a.caste !== 'queen') { const amt = Math.min(sp.carry, p.foodLeft); p.foodLeft -= amt; a.carry = { kind: 'prey', amt }; } }
+  const sp = S(sim); const r = src.ref;
+  feedPose(sim, a, r.x, r.z, src.type === 'carcass' ? r.len : src.type === 'eggs' ? 0.8 : 0.5, dt, src.type === 'carcass' ? r.yaw : undefined);
+  if (src.type === 'water') { const g = Math.min(16 * dt, 100 - a.hyd); a.hyd += g; r.vol -= g * 0.12; if (a.hyd >= 99 && !a.carry && a.caste !== 'queen') { const amt = Math.min(sp.carry * 0.9, r.vol * 0.4); a.carry = { kind: 'water', amt }; r.vol -= amt * 0.35; } }
+  else if (src.type === 'food') { const f = r; const x = Math.min(f.amount, 1.4 * dt); f.amount -= x; if (a.energy < 98) a.energy = Math.min(100, a.energy + x * EN * (f.kind === 'sap' ? 1.5 : 1)); else if (!a.carry && a.caste !== 'queen') { const amt = Math.min(sp.carry, f.amount); f.amount -= amt; a.carry = { kind: f.kind === 'sap' ? 'sugar' : 'prey', amt }; } }
+  else if (src.type === 'eggs') { const k = Math.min(r.n, 1.2 * dt / r.per); r.n -= k; a.energy = Math.min(100, a.energy + k * r.per * EN * 0.9); if (r.n <= 0) r.dead = true; }
+  else { const p = r; p.beingEaten = sim.t; const x = Math.min(p.foodLeft, 1.5 * dt); if (a.energy < 98) { p.foodLeft -= x; a.energy = Math.min(100, a.energy + x * EN); } else if (!a.carry && a.caste !== 'queen') { const amt = Math.min(sp.carry, p.foodLeft); p.foodLeft -= amt; a.carry = { kind: 'prey', amt }; } }
 }

@@ -88,7 +88,7 @@ $('bTop').onclick = () => { G.orbit.pitch = 1.5; G.orbit.yaw = 0; };
 $('bFollow').onclick = () => { G.follow = !G.follow; setFollowBtn(); };
 function setFollowBtn() { $('bFollow').classList.toggle('on', !!G.follow); }
 $('bNestV').onclick = () => toggleNest();
-function toggleNest() { G.nestView = !G.nestView; $('bNestV').classList.toggle('on', G.nestView); const n = G.sim && G.sim.nest; if (G.nestView && n) { const f = G.sel && selEntity(); if (!(f && f.loc === 'nest')) { const e = n.nodes[Math.min(2, n.nodes.length - 1)]; G.orbit.x = e.x; G.orbit.z = e.z; G.follow = false; setFollowBtn(); G.orbit.dist = Math.min(G.orbit.dist, 36); } } }
+function toggleNest() { G.autoNestOn = false; G.nestView = !G.nestView; $('bNestV').classList.toggle('on', G.nestView); const n = G.sim && G.sim.nest; if (G.nestView && n) { const f = G.sel && selEntity(); if (!(f && f.loc === 'nest')) { const e = n.nodes[Math.min(2, n.nodes.length - 1)]; G.orbit.x = e.x; G.orbit.z = e.z; G.follow = false; setFollowBtn(); G.orbit.dist = Math.min(G.orbit.dist, 36); } } }
 $('bDig').onclick = () => { G.dig = !G.dig; $('bDig').classList.toggle('on', G.dig); $('digOpts').style.display = G.dig ? '' : 'none'; if (G.dig && !G.nestView) toggleNest(); };
 $('bSave').onclick = () => saveGame(true); $('pSave').onclick = () => saveGame(true);
 $('bMenu').onclick = () => { G.back = 'game'; show('pause'); G.paused = true; }; $('pResume').onclick = () => { show('hud'); G.paused = false; }; $('pQuit').onclick = () => { saveGame(false); quitToMenu(); };
@@ -125,7 +125,7 @@ function updateFpvHud() {
   $('fCarry').textContent = a.carry ? { prey: '🍖', sugar: '🍯', water: '💧', eggs: '🥚', soil: '🟤', brood: '🥚' }[a.carry.kind] || '' : '';
   let cls = ''; const tg = a.loc !== 'nest' ? manualTargets(sim, a, Math.max(SPECIES[sim.speciesId].hunt.reach * a.len * 1.4, 3.2)) : [];
   if (tg.length) { const k = tg[0]; cls = k.kind === 'spider' ? 'enemy' : k.kind === 'clutch' ? 'egg' : k.p.dead ? 'src' : 'prey'; }
-  else { for (const d of sim.world.droplets) if (Math.hypot(d.x - a.x, d.z - a.z) < 3.4) { cls = 'src'; break; } if (!cls) for (const f of sim.world.foods) if (f.limb === undefined && Math.hypot(f.x - a.x, f.z - a.z) < 3.4) { cls = 'src'; break; } }
+  else { const ur = Math.max(3.4, a.len * 0.75 + 1.5); for (const d of sim.world.droplets) if (Math.hypot(d.x - a.x, d.z - a.z) < ur) { cls = 'src'; break; } if (!cls) for (const f of sim.world.foods) if (f.limb === undefined && Math.hypot(f.x - a.x, f.z - a.z) < ur) { cls = 'src'; break; } }
   $('cross').className = 'cross ' + cls;
 }
 
@@ -142,7 +142,7 @@ function placeFpvCam(a, dt) {
   const fl = Math.hypot(...f) || 1; f[0] /= fl; f[1] /= fl; f[2] /= fl; const d = f[0] * up[0] + f[1] * up[1] + f[2] * up[2]; f[0] -= up[0] * d; f[1] -= up[1] * d; f[2] -= up[2] * d; const l2 = Math.hypot(...f) || 1; f[0] /= l2; f[1] /= l2; f[2] /= l2;
   const h = a.len * 0.34, fw = a.len * 0.34; const P = fv.p.set(a.x + up[0] * h + f[0] * fw, a.y + up[1] * h + f[1] * fw, a.z + up[2] * h + f[2] * fw);
   if (!G.fpvPos) G.fpvPos = P.clone(); else G.fpvPos.lerp(P, Math.min(1, dt * 18));
-  const pl = a.pitchLook || 0, c = Math.cos(pl), s = Math.sin(pl);
+  const an = a.anim || {}; const pl = (a.pitchLook || 0) - 0.5 * (an.feedS || 0) - (an.act === 3 && a.loc === 'ground' ? 0.35 : 0), c = Math.cos(pl), s = Math.sin(pl);   // evés / ásás közben a nézet lehajlik
   fv.t.set(G.fpvPos.x + f[0] * c + up[0] * s, G.fpvPos.y + f[1] * c + up[1] * s, G.fpvPos.z + f[2] * c + up[2] * s);
   G.cam.position.copy(G.fpvPos); G.cam.up.set(up[0], up[1], up[2]); G.cam.lookAt(fv.t);
 }
@@ -184,12 +184,12 @@ function placeOrbitCam(dt) {
 const KEYMAP = { KeyW: 'w', KeyA: 'a', KeyS: 's', KeyD: 'd', ArrowUp: 'w', ArrowDown: 's', ArrowLeft: 'a', ArrowRight: 'd', ShiftLeft: 'shift', ShiftRight: 'shift', Space: 'space' };
 window.addEventListener('keydown', (e) => {
   if (G.mode !== 'game' || e.target.tagName === 'SELECT') return; const k = KEYMAP[e.code]; if (k) { G.keys[k] = true; if (k === 'space' && G.fpv) { G.sim.input.jump = true; e.preventDefault(); } }
-  if (G.fpv) { const inp = G.sim.input; if (e.code === 'KeyE') { inp.use = true; inp.useHold = true; } else if (e.code === 'KeyF') inp.drop = true; else if (e.code === 'KeyQ' || e.code === 'Tab') { exitFpv(); e.preventDefault(); } return; }
+  if (G.fpv) { const inp = G.sim.input; if (e.code === 'KeyE') { inp.use = true; inp.useHold = true; } else if (e.code === 'KeyF') { if (!e.repeat) inp.climb = true; } else if (e.code === 'KeyG') inp.drop = true; else if (e.code === 'KeyX') { inp.digSurf = true; if (G.topNest) inp.dig = true; } else if (e.code === 'KeyQ' || e.code === 'Tab') { exitFpv(); e.preventDefault(); } return; }
   if (e.code === 'KeyT') $('bTop').click(); else if (e.code === 'KeyN') toggleNest(); else if (e.code === 'KeyF') enterFpv(); else if (e.code === 'Space') { $('bPause').click(); e.preventDefault(); }
   else if (e.code === 'Escape') { if (G.dig) $('bDig').click(); else { show('pause'); G.paused = true; } } else if (e.code === 'KeyC') { G.follow = !G.follow; setFollowBtn(); }
   else if (e.code.startsWith('Digit')) { const v = { 1: 1, 2: 2, 3: 4, 4: 8 }[e.code.slice(5)]; if (v) setSpeed(v); }
 });
-window.addEventListener('keyup', (e) => { const k = KEYMAP[e.code]; if (k) G.keys[k] = false; if (G.fpv && e.code === 'KeyE') G.sim.input.useHold = false; });
+window.addEventListener('keyup', (e) => { const k = KEYMAP[e.code]; if (k) G.keys[k] = false; if (G.fpv && e.code === 'KeyE') G.sim.input.useHold = false; if (G.fpv && e.code === 'KeyX') { G.sim.input.digSurf = false; if (G.topNest) G.sim.input.dig = false; } });
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 let drag = null;
 canvas.addEventListener('mousedown', (e) => {
@@ -264,7 +264,9 @@ function frame(now) {
   const ctl = G.fpv ? sim.controlTarget() : null; const under = !!ctl && ctl.loc === 'nest';
   G.view.update(dt, sim, G.nestView || under); if (G.env) G.env.group.visible = !(G.nestView || under);
   { const fx = ctl ? ctl.x : G.orbit.x, fz = ctl ? ctl.z : G.orbit.z; G.view.uniforms.uFocus.value.set(fx, fz, ctl ? 3.5 : Math.min(60, 8 + G.orbit.dist * 0.3)); }
-  { const sa = !G.fpv && G.sel && G.sel.kind === 'ant' ? selEntity() : null; if (sa && sa.loc === 'nest' && G.autoNestId !== sa.id) { G.autoNestId = sa.id; if (!G.nestView) toggleNest(); G.orbit.pitch = 1.5; G.orbit.dist = 22; G.follow = true; setFollowBtn(); } }
+  { const sa = !G.fpv && G.sel && G.sel.kind === 'ant' ? selEntity() : null;
+    if (sa && sa.loc === 'nest') { if (G.autoNestId !== sa.id) { G.autoNestId = sa.id; if (!G.nestView) { toggleNest(); G.autoNestOn = true; } G.orbit.pitch = 1.5; G.orbit.dist = 22; G.follow = true; setFollowBtn(); } }
+    else if (G.autoNestOn && G.nestView) { G.autoNestOn = false; G.autoNestId = null; toggleNest(); if (sa) { G.orbit.pitch = 0.85; G.orbit.dist = 18; G.follow = true; setFollowBtn(); } } }
   if (G.nestView || under) { G.scene.background.set(0x1c130c); G.scene.fog.color.set(0x1c130c); G.scene.fog.near = 60; G.scene.fog.far = 420; G.view.hemi.intensity = 1.5; G.view.sun.intensity = 0.9; }
   if (under !== !!G.topNest) setTopNest(under);
   G.layer.update(sim, performance.now() / 1000, G.nestView || under, G.cam.position, under ? null : ctl);

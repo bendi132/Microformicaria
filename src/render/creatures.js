@@ -12,13 +12,13 @@ const ROLE_COL = { brood: 0xd9b25c, store: 0x7fa65a, rest: 0x7d8fa8, null: 0x8a6
 
 
 // ---- fiasítás-geometriák (hossz = 1 az X tengelyen, talp y=0)
-function blob(rx, ry, rz, x, y, z, rotZ = 0) { const g = new THREE.SphereGeometry(1, 12, 9); g.scale(rx, ry, rz); if (rotZ) g.rotateZ(rotZ); g.translate(x, y, z); return g; }
-function larvaGeometry() {      // C alakban görbült, szelvényezett pajor: kis fej, hízó potroh
+export function blob(rx, ry, rz, x, y, z, rotZ = 0) { const g = new THREE.SphereGeometry(1, 12, 9); g.scale(rx, ry, rz); if (rotZ) g.rotateZ(rotZ); g.translate(x, y, z); return g; }
+export function larvaGeometry() {      // C alakban görbült, szelvényezett pajor: kis fej, hízó potroh
   const prof = [0.10, 0.15, 0.19, 0.22, 0.24, 0.245, 0.235, 0.21, 0.18, 0.13, 0.08]; const gs = []; const n = prof.length, R = 0.62, a0 = 0.95;
   for (let i = 0; i < n; i++) { const a = -a0 + (2 * a0 * i) / (n - 1); const x = Math.sin(a) * R, y = (Math.cos(a) - Math.cos(a0)) * R; gs.push(blob(prof[i] * 0.78, prof[i] * 0.7, prof[i] * 0.72, -x, y + prof[i] * 0.55, 0, 0)); }
   const g = mergeGeometries(gs); g.computeBoundingBox(); const bb = g.boundingBox, L = bb.max.x - bb.min.x; g.translate(-(bb.max.x + bb.min.x) / 2, 0, 0); g.scale(1 / L, 1 / L, 1 / L); return g;
 }
-function pupaGeometry() {       // szabad (nem gubós) báb: fej, torkörnyék, potroh, összehajtott lábak és csápok
+export function pupaGeometry() {       // szabad (nem gubós) báb: fej, torkörnyék, potroh, összehajtott lábak és csápok
   const gs = [blob(0.13, 0.12, 0.12, 0.40, 0.17, 0), blob(0.17, 0.15, 0.14, 0.14, 0.18, 0), blob(0.30, 0.19, 0.18, -0.24, 0.19, 0), blob(0.045, 0.045, 0.045, 0.49, 0.2, 0.05), blob(0.045, 0.045, 0.045, 0.49, 0.2, -0.05)];
   for (const s of [1, -1]) for (let k = 0; k < 3; k++) { const l = new THREE.CapsuleGeometry(0.018, 0.17, 3, 6); l.rotateZ(Math.PI / 2 + (k - 1) * 0.35); l.translate(0.2 - k * 0.07, 0.08, s * 0.125); gs.push(l); }
   for (const s of [1, -1]) { const an = new THREE.CapsuleGeometry(0.012, 0.15, 3, 5); an.rotateZ(Math.PI / 2 - 0.5); an.translate(0.4, 0.09, s * 0.08); gs.push(an); }
@@ -26,7 +26,7 @@ function pupaGeometry() {       // szabad (nem gubós) báb: fej, torkörnyék, 
 }
 
 export class CreatureLayer {
-  constructor(scene) { this.scene = scene; this.group = new THREE.Group(); scene.add(this.group); this.nestSig = ''; this.nestGroup = new THREE.Group(); this.group.add(this.nestGroup); this.loaded = false; }
+  constructor(scene) { this.scene = scene; this.group = new THREE.Group(); scene.add(this.group); this.nestSig = ''; this._dc = new THREE.Color(); this._dc2 = new THREE.Color(); this.nestGroup = new THREE.Group(); this.group.add(this.nestGroup); this.loaded = false; }
   async load(speciesId) {
     const sp = SPECIES[speciesId]; this.sp = sp;
     const names = [sp.model, sp.queenModel || sp.model, sp.soldierModel || sp.model, 'isopod', 'spider', 'springtail']; const uniq = {}; await Promise.all([...new Set(names)].map(async (n) => { uniq[n] = await loadCreatureGeometry(`assets/models/${n}.glb`); }));
@@ -50,6 +50,9 @@ export class CreatureLayer {
     this.headLight = new THREE.PointLight(0xffd9a0, 0, 40, 1.6); this.group.add(this.headLight);
     this.nestMats = {}; this.loaded = true; this.M = new THREE.Matrix4(); this.Q = new THREE.Quaternion(); this.S = new THREE.Vector3(); this.C = new THREE.Color();
   }
+  // kiszívott tetem: 0 = friss, 1 = üres, száraz héj
+  dryOf(p) { return p.food > 0 ? Math.min(1, Math.max(0, 1 - p.foodLeft / p.food)) : 0; }
+  deadColor(p) { const d = this.dryOf(p); return this._dc.setHex(0x4c4741).lerp(this._dc2.setHex(0x8a7d68), d).getHex(); }
   groundUp(w, x, z, out) {
     const hx = heightAt(w, x + 0.7, z) - heightAt(w, x - 0.7, z), hz = heightAt(w, x, z + 0.7) - heightAt(w, x, z - 0.7);
     const l = Math.hypot(hx / 1.4, 1, hz / 1.4); out[0] = -hx / 1.4 / l; out[1] = 1 / l; out[2] = -hz / 1.4 / l; return out;
@@ -88,9 +91,9 @@ export class CreatureLayer {
     }
     antB.end(time); queenB.end(time); soldB.end(time);
     // ---- fúrás közben szálló földmorzsák (a fúró hangya feje előtt indul, hátrafelé hullik)
-    { let cn = 0; const cr = this.crumbs; cr.visible = !!nestView || !!(controlled && controlled.loc === 'nest');
+    { let cn = 0; const cr = this.crumbs; const surfDig = sim.ants.some((q) => !q.dead && q.loc === 'ground' && q.task === 'manual' && q.anim.act === 3); cr.visible = !!nestView || !!(controlled && controlled.loc === 'nest') || surfDig;
       if (cr.visible) for (const a of sim.ants) {
-        if (a.dead || a.loc !== 'nest' || a.task !== 'dig' || a.st !== 'work') continue; const sx = Math.sin(a.yaw), sz = Math.cos(a.yaw);
+        if (a.dead || !((a.loc === 'nest' && a.task === 'dig' && a.st === 'work') || (a.loc === 'ground' && a.task === 'manual' && a.anim.act === 3))) continue; const sx = Math.sin(a.yaw), sz = Math.cos(a.yaw);
         for (let i = 0; i < 6 && cn < 240; i++) { const ph = (time * 1.7 + i / 6 + a.id * 0.37) % 1, s = 0.12 + 0.1 * ((i * 7 + a.id) % 5) / 5, d = a.len * (0.5 + ph * 0.9), lat = (((i * 13 + a.id) % 7) - 3) * a.len * 0.05 * ph, h = a.len * (0.1 + 4 * ph * (1 - ph) * 0.55);
           this.inst(cr, cn, a.x - sx * (d - a.len) * 0 + sx * a.len * 0.45 - sx * d * 0.0 - sx * (ph * a.len * 1.2) + sz * lat, a.y + a.len * 0.2 + h, a.z + sz * a.len * 0.45 - sz * (ph * a.len * 1.2) - sx * lat, s, s, s, i % 2 ? 0x8a6a48 : 0x6e5438); cn++; }
       }
@@ -100,21 +103,21 @@ export class CreatureLayer {
       if (p.state === 'hidden' && !p.dead) continue; const y = heightAt(w, p.x, p.z); this.groundUp(w, p.x, p.z, up);
       fwd[0] = Math.sin(p.yaw); fwd[1] = 0; fwd[2] = Math.cos(p.yaw); const an = p.anim;
       if (p.dead) { up[0] = -up[0]; up[1] = -up[1]; up[2] = -up[2]; fwd[0] = Math.sin(p.yaw); }
-      isoB.addBasis(pos.set(p.x, y + (p.dead ? p.len * 0.2 : 0), p.z), fwd, up, p.len, [an.phase, p.dead ? 0 : an.mv, an.act, an.actT], [an.head, an.open, an.curl, an.alert], p.dead ? 0x4c4741 : undefined);
+      isoB.addBasis(pos.set(p.x, y + (p.dead ? p.len * isoB.height * 0.95 : 0), p.z), fwd, up, p.len, [an.phase, p.dead ? 0 : an.mv, p.dead ? 9 : an.act, an.actT], [an.head, an.open, an.curl, p.dead ? this.dryOf(p) : an.alert], p.dead ? this.deadColor(p) : undefined);
     }
     isoB.end(time);
     // ---- ugróvillások
     for (const p of sim.springtails) {
       const y = heightAt(w, p.x, p.z) + (p.leap || 0); this.groundUp(w, p.x, p.z, up); fwd[0] = Math.sin(p.yaw); fwd[1] = p.leap > 0.6 ? 0.35 : 0; fwd[2] = Math.cos(p.yaw); const an = p.anim;
       if (p.dead) { up[0] = -up[0]; up[1] = -up[1]; up[2] = -up[2]; }
-      sprB.addBasis(pos.set(p.x, y, p.z), fwd, up, p.len, [an.phase, p.dead ? 0 : an.mv, an.act, an.actT], [an.head, an.open, an.curl, an.alert], p.dead ? 0x5d5750 : undefined);
+      sprB.addBasis(pos.set(p.x, y + (p.dead ? p.len * sprB.height * 0.95 : 0), p.z), fwd, up, p.len, [an.phase, p.dead ? 0 : an.mv, p.dead ? 9 : an.act, an.actT], [an.head, an.open, an.curl, p.dead ? this.dryOf(p) : an.alert], p.dead ? this.deadColor(p) : undefined);
     }
     sprB.end(time);
     // ---- pókok
     for (const s of sim.spiders) {
       if (s.state === 'lair' && !s.dead) continue; const y = heightAt(w, s.x, s.z); this.groundUp(w, s.x, s.z, up); fwd[0] = Math.sin(s.yaw); fwd[1] = 0; fwd[2] = Math.cos(s.yaw); const an = s.anim;
       if (s.dead) { up[0] = -up[0]; up[1] = -up[1]; up[2] = -up[2]; }
-      spiB.addBasis(pos.set(s.x, y + (s.dead ? s.len * 0.12 : 0), s.z), fwd, up, s.len, [an.phase, s.dead ? 0 : an.mv, an.act, an.actT], [an.head, an.open, an.curl, an.alert + (s.state === 'stalk' ? 0.3 : 0) + (s.state === 'lunge' ? 0.7 : 0)], s.dead ? 0x5a5348 : undefined);
+      spiB.addBasis(pos.set(s.x, y + (s.dead ? s.len * spiB.height * 0.95 : 0), s.z), fwd, up, s.len, [an.phase, s.dead ? 0 : an.mv, s.dead ? 9 : an.act, an.actT], [an.head, an.open, an.curl, s.dead ? this.dryOf(s) : an.alert + (s.state === 'stalk' ? 0.3 : 0) + (s.state === 'lunge' ? 0.7 : 0)], s.dead ? this.deadColor(s) : undefined);
       if (s.carry) pushCarry(s.x + fwd[0] * s.len * 0.45, y + s.len * 0.15, s.z + fwd[2] * s.len * 0.45, Math.max(0.6, s.len * 0.1), 0x5c4a3a);
     }
     spiB.end(time);

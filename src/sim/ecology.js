@@ -55,8 +55,9 @@ export function stepEcology(sim, dt) {
     if (c.hatchLeft <= 0) hatch(sim, c);
   }
   sim.clutches = sim.clutches.filter((c) => !c.dead);
-  sim.isopods = sim.isopods.filter((p) => !(p.dead && p.fresh <= 0) && !(p.dead && p.foodLeft <= 0.05));
-  sim.springtails = sim.springtails.filter((p) => !(p.dead && (p.fresh <= 0 || p.foodLeft <= 0.02)));
+  const husk = (p, lim) => { p.huskT = (p.huskT || 0) + dt; return p.huskT > 30; };   // a kiszívott tetem még ~30 mp-ig száraz héjként látszik
+  sim.isopods = sim.isopods.filter((p) => !(p.dead && p.fresh <= 0) && !(p.dead && p.foodLeft <= 0.05 && husk(p)));
+  sim.springtails = sim.springtails.filter((p) => !(p.dead && (p.fresh <= 0 || (p.foodLeft <= 0.02 && husk(p)))));
   // ---- betelepülés (kívülről): az ászkák és az ugróvillások száma lassan helyreáll, a nedvességtől és a nehézségtől függően
   sim.ecoT = (sim.ecoT || 0) + dt;
   if (sim.ecoT > 12) {

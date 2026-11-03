@@ -97,6 +97,7 @@ export class WorldView {
     // ---- dinamikus: vízcseppek, élelem
     this.dropMat = new THREE.MeshPhysicalMaterial({ color: 0xcfe8ff, roughness: 0.04, metalness: 0, transmission: 0, transparent: true, opacity: 0.62, clearcoat: 1, clearcoatRoughness: 0.03, ior: 1.33, specularIntensity: 1, envMapIntensity: 1 });
     this.drops = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 20, 14), this.dropMat, 96); this.drops.count = 0; this.drops.castShadow = false; G.add(this.drops);
+    this.pelletMesh = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 1), new THREE.MeshStandardMaterial({ map: this.tex.soil.map, color: 0xa98b69, roughness: 1 }), 260); this.pelletMesh.count = 0; this.pelletMesh.castShadow = true; G.add(this.pelletMesh);
     this.foodMat = new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.2, clearcoat: 0.8, transparent: false });
     this.foods = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 16, 12), this.foodMat, 64); this.foods.count = 0; this.foods.castShadow = true; G.add(this.foods);
     this.initRain(); this.updateDynamic(sim);
@@ -159,12 +160,19 @@ export class WorldView {
     const root = new THREE.Mesh(new THREE.ConeGeometry(w.limbs[0].r * 1.5, 7, 28, 1, true), barkMat); root.position.set(w.limbs[0].base.x, 2.5, w.limbs[0].base.z); this.group.add(root);
   }
   // fészekbejárat (a szimuláció által választott helyen, amint létrejön a fészek)
-  ensureEntrance(sim) {
-    if (this.entrance || !sim.nest || sim.nest.site.kind !== 'soil') return;
-    const e = sim.nest.nodes[0]; const g = new THREE.Group();
+  makeHole(e) {
+    const g = new THREE.Group();
     const mound = new THREE.Mesh(new THREE.TorusGeometry(e.r * 1.1, e.r * 0.7, 12, 28), new THREE.MeshStandardMaterial({ map: this.tex.soil.map, color: 0xb59a7e, roughness: 1 })); mound.rotation.x = Math.PI / 2; mound.scale.set(1, 1, 0.55); mound.castShadow = true; g.add(mound);
     const hole = new THREE.Mesh(new THREE.CircleGeometry(e.r * 0.95, 22), new THREE.MeshBasicMaterial({ color: 0x030201 })); hole.rotation.x = -Math.PI / 2; hole.position.y = 0.15; g.add(hole);
-    g.position.set(e.x, e.y + 0.1, e.z); this.group.add(g); this.entrance = g;
+    g.position.set(e.x, e.y + 0.1, e.z); this.group.add(g); return g;
+  }
+  ensureEntrance(sim) {
+    if (!sim.nest || sim.nest.site.kind !== 'soil') return;
+    if (!this.entrance) this.entrance = this.makeHole(sim.nest.nodes[0]);
+    // a játékos által ásott kijáratok (felszíni nyílások)
+    this.exitGroups = this.exitGroups || new Map(); const live = new Set();
+    for (const e of sim.nest.nodes) if (e.kind === 'exit') { live.add(e.id); if (!this.exitGroups.has(e.id)) { const g = this.makeHole(e); g.visible = !this._nv; this.exitGroups.set(e.id, g); } }
+    for (const [id, g] of this.exitGroups) if (!live.has(id)) { this.group.remove(g); this.exitGroups.delete(id); }
   }
   updateMoistureColors() {
     const w = this.sim.world; const p = this.terrainGeo.attributes.position, c = this.terrainGeo.attributes.color; const half = w.half;
@@ -179,6 +187,7 @@ export class WorldView {
     const w = sim.world; const M = new THREE.Matrix4(), Qn = new THREE.Quaternion(), S = new THREE.Vector3(), P = new THREE.Vector3(); let i = 0;
     for (const d of w.droplets) { if (i >= 96) break; const r = Math.cbrt(d.vol) * 0.46; P.set(d.x, heightAt(w, d.x, d.z) + r * 0.45, d.z); S.set(r, r * 0.72, r); M.compose(P, Qn, S); this.drops.setMatrixAt(i++, M); }
     this.drops.count = i; this.drops.instanceMatrix.needsUpdate = true;
+    { let k = 0; for (const p of (w.pellets || [])) { if (k >= 260) break; const r = p.s; P.set(p.x, heightAt(w, p.x, p.z) + r * 0.45, p.z); S.set(r * 1.15, r * 0.8, r); M.compose(P, Qn, S); this.pelletMesh.setMatrixAt(k++, M); } this.pelletMesh.count = k; this.pelletMesh.instanceMatrix.needsUpdate = true; }
     i = 0; const colAmber = new THREE.Color(0xd6921c), colDrop = new THREE.Color(0x2a1d12);
     for (const f of w.foods) {
       if (i >= 64) break; let x = f.x, y, z = f.z;

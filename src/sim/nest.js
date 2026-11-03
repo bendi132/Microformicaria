@@ -111,7 +111,7 @@ export function digWork(n, sp, world, job, amount) {
 export function updateClimate(n, world, env, dt, sp) {
   const tauHum = 45, tauT = 70;
   for (const nd of n.nodes) {
-    if (nd.kind === 'entrance') { nd.hum = moistureAt(world, nd.x, nd.z); nd.temp = env.temp; continue; }
+    if (nd.kind === 'entrance' || nd.kind === 'exit') { nd.hum = moistureAt(world, nd.x, nd.z); nd.temp = env.temp; continue; }
     let tHum, tT;
     if (sp.nest.type === 'tree') {
       const cav = world.cavities[n.site.cavityId];
