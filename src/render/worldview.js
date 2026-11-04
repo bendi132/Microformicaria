@@ -1,5 +1,6 @@
 // A felszíni világ megjelenítése: terep, kövek, rönkök, moha, fű, avar, kavics, fa (Cephalotes), vízcseppek, élelemforrások, fény és időjárás.
 import * as THREE from 'three';
+import { RIG_ENV } from './rig.js';
 import { heightAt, moistureAt, limbPoint, limbBase } from '../sim/world.js';
 import { fbm, clamp, lerp, smooth } from '../core/util.js';
 import { RNG } from '../core/rng.js';
@@ -24,6 +25,16 @@ export class WorldView {
     this.hemi = new THREE.HemisphereLight(0xbcd6ff, 0x5a4630, 1.1); this.scene.add(this.hemi);
     this.fill = new THREE.AmbientLight(0xffffff, 0.12); this.scene.add(this.fill);
     this.scene.fog = new THREE.Fog(0xaec3d6, 120, 420); this.scene.background = new THREE.Color(0x9fb8d4);
+    this.makeSkyEnv();
+  }
+  // egyszerű égbolt-környezet (kék zenit, meleg horizont, barna talaj): a hangyák kitinjének csillogásához és a vízcseppek tükröződéséhez
+  makeSkyEnv() {
+    const sc = new THREE.Scene(); const g = new THREE.SphereGeometry(50, 32, 16); const pos = g.attributes.position, col = [];
+    for (let i = 0; i < pos.count; i++) { const y = pos.getY(i) / 50; const c = new THREE.Color(); if (y > 0.05) c.setRGB(0.42, 0.62, 1).lerp(new THREE.Color(1, 0.93, 0.8), Math.pow(1 - y, 3)); else c.setRGB(0.32, 0.24, 0.17); col.push(c.r, c.g, c.b); }
+    g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); sc.add(new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide })));
+    const sunDot = new THREE.Mesh(new THREE.SphereGeometry(4, 12, 8), new THREE.MeshBasicMaterial({ color: new THREE.Color(14, 12, 9) })); sunDot.position.set(26, 34, 20); sc.add(sunDot);
+    const pm = new THREE.PMREMGenerator(this.renderer); RIG_ENV.tex = pm.fromScene(sc, 0.02).texture; pm.dispose(); this.dropMatEnv = RIG_ENV.tex;
+    for (const m of RIG_ENV.mats) { m.envMap = RIG_ENV.tex; m.needsUpdate = true; }
   }
   dispose() { this.scene.remove(this.group, this.sun, this.sun.target, this.hemi, this.fill); this.group.traverse((o) => { if (o.geometry) o.geometry.dispose(); }); }
 
@@ -64,12 +75,14 @@ export class WorldView {
       m.scale.set(l.len, l.h, l.wid * 0.5); m.rotation.y = l.yaw; m.position.set(l.x, heightAt(w, l.x, l.z) + l.h * 0.55, l.z); G.add(m);
     }
     // ---- moha
-    const mossMat = new THREE.MeshStandardMaterial({ map: this.tex.moss, roughness: 1, color: 0x6f8a58 });
-    const mg = new THREE.SphereGeometry(1, 8, 6); let total = 0; for (const m of w.moss) total += Math.floor(m.r * 14);
-    const mossI = new THREE.InstancedMesh(mg, mossMat, total); let mi = 0; const M = new THREE.Matrix4(), Qn = new THREE.Quaternion(), S = new THREE.Vector3(), P = new THREE.Vector3();
-    for (const m of w.moss) for (let k = 0; k < Math.floor(m.r * 14); k++) {
-      const a = rng.range(0, 6.28), d = Math.sqrt(rng.next()) * m.r; const x = m.x + Math.cos(a) * d, z = m.z + Math.sin(a) * d; const r = rng.range(0.35, 0.9) * (1 - d / (m.r * 1.2));
-      P.set(x, heightAt(w, x, z) + r * 0.2, z); S.set(r, r * 0.7, r); Qn.setFromEuler(new THREE.Euler(0, rng.range(0, 6), 0)); M.compose(P, Qn, S); mossI.setMatrixAt(mi++, M);
+    const mossMat = new THREE.MeshStandardMaterial({ map: this.tex.moss, roughness: 1, color: 0xffffff });
+    const mg = new THREE.IcosahedronGeometry(1, 1); let total = 0; for (const m of w.moss) total += Math.floor(m.r * 95);
+    const mossI = new THREE.InstancedMesh(mg, mossMat, total); let mi = 0; const M = new THREE.Matrix4(), Qn = new THREE.Quaternion(), S = new THREE.Vector3(), P = new THREE.Vector3(), mc = new THREE.Color();
+    for (const m of w.moss) for (let k = 0; k < Math.floor(m.r * 95); k++) {
+      // lapos, sűrű párnák: a folt közepén magasabb és sötétebb, a szélén világosabb és laposabb; apró ágacskák nélkül, de változatos zöldek
+      const a = rng.range(0, 6.28), d = Math.pow(rng.next(), 0.7) * m.r; const x = m.x + Math.cos(a) * d, z = m.z + Math.sin(a) * d; const edge = d / m.r; const r = rng.range(0.16, 0.42) * (1.15 - edge * 0.7);
+      P.set(x, heightAt(w, x, z) + r * 0.1, z); S.set(r, r * (0.28 + 0.2 * (1 - edge)), r * rng.range(0.8, 1.2)); Qn.setFromEuler(new THREE.Euler(0, rng.range(0, 6), 0)); M.compose(P, Qn, S); mossI.setMatrixAt(mi, M);
+      mc.setHSL(0.22 + rng.range(-0.03, 0.05), 0.34 + rng.range(-0.1, 0.1), (0.16 + 0.12 * edge) * rng.range(0.8, 1.25)); mossI.setColorAt(mi, mc); mi++;
     }
     mossI.count = mi; mossI.receiveShadow = true; G.add(mossI);
     // ---- kavicsok
@@ -81,11 +94,11 @@ export class WorldView {
     }
     peb.count = pc; peb.castShadow = true; peb.receiveShadow = true; G.add(peb);
     // ---- avar (száraz levéldarabok)
-    const lg = new THREE.PlaneGeometry(1, 0.55, 6, 3); lg.rotateX(-Math.PI / 2); const lp = lg.attributes.position; for (let i = 0; i < lp.count; i++) lp.setY(i, Math.sin(lp.getX(i) * 4) * 0.08 + Math.abs(lp.getZ(i)) * 0.25); lg.computeVertexNormals();
+    const lg = new THREE.PlaneGeometry(1, 0.5, 12, 6); lg.rotateX(-Math.PI / 2); const lp = lg.attributes.position; for (let i = 0; i < lp.count; i++) { const lx = lp.getX(i), lz = lp.getZ(i); lp.setY(i, Math.sin(lx * 3.1 + 0.6) * 0.07 + lz * lz * 1.1 + Math.max(0, lx - 0.25) * 0.28 * Math.sign(lz) * lz); } lg.computeVertexNormals();
     const litM = new THREE.MeshStandardMaterial({ roughness: 0.9, side: THREE.DoubleSide, color: 0xffffff, map: this.leafTexture(), alphaTest: 0.5 }); const lit = new THREE.InstancedMesh(lg, litM, this.q.litter); let lc = 0;
     for (let i = 0; i < this.q.litter; i++) {
       const x = rng.range(-half, half), z = rng.range(-half, half); if (this.overStone(w, x, z)) continue; const s = rng.range(4, 10);
-      P.set(x, heightAt(w, x, z) + 0.25, z); S.set(s, 1, s); Qn.setFromEuler(new THREE.Euler(rng.range(-0.2, 0.2), rng.range(0, 6.28), rng.range(-0.2, 0.2))); M.compose(P, Qn, S); lit.setMatrixAt(lc, M); lit.setColorAt(lc, new THREE.Color().setHSL(rng.range(0.06, 0.12), rng.range(0.35, 0.55), rng.range(0.16, 0.32))); lc++;
+      P.set(x, heightAt(w, x, z) + 0.25, z); S.set(s, 1, s); Qn.setFromEuler(new THREE.Euler(rng.range(-0.2, 0.2), rng.range(0, 6.28), rng.range(-0.2, 0.2))); M.compose(P, Qn, S); lit.setMatrixAt(lc, M); lit.setColorAt(lc, new THREE.Color().setHSL(rng.range(0.05, 0.13), rng.range(0.3, 0.6), rng.range(0.3, 0.52))); lc++;
     }
     lit.count = lc; lit.castShadow = true; lit.receiveShadow = true; G.add(lit);
     // ---- fű: ingó szálak
@@ -95,19 +108,30 @@ export class WorldView {
     // ---- fészekbejárat (talajfészek): a nyílás és a kidobott föld
     this.entrance = null;
     // ---- dinamikus: vízcseppek, élelem
-    this.dropMat = new THREE.MeshPhysicalMaterial({ color: 0xcfe8ff, roughness: 0.04, metalness: 0, transmission: 0, transparent: true, opacity: 0.62, clearcoat: 1, clearcoatRoughness: 0.03, ior: 1.33, specularIntensity: 1, envMapIntensity: 1 });
+    this.dropMat = new THREE.MeshPhysicalMaterial({ color: 0xcfe8ff, roughness: 0.04, metalness: 0, transmission: 0, transparent: true, opacity: 0.38, clearcoat: 1, clearcoatRoughness: 0.03, ior: 1.33, specularIntensity: 1, envMapIntensity: 1 });
     this.drops = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 20, 14), this.dropMat, 96); this.drops.count = 0; this.drops.castShadow = false; G.add(this.drops);
-    this.pelletMesh = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 1), new THREE.MeshStandardMaterial({ map: this.tex.soil.map, color: 0xa98b69, roughness: 1 }), 260); this.pelletMesh.count = 0; this.pelletMesh.castShadow = true; G.add(this.pelletMesh);
+    this.pelletMesh = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 1), new THREE.MeshStandardMaterial({ map: this.tex.soil.map, color: 0xd2b894, roughness: 1, emissive: 0x2a1a0e, emissiveIntensity: 0.6 }), 260); this.pelletMesh.count = 0; this.pelletMesh.castShadow = true; G.add(this.pelletMesh);
     this.foodMat = new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.2, clearcoat: 0.8, transparent: false });
     this.foods = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 16, 12), this.foodMat, 64); this.foods.count = 0; this.foods.castShadow = true; G.add(this.foods);
     this.initRain(); this.updateDynamic(sim);
   }
   leafTexture() {
-    const c = document.createElement('canvas'); c.width = 128; c.height = 64; const g = c.getContext('2d'); g.clearRect(0, 0, 128, 64);
-    g.fillStyle = '#fff'; g.beginPath(); g.moveTo(4, 32); g.bezierCurveTo(30, 0, 90, 2, 124, 32); g.bezierCurveTo(90, 62, 30, 64, 4, 32); g.fill();
-    g.strokeStyle = 'rgba(70,45,25,.8)'; g.lineWidth = 2; g.beginPath(); g.moveTo(4, 32); g.lineTo(122, 32); g.stroke(); g.lineWidth = 1;
-    for (let i = 0; i < 6; i++) { const x = 20 + i * 15; g.beginPath(); g.moveTo(x, 32); g.lineTo(x + 14, 10); g.moveTo(x, 32); g.lineTo(x + 14, 54); g.stroke(); }
-    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+    const W = 256, H = 128; const c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d'); g.clearRect(0, 0, W, H);
+    // sziluett: ovális, hegyes végű levél
+    const path = () => { g.beginPath(); g.moveTo(6, 64); g.bezierCurveTo(50, 2, 170, 0, 250, 64); g.bezierCurveTo(170, 128, 50, 126, 6, 64); g.closePath(); };
+    path(); g.fillStyle = '#e9e9e9'; g.fill(); g.save(); path(); g.clip();
+    // foltos elszíneződés (barnuló, elszáradó levél)
+    for (let i = 0; i < 70; i++) { const x = Math.random() * W, y = Math.random() * H, r = 6 + Math.random() * 22; const gr = g.createRadialGradient(x, y, 0, x, y, r); const d = Math.random() < 0.6; gr.addColorStop(0, d ? 'rgba(90,90,90,.35)' : 'rgba(255,255,255,.35)'); gr.addColorStop(1, 'rgba(128,128,128,0)'); g.fillStyle = gr; g.fillRect(x - r, y - r, r * 2, r * 2); }
+    // erek: középér + oldalerek + finom hálózat
+    g.strokeStyle = 'rgba(70,70,70,.75)'; g.lineWidth = 3; g.beginPath(); g.moveTo(6, 64); g.lineTo(246, 64); g.stroke();
+    g.lineWidth = 1.6; for (let i = 0; i < 9; i++) { const x = 30 + i * 24; const k = 1 - Math.abs(i - 4) / 7; g.beginPath(); g.moveTo(x, 64); g.quadraticCurveTo(x + 22, 64 - 22 * k, x + 38, 64 - 46 * k); g.moveTo(x, 64); g.quadraticCurveTo(x + 22, 64 + 22 * k, x + 38, 64 + 46 * k); g.stroke(); }
+    g.strokeStyle = 'rgba(90,90,90,.28)'; g.lineWidth = 0.8; for (let i = 0; i < 90; i++) { const x = Math.random() * W, y = Math.random() * H; g.beginPath(); g.moveTo(x, y); g.lineTo(x + (Math.random() - 0.5) * 22, y + (Math.random() - 0.5) * 22); g.stroke(); }
+    // szél: sötétebb, száraz szegély
+    path(); g.lineWidth = 9; g.strokeStyle = 'rgba(40,40,40,.55)'; g.stroke();
+    g.restore();
+    // rágásnyomok / lyukak (alfa kivágás)
+    g.globalCompositeOperation = 'destination-out'; for (let i = 0; i < 4; i++) { if (Math.random() < 0.55) { g.beginPath(); g.ellipse(40 + Math.random() * 170, 30 + Math.random() * 70, 2 + Math.random() * 6, 2 + Math.random() * 5, Math.random() * 3, 0, 6.3); g.fill(); } } g.globalCompositeOperation = 'source-over';
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
   }
   overStone(w, x, z) { for (const s of w.stones) if (Math.hypot(x - s.x, z - s.z) < s.r * 1.05) return true; for (const l of w.logs) if (Math.hypot(x - l.x, z - l.z) < l.len * 0.5) return true; return false; }
 
@@ -251,6 +275,7 @@ export class WorldView {
     const grey = new THREE.Color(0.55, 0.58, 0.62).multiplyScalar(lerp(0.15, 1, day)); sky.lerp(grey, cloud * 0.8);
     this.scene.background.copy(sky); this.scene.fog.color.copy(sky); const hz = this.tropical ? 0.75 : 1; this.scene.fog.near = (160 - cloud * 60) * hz; this.scene.fog.far = (4200 - cloud * 1800) * hz;
     this.hemi.color.copy(sky).lerp(new THREE.Color(1, 1, 1), 0.3); this.hemi.groundColor.set(0x5a4630).multiplyScalar(lerp(0.3, 1, day)); this.hemi.intensity = lerp(0.5, 1.15, day) * (1 - cloud * 0.25);
+    { const ei = (0.1 + 0.75 * day * (1 - cloud * 0.45)) * (this._nv ? 0.25 : 1); for (const m of RIG_ENV.mats) m.envMapIntensity = ei; if (this.dropMat) { this.dropMat.envMap = RIG_ENV.tex; this.dropMat.envMapIntensity = ei * 0.5; } }
     this.fill.intensity = 0.1 + nightMix * 0.1;
     this.uniforms.uWet.value = cloud;
   }

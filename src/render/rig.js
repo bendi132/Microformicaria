@@ -124,6 +124,7 @@ export function loadCreatureGeometry(url) {
   cache.set(url, p); return p;
 }
 
+export const RIG_ENV = { tex: null, mats: [] };   // a WorldView tölti: égbolt-környezettérkép a kutikula csillogásához
 // Egy faj (modell) összes példányát egyetlen InstancedMesh rajzolja.
 export class CreatureBatch {
   constructor({ geometry, material, extras }, { kind, capacity, color = 0xffffff, castShadow = true, amp = 1, swing = 0.55 }) {
@@ -138,7 +139,9 @@ export class CreatureBatch {
       uNeck: { value: new THREE.Vector3(...(extras.headPivot || [0.2, 0.15, 0])) },
       uGaster: { value: new THREE.Vector3(...(extras.gasterPivot || [-0.15, 0.1, 0])) },
     };
-    const m = material.clone(); m.side = THREE.DoubleSide;
+    // a kutikula fénye: lakkréteg-szerű visszaverődés (a hangya kitinpáncélja nedvesen csillog)
+    const m = new THREE.MeshPhysicalMaterial(); THREE.MeshStandardMaterial.prototype.copy.call(m, material); m.side = THREE.DoubleSide;
+    m.clearcoat = kind === 2 ? 0.25 : 0.55; m.clearcoatRoughness = 0.32; m.roughness = Math.min(m.roughness, 0.62); m.metalness = 0; m.envMap = RIG_ENV.tex; m.envMapIntensity = 0.8; RIG_ENV.mats.push(m);
     if (geo.getAttribute('color')) m.vertexColors = true;
     if (!geo.getAttribute('color')) m.color = new THREE.Color(color);
     patchMaterial(m, this.uniforms);
