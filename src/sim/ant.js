@@ -37,7 +37,9 @@ export function treeBase(sim) { const L = sim.world.limbs[0]; return { x: L.base
 // ---- fő navigációs lépés: cél = {k:'g',x,z} | {k:'l',limb,s,th} | {k:'n',node}. Visszatér: 'arrived' | 'moving' | 'blocked'
 export function navigate(sim, a, tgt, speedMul, dt, opts = {}) {
   const sp = SPECIES[sim.speciesId]; const n = sim.nest;
-  let speed = baseSpeed(sim, a) * speedMul * a.speedMul * (0.45 + 0.55 * clamp(a.hp / a.maxHp, 0, 1)) * (a.energy < 15 ? 0.6 : 1);
+  // változó testhőmérsékletű állat: hidegben lelassul, melegben gyorsabb, a nagy hőségben ismét lassul (a fészekben a hőmérséklet stabilabb)
+  const T = a.loc === 'nest' ? 19 + (sim.env.temp - 19) * 0.25 : sim.env.temp; const thermal = clamp(0.25 + (T - 5) * 0.05, 0.2, 1.12) * (1 - clamp((T - 34) / 8, 0, 0.6));
+  let speed = baseSpeed(sim, a) * thermal * speedMul * a.speedMul * (0.45 + 0.55 * clamp(a.hp / a.maxHp, 0, 1)) * (a.energy < 15 ? 0.6 : 1);
   if (a.loc === 'nest') {
     if (tgt.k === 'n') {
       if (a.node === tgt.node && !a.path) { placeInNode(sim, a); return 'arrived'; }

@@ -28,3 +28,8 @@ A tömörített modellekhez (meshopt, KTX2/Basis) a három.js dekódolói a `ven
 ## Cephalotes-fa (kéreg és furatok)
 A fa törzse és ágai pontos hengerek (a hangyák a szimulációban ezen a felszínen járnak). A kéreg a feltöltött dzsungelfa/rönk-modell textúrájából készült (`assets/env/trunk_bark.jpg`, `trunk_bark_n.jpg`: a modell fotótextúrájából kivágott, tükrözéssel csempézhetővé tett kéregminta + lumináncia-alapú normáltérkép). A modell maga egy fekvő, félig beásott szkennelt rönk, ezért közvetlenül nem használható mászható törzsnek. A fészekbejáratok valódi furatok: a hengerháló a nyílás körül befelé hajlik, mélyén sötét üreg, peremén kéregperem.
 A méz / növényi nedv csak a Cephalotes fáján (törzs, ágak) található; a többi fajnál nincs földi mézfolt, és a gyűjtögetés súlya 0.
+
+## Megjelenés (v. 2026-11)
+- Földalatti nézet: a járatok között szemcsés talajtömb és kavicsok látszanak (nem üres fekete háttér); a kamrák és járatok padlója normáltérképes, foltosan árnyalt.
+- Levélavar: erezett, foltos, lyukas, enyhén felkunkorodó levelek; a moha sűrű, lapos, változatos zöld párnákból áll.
+- A hangyák kutikuláján lakkszerű csillogás (clearcoat) és égbolt-környezettérkép tükröződik; a fény erőssége a napszakhoz és az időjáráshoz igazodik.

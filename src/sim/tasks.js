@@ -29,9 +29,10 @@ export function chooseTask(sim, a) {
   const hunter = sp.hunt.live || sp.hunt.eggs || sp.hunt.scavenge;
   const young = a.age < 2.5 ? 1.25 : 0.85;
   const soldier = a.caste === 'soldier';
+  const weatherF = (1 - sim.env.rain * 0.85) * clamp((sim.env.temp - 6) / 10, 0.1, 1);   // esőben és hidegben a hangyák a fészekben maradnak
   const sc = {
-    hunt: nd.protein * 1.5 * dir.hunt * (hunter ? 1 : 0) * (1 - danger * 0.9) * (soldier ? 0.25 : 1) * (a.age > 0.6 ? 1 : 0.3) * (a.energy > 45 ? 1 : 0.5),
-    forage: (sp.nest.type === 'tree' ? 1 : 0) * nd.sugar * 1.1 * dir.forage * (1 - danger * 0.85) * (soldier ? 0.3 : 1) * (a.age > 0.6 ? 1 : 0.3),
+    hunt: weatherF * nd.protein * 1.5 * dir.hunt * (hunter ? 1 : 0) * (1 - danger * 0.9) * (soldier ? 0.25 : 1) * (a.age > 0.6 ? 1 : 0.3) * (a.energy > 45 ? 1 : 0.5),
+    forage: weatherF * (sp.nest.type === 'tree' ? 1 : 0) * nd.sugar * 1.1 * dir.forage * (1 - danger * 0.85) * (soldier ? 0.3 : 1) * (a.age > 0.6 ? 1 : 0.3),
     water: nd.water * 1.25 * dir.water * (1 - danger * 0.8) * (soldier ? 0.4 : 1),
     nurse: nd.nurse * 1.7 * dir.nurse * young,
     dig: nd.dig * 1.0 * dir.dig * (sp.nest.type === 'soil' ? 1 : 0),
