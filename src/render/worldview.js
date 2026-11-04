@@ -1,6 +1,7 @@
 // A felszíni világ megjelenítése: terep, kövek, rönkök, moha, fű, avar, kavics, fa (Cephalotes), vízcseppek, élelemforrások, fény és időjárás.
 import * as THREE from 'three';
 import { RIG_ENV } from './rig.js';
+import { PN, PC } from '../sim/phero.js';
 import { heightAt, moistureAt, limbPoint, limbBase } from '../sim/world.js';
 import { fbm, clamp, lerp, smooth } from '../core/util.js';
 import { RNG } from '../core/rng.js';
@@ -279,7 +280,17 @@ export class WorldView {
     this.fill.intensity = 0.1 + nightMix * 0.1;
     this.uniforms.uWet.value = cloud;
   }
+  // nyomferomon-réteg (P): halvány korongok a talajon, ahol a hazatérő hangyák nyomot hagytak
+  updatePhero(sim, dt) {
+    if (!this.pheroOn) { if (this.pheroMesh) this.pheroMesh.visible = false; return; }
+    if (!this.pheroMesh) { const g = new THREE.CircleGeometry(1, 10); g.rotateX(-Math.PI / 2); this.pheroMesh = new THREE.InstancedMesh(g, new THREE.MeshBasicMaterial({ color: 0xffe36a, transparent: true, opacity: 0.55, depthWrite: false }), PN * PN); this.pheroMesh.frustumCulled = false; this.pheroMesh.renderOrder = 3; this.group.add(this.pheroMesh); this._pT = 0; }
+    this.pheroMesh.visible = true; this._pT -= dt; if (this._pT > 0) return; this._pT = 0.5;
+    const f = sim.phero, w = sim.world; if (!f) { this.pheroMesh.count = 0; return; } const M = new THREE.Matrix4(), P = new THREE.Vector3(), Q = new THREE.Quaternion(), S = new THREE.Vector3(); let c = 0;
+    for (let j = 0; j < PN; j++) for (let i = 0; i < PN; i++) { const v = f[j * PN + i]; if (v < 0.12) continue; const x = -w.half + (i + 0.5) * PC, z = -w.half + (j + 0.5) * PC; const r = PC * 0.55 * Math.min(1, 0.4 + v * 0.6); P.set(x, heightAt(w, x, z) + 0.12, z); S.set(r, 1, r); M.compose(P, Q, S); this.pheroMesh.setMatrixAt(c++, M); }
+    this.pheroMesh.count = c; this.pheroMesh.instanceMatrix.needsUpdate = true;
+  }
   update(dt, sim, nestView) {
+    this.updatePhero(sim, dt);
     this.time += dt; this.uniforms.uTime.value = this.time;
     this.moistT += dt; if (this.moistT > 4) { this.moistT = 0; this.updateMoistureColors(); }
     this.dynT += dt; if (this.dynT > 0.25) { this.dynT = 0; this.updateDynamic(sim); }

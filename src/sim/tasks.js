@@ -8,6 +8,7 @@ import { heightAt, moistureAt, nearestCover, limbPoint, obstaclesAt, climbHeight
 import { colonyNeeds, workers, queen, layEgg, broodChamber, restChamber, storeCap, chamberQuality } from './colony.js';
 import { killIsopod } from './isopod.js';
 import { dist, clamp, angDiff, turnToward } from '../core/util.js';
+import { followDir, trailStrength } from './phero.js';
 
 const S = (sim) => SPECIES[sim.speciesId];
 const EN = 10;                                    // 1 táplálékegység = ennyi energiapont
@@ -282,7 +283,7 @@ function hunt(sim, a, dt) {
   if (a.st === 'search') {
     a.look = (a.look || 0) - dt;
     if (a.look <= 0) { a.look = 0.35; if (a.loc !== 'nest') { const f = findPrey(sim, a); if (f) { a.target = f; a.st = 'approach'; a.lost = 0; stat(sim, 'found_' + f.kind); return; } } }
-    if (!a.wp || dist(a.x, a.z, a.wp.x, a.wp.z) < 2 || a.tmr <= 0) { a.wp = huntWaypoint(sim, a); a.tmr = 14; }
+    if (!a.wp || dist(a.x, a.z, a.wp.x, a.wp.z) < 2 || a.tmr <= 0) { a.wp = (sim.rng.next() < trailStrength(sim) && followDir(sim, a)) || huntWaypoint(sim, a); a.tmr = 14; }
     a.tmr -= dt; a.huntT = (a.huntT || 0) + dt;
     if (a.loc === 'limb' && sp.nest.type === 'tree') { a.st = 'search'; }
     const r = navigate(sim, a, { k: 'g', x: a.wp.x, z: a.wp.z }, 0.85, dt, { arrive: 1.5 });

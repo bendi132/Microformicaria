@@ -187,6 +187,7 @@ window.addEventListener('keydown', (e) => {
   if (G.mode !== 'game' || e.target.tagName === 'SELECT') return; const k = KEYMAP[e.code]; if (k) { G.keys[k] = true; if (k === 'space' && G.fpv) { G.sim.input.jump = true; e.preventDefault(); } }
   if (G.fpv) { const inp = G.sim.input; if (e.code === 'KeyE') { inp.use = true; inp.useHold = true; } else if (e.code === 'KeyF') { if (!e.repeat) inp.climb = true; } else if (e.code === 'KeyG') inp.drop = true; else if (e.code === 'KeyX') { inp.digSurf = true; if (G.topNest) inp.dig = true; } else if (e.code === 'KeyQ' || e.code === 'Tab') { exitFpv(); e.preventDefault(); } return; }
   if ((e.code === 'KeyE' || e.code === 'KeyX') && G.sel && G.sel.kind === 'ant' && !G.dig) { enterFpv(); if (G.fpv) { const inp = G.sim.input; if (e.code === 'KeyE') { inp.use = true; inp.useHold = true; } else inp.digSurf = true; } e.preventDefault(); return; }
+  if (e.code === 'KeyP' && G.view) { G.view.pheroOn = !G.view.pheroOn; e.preventDefault(); return; }
   if (e.code === 'KeyT') $('bTop').click(); else if (e.code === 'KeyN') toggleNest(); else if (e.code === 'KeyF') enterFpv(); else if (e.code === 'Space') { $('bPause').click(); e.preventDefault(); }
   else if (e.code === 'Escape') { if (G.dig) $('bDig').click(); else { show('pause'); G.paused = true; } } else if (e.code === 'KeyC') { G.follow = !G.follow; setFollowBtn(); }
   else if (e.code.startsWith('Digit')) { const v = { 1: 1, 2: 2, 3: 4, 4: 8 }[e.code.slice(5)]; if (v) setSpeed(v); }

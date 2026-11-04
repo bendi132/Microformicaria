@@ -1,5 +1,6 @@
 // Hangyák: fiziológia, érzékelés, navigáció (talaj / fészek / fa), veszélyreakció.
 // A feladat-állapotgépek a tasks.js-ben vannak.
+import { deposit, trailStrength } from './phero.js';
 import { SPECIES, SPIDER, DAY } from './config.js';
 import { steerGround, placeAnt, moveNest, setNestPath, placeInNode, moveLimb } from './motion.js';
 import { node, nearestNode, findPath } from './nest.js';
@@ -158,7 +159,12 @@ export function updateAnt(sim, a, dt) {
   a.decide -= dt;
   if (a.decide <= 0 && a.task !== 'flee' && a.task !== 'fight' && a.task !== 'plug') { a.decide = 2.5 + sim.rng.range(0, 2.5); chooseTask(sim, a); }
   a.anim.mv = 0;
-  runTask(sim, a, dt);
+  // megállások: a keresgélő/gyűjtögető hangya időnként megáll, és csápjaival tapogat (valós keresési viselkedés)
+  let paused = false;
+  if (a.pauseT > 0) { a.pauseT -= dt; paused = true; a.vf = 0.2; }
+  else if (a.loc === 'ground' && a.stress < 20 && !a.target && a.anim.mv > 0.5 && !(sim.player.active && sim.player.antId === a.id) && ((a.task === 'forage' && a.st === 'go') || (a.task === 'hunt' && a.st === 'search') || a.task === 'water') && sim.rng.next() < dt * 0.14) a.pauseT = 0.35 + sim.rng.next() * 0.9;
+  if (!paused) runTask(sim, a, dt);
+  if (a.loc === 'ground' && a.carry && a.moved > 0 && a.carry.kind !== 'soil' && a.carry.kind !== 'water') deposit(sim, a.x, a.z, 1.6 * trailStrength(sim) * dt);   // a táplálékot hazavivő hangya nyomot hagy
   { const an = a.anim, tgt = a._feed ? 1 : 0; an.feedS = (an.feedS || 0) + (tgt - (an.feedS || 0)) * Math.min(1, dt * 6);   // evési póz: act = 4, a fej fokozatosan lehajlik
     if (an.feedS > 0.03 && an.act !== 1 && an.act !== 3) { an.act = 4; an.actT = an.feedS; } else if (an.act === 4) { an.act = 0; an.actT = 0; } }
   // animációs változók
@@ -167,5 +173,6 @@ export function updateAnt(sim, a, dt) {
   a.anim.mv = a.anim.mvS;
   { const g = (sp.gaitCaste && sp.gaitCaste[a.caste]) || sp.gait; a.anim.phase += a.moved * Math.PI / (g.stride * a.len); }   // lábfázis a megtett úthoz kötve: a láb talpa nem csúszik
   a.anim.alert += ((a.stress > 30 || a.task === 'hunt' || a.task === 'fight' ? 0.8 : a.anim.mv > 0.2 ? 0.35 : 0.15) - a.anim.alert) * Math.min(1, dt * 3);
-  a.anim.head += ((Math.sin(sim.t * 0.9 + a.id) * 0.25 * (a.anim.mv > 0.2 ? 0.4 : 1)) - a.anim.head) * Math.min(1, dt * 2);
+  a.anim.head += (((a.pauseT > 0 ? Math.sin(sim.t * 4.2 + a.id) * 0.6 : Math.sin(sim.t * 0.9 + a.id) * 0.25 * (a.anim.mv > 0.2 ? 0.4 : 1))) - a.anim.head) * Math.min(1, dt * (a.pauseT > 0 ? 7 : 2));
+  if (a.moved < 1e-4) a.vf = Math.min(a.vf ?? 1, 0.3);
 }

@@ -1,6 +1,7 @@
 // A szimuláció gyökere: idő, időjárás, világ, fészek, hangyák, ászkák, ugróvillások, pókok, tojáscsomók.
 // A megjelenítéstől teljesen független (Node-ban is fut), és teljes egészében menthető/betölthető.
 import { RNG } from '../core/rng.js';
+import { decay as pheroDecay } from './phero.js';
 import { clamp, dist } from '../core/util.js';
 import { SPECIES, DIFFICULTY, DAY, GAME_START_HOUR, SPIDER, ISOPOD, CLIMATE } from './config.js';
 import { createWorld, stepWorld, newDew, moistureAt, heightAt, limbPoint } from './world.js';
@@ -117,7 +118,7 @@ export class Sim {
   }
   step(dt) {
     this.t += dt; this.updateEnv(dt);
-    stepWorld(this.world, dt, this.env);
+    stepWorld(this.world, dt, this.env); if (this.env.step % 10 === 0) pheroDecay(this, dt * 10);
     if (this.nest && this.env.step % 10 === 0) updateClimate(this.nest, this.world, this.env, dt * 10, SPECIES[this.speciesId]);
     stepEcology(this, dt);
     for (const p of this.isopods) updateIsopod(this, p, dt);

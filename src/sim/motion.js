@@ -26,9 +26,13 @@ export function steerGround(sim, e, tx, tz, speed, dt, opts = {}) {
     }
     if (ax || az) { const bx = Math.sin(want) + ax * 1.4, bz = Math.cos(want) + az * 1.4; want = Math.atan2(bx, bz); }
   }
+  // természetes haladás: enyhe oldalirányú kígyózás (a hangya nem húz tökéletes egyenest), amely a cél közelében elhal
+  const isAnt = e.caste !== undefined && sim.t !== undefined;
+  if (isAnt && !opts.noMeander && d > 5) { const amp = (opts.meander ?? 0.11) * Math.min(1, (d - 5) / 25); want += Math.sin(sim.t * (1.3 + (e.id % 5) * 0.17) + e.id * 1.7) * amp + Math.sin(sim.t * 3.1 + e.id) * amp * 0.35; }
   const turnRate = (opts.turnRate || 5) * dt;
   e.yaw = turnToward(e.yaw ?? want, want, turnRate);
-  const align = Math.cos(angDiff(e.yaw, want)); const sp = speed * clamp(0.25 + 0.75 * align, 0.12, 1);
+  const align = Math.cos(angDiff(e.yaw, want)); let sp = speed * clamp(0.25 + 0.75 * align, 0.12, 1);
+  if (isAnt) { e.vf = Math.min(1, (e.vf ?? 1) + dt * 3.2); sp *= 0.3 + 0.7 * e.vf; }   // lendület: indulásnál gyorsul
   const step = Math.min(sp * dt, d);
   e.x += Math.sin(e.yaw) * step; e.z += Math.cos(e.yaw) * step;
   e.x = clamp(e.x, -half, half); e.z = clamp(e.z, -half, half);

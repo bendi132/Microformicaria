@@ -15,7 +15,7 @@ const {chromium}=require('playwright');
  await p.waitForTimeout(6000);
  const sc=await p.evaluate(async()=>{const T=await import('three');const G=window.__G,q=window.__q;const v=new T.Vector3(q.x,q.len*0.2+(G.sim.world?0:0),q.z);v.y=(window.__hy?0:0);const {heightAt}=await import('/src/sim/world.js');v.y=heightAt(G.sim.world,q.x,q.z)+q.len*0.2;G.cam.updateMatrixWorld(true);v.project(G.cam);return {x:(v.x*0.5+0.5)*innerWidth,y:(-v.y*0.5+0.5)*innerHeight,z:v.z};});
  console.log('screen',sc);
- await p.mouse.click(sc.x,sc.y);await p.waitForTimeout(500);
+ await p.keyboard.press('KeyP');await p.mouse.click(sc.x,sc.y);await p.waitForTimeout(500);
  console.log(await p.evaluate("JSON.stringify({task:window.__G.sim.queen.task,st:window.__G.sim.queen.st,tg:window.__G.sim.queen.target})"));
  // X gomb-hint: irányítás + kattintás
  await p.evaluate("(()=>{const G=window.__G;G.sel={kind:'ant',id:G.sim.queen.id};})()");
