@@ -27,9 +27,10 @@ const PLAN = {
   temperate: [['oak', 4, 600, 1900], ['branch', 3, 220, 900], ['trunk', 1, 800, 1000], ['tree1', 2, 2400, 3600], ['tree2', 2, 2500, 3700], ['tree1', 3, 4200, 8000], ['tree2', 3, 4400, 8200]],
 };
 
+const HEAVY = new Set(['banana', 'bromeliad', 'flower', 'roots', 'oak', 'branch']);   // 4–12 MB-os modellek: telefonon / alacsony minőségnél kimaradnak (kevesebb letöltés és memória)
 export class EnvView {
-  constructor(scene, renderer, climate, seed) {
-    this.scene = scene; this.group = new THREE.Group(); scene.add(this.group); this.climate = climate; this.rng = new RNG((seed ^ 0xb10b) >>> 0); this.cache = new Map();
+  constructor(scene, renderer, climate, seed, lite = false) {
+    this.lite = lite; this.scene = scene; this.group = new THREE.Group(); scene.add(this.group); this.climate = climate; this.rng = new RNG((seed ^ 0xb10b) >>> 0); this.cache = new Map();
     this.ktx = new KTX2Loader().setTranscoderPath('vendor/three/jsm/libs/basis/').detectSupport(renderer);
     this.gltf = new GLTFLoader().setKTX2Loader(this.ktx).setMeshoptDecoder(MeshoptDecoder); const mgr = new THREE.LoadingManager(); mgr.setURLModifier((u) => { const m = /mossybranch_1001_(\w+)\.jpg/i.exec(u); return m ? `assets/env/mossy/${m[1].toLowerCase()}.jpg` : u; }); this.fbx = new FBXLoader(mgr); this.tex = new THREE.TextureLoader();
   }
@@ -58,6 +59,7 @@ export class EnvView {
   async build(onProgress) {
     const plan = PLAN[this.climate] || PLAN.temperate; const rng = this.rng; this.placed = [];
     for (const [key, n, r0, r1] of plan) {
+      if (this.lite && HEAVY.has(key)) continue;
       let holder; try { holder = await this.loadModel(key); } catch (e) { console.warn('Környezeti modell nem tölthető:', key, e && e.message); continue; }
       const def = ENV_MODELS[key]; const off = rng.next();
       for (let i = 0; i < n; i++) {

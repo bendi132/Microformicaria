@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="hu">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"><meta name="theme-color" content="#0d0a07"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg" type="image/svg+xml">
 <title>MICROFORMICARIA</title>
 <script type="importmap">{"imports":{"three":"./vendor/three/three.module.js"}}</script>
 <style>
@@ -48,20 +48,63 @@ select,input[type=range]{background:#2a2016;color:var(--fg);border:1px solid var
 #ind{position:fixed;inset:0;pointer-events:none}#ind b{position:absolute;color:#ff4a3a;font-size:26px;text-shadow:0 0 8px #000;margin:-13px}
 #pause .box{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);padding:20px;display:flex;flex-direction:column;gap:9px;width:250px}
 #loading{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;font:700 22px Georgia,serif;letter-spacing:.2em;z-index:9}
+
+/* ---- érintőképernyő / telefon ---- */
+html,body{overscroll-behavior:none;touch-action:none;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}
+body{padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+#joy{position:fixed;display:none;width:0;height:0;z-index:5;pointer-events:none}
+#joy::before{content:"";position:absolute;width:112px;height:112px;margin:-56px;border-radius:50%;border:2px solid rgba(255,235,200,.35);background:rgba(0,0,0,.18)}
+#joy i{position:absolute;width:52px;height:52px;margin:-26px;border-radius:50%;background:rgba(255,220,150,.45);border:2px solid rgba(255,235,200,.7)}
+body.touch #click{display:none!important}
+body.touch #fpv .key.nt{display:none}
+body.touch #fpv .keys{right:max(12px,env(safe-area-inset-right));bottom:max(12px,env(safe-area-inset-bottom));display:grid;grid-template-columns:repeat(3,58px);gap:9px}
+body.touch #fpv .key.kb{pointer-events:auto;display:flex;align-items:center;justify-content:center;width:58px;height:58px;border-radius:50%;font-size:17px;font-weight:700;color:#f3e4c8;background:rgba(30,20,10,.55);border:2px solid rgba(255,225,170,.4);touch-action:none}
+body.touch #fpv .key.kb#kJ[style*="display: none"]{display:none!important}
+body.touch #fpv .key.kb#kL{grid-column:3;grid-row:1;width:70px;height:70px;margin:-6px;font-size:26px;background:rgba(150,60,30,.6)}
+body.touch #fpv .key.kb[data-k=Q]{position:fixed;left:max(10px,env(safe-area-inset-left));top:max(10px,env(safe-area-inset-top));width:44px;height:44px;font-size:13px}
+body.touch #fpv .bars{bottom:auto;top:10px;width:min(300px,46vw)}
+body.touch #fpv .carry{top:50%}
+body.touch button{min-height:40px}
+body.touch #hud .tr button{min-width:40px;padding:6px 10px}
+@media (max-width:820px),(max-height:520px){
+  #title .box{left:50%;transform:translate(-50%,-50%);text-align:center}#title .menu{width:min(260px,72vw);margin:0 auto}#title .menu button{text-align:center}
+  #species .list{left:8px;top:8px;width:150px;max-height:calc(100vh - 80px)}#species .list button{padding:6px 8px;font-size:13px}#species .list small{display:none}
+  #species .info{right:8px;top:8px;width:calc(100vw - 180px);max-height:calc(100vh - 84px);overflow:auto;padding:10px 12px;font-size:12px}#species h2{font-size:20px}
+  #species .bot{bottom:8px;flex-wrap:wrap;justify-content:center;width:calc(100vw - 16px);padding:6px}
+  #settings .box{width:min(420px,94vw);max-height:92vh;overflow:auto;padding:14px}
+  #hud .tl{left:6px;top:6px;width:210px;padding:6px 8px;font-size:12px}#hud .tl .row{margin:2px 0;gap:4px}
+  #hud .tr{right:6px;top:6px;gap:3px;padding:4px;flex-wrap:wrap;max-width:60vw;justify-content:flex-end}
+  #hud .bl{left:6px;bottom:6px;width:200px;padding:6px;font-size:11px;max-height:34vh;overflow:auto}
+  #hud .br{right:6px;bottom:6px;width:200px;padding:6px 8px;font-size:12px}
+  #hud .bc{bottom:6px;padding:4px;max-width:46vw;flex-wrap:wrap}
+  #pause .box{width:min(250px,80vw)}
+}
+@media (max-height:520px) and (orientation:landscape){#title h1{font-size:34px}#title .sub{margin-bottom:10px;letter-spacing:.2em}#title .menu{gap:6px}#title .menu button{padding:7px 14px;font-size:15px;min-height:0}#hud .bl{display:none}#hud .tl .row:nth-of-type(3){display:none}}
+@media (max-width:560px) and (orientation:portrait){
+  #title h1{font-size:clamp(20px,7.2vw,50px);letter-spacing:.07em;white-space:nowrap}#title .sub{letter-spacing:.18em;font-size:11px}
+  #hud .tl{left:6px;top:6px;width:calc(100vw - 12px)}
+  #hud .tr{left:6px;right:6px;top:104px;max-width:none;justify-content:flex-start;flex-wrap:wrap;padding:3px}#hud .tr button{min-width:36px;min-height:36px;padding:3px 8px;font-size:13px}
+  #hud .bl{display:none}#hud .br{width:min(230px,58vw)}#hud .bc{left:6px;transform:none;max-width:40vw}
+  #species .list{position:static;width:auto;flex-direction:row;overflow-x:auto;max-height:none;padding:8px}#species .list button{flex:0 0 auto}
+  #species .info{position:static;width:auto;margin:0 8px;max-height:46vh}
+  #fpv .bars{width:min(300px,60vw)}
+}
+}
 </style>
 </head>
 <body>
 <canvas id="gl"></canvas>
 <div id="vig"></div><div id="ind"></div>
 <section id="title" class="screen on"><div class="box"><h1>MICROFORMICARIA</h1><div class="sub">hangya-kolónia szimulátor</div>
-<div class="menu"><button id="bNew">Új játék</button><button id="bCont">Folytatás</button><button id="bSpecies">Fajok</button><button id="bSet">Beállítások</button></div></div></section>
+<div class="menu"><button id="bNew">Új játék</button><button id="bCont">Folytatás</button><button id="bSpecies">Fajok</button><button id="bSet">Beállítások</button><button id="bFull" style="display:none">⛶ Teljes képernyő</button></div></div></section>
 <section id="species" class="screen"><div class="list" id="spList"></div><div class="info card" id="spInfo"></div>
 <div class="bot card" style="padding:8px 12px"><button id="spBack">← Vissza</button><span id="diffWrap">Nehézség: <select id="diffSel"><option value="easy">Könnyű</option><option value="normal" selected>Normál</option><option value="hard">Nehéz</option></select></span><button id="spStart" class="on">Indítás</button></div></section>
 <section id="settings" class="screen"><div class="box card"><h2 style="margin:0 0 6px">Beállítások</h2>
 <label>Grafikai minőség<select id="sQual"><option value="low">Alacsony</option><option value="medium" selected>Közepes</option><option value="high">Magas</option></select></label>
 <label>Árnyékok<select id="sShadow"><option value="1" selected>Be</option><option value="0">Ki</option></select></label>
 <label>Felbontás-skála<input id="sScale" type="range" min="0.5" max="1" step="0.05" value="1"></label>
-<label>Egér-érzékenység<input id="sSens" type="range" min="0.3" max="2.5" step="0.1" value="1"></label>
+<label>Automatikus felbontás (képkocka-idő szerint)<select id="sDyn"><option value="1" selected>Be</option><option value="0">Ki</option></select></label>
+<label>Érzékenység (egér / érintés)<input id="sSens" type="range" min="0.3" max="2.5" step="0.1" value="1"></label>
 <label>Egér Y-tengely megfordítása<select id="sInv"><option value="0" selected>Nem</option><option value="1">Igen</option></select></label>
 <label>Automatikus mentés (percenként)<select id="sAuto"><option value="1" selected>Be</option><option value="0">Ki</option></select></label>
 <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px"><button id="setBack">Kész</button></div></div></section>
@@ -76,7 +119,7 @@ select,input[type=range]{background:#2a2016;color:var(--fg);border:1px solid var
  <div class="br card" id="sel"></div></section>
 <section id="fpv" class="screen"><div id="home" style="position:fixed;display:none;color:#ffd27a;font-size:26px;text-shadow:0 0 8px #000;margin:-14px 0 0 -10px;pointer-events:none">⌂</div><div class="cross" id="cross"></div><div class="carry" id="fCarry"></div>
  <div class="bars card"><div class="row"><span class="ic">⚡</span><div class="bar"><i id="fE"></i></div><span class="ic">💧</span><div class="bar"><i id="fH" style="background:var(--water)"></i></div><span class="ic">♥</span><div class="bar"><i id="fL" style="background:var(--bad)"></i></div></div><div class="row" id="fMand" style="display:none"><span class="ic">🦷</span><div class="bar"><i id="fM" style="background:#ddd"></i></div></div></div>
- <div class="keys"><span class="key">WASD</span><span class="key">⇧</span><span class="key">LMB</span><span class="key" id="kR">RMB</span><span class="key kb" data-k="E" title="evés / ivás / belépés">E</span><span class="key kb" data-k="F" title="mászás (kő, rönk)">F</span><span class="key kb" data-k="X" title="ásás">X</span><span class="key kb" data-k="G" title="letesz">G</span><span class="key" id="kJ" style="display:none">␣</span><span class="key">Q ⟲</span></div></section>
+ <div class="keys"><span class="key nt">WASD</span><span class="key nt">⇧</span><span class="key kb" data-k="B" id="kL">LMB</span><span class="key kb" data-k="A" id="kR">RMB</span><span class="key kb" data-k="E" title="evés / ivás / belépés">E</span><span class="key kb" data-k="F" title="mászás (kő, rönk)">F</span><span class="key kb" data-k="X" title="ásás">X</span><span class="key kb" data-k="G" title="letesz">G</span><span class="key kb" id="kJ" data-k="J" style="display:none">␣</span><span class="key kb" data-k="Q" title="kilépés az irányításból">Q ⟲</span></div></div></section>
 <section id="pause" class="screen"><div class="box card"><button id="pResume">Folytatás</button><button id="pSave">Mentés</button><button id="pSet">Beállítások</button><button id="pQuit">Kilépés a főmenübe</button></div></section>
 <div id="toast"></div><div id="click">Kattints a folytatáshoz</div><div id="loading">MICROFORMICARIA</div>
 <script type="module" src="src/main.js"></script>

@@ -33,3 +33,9 @@ A méz / növényi nedv csak a Cephalotes fáján (törzs, ágak) található; a
 - Földalatti nézet: a járatok között szemcsés talajtömb és kavicsok látszanak (nem üres fekete háttér); a kamrák és járatok padlója normáltérképes, foltosan árnyalt.
 - Levélavar: erezett, foltos, lyukas, enyhén felkunkorodó levelek; a moha sűrű, lapos, változatos zöld párnákból áll.
 - A hangyák kutikuláján lakkszerű csillogás (clearcoat) és égbolt-környezettérkép tükröződik; a fény erőssége a napszakhoz és az időjáráshoz igazodik.
+
+## Telefon / érintőképernyő
+- **Érintésvezérlés** (`src/touch.js`): felülnézetben egy ujj = térkép húzása, koppintás = kijelölés/parancs, dupla koppintás = átvétel (első személy), két ujj = nagyítás (csippentés), forgatás (csavarás), dőlés (függőleges húzás). Első személyben bal oldalt lebegő joystick (teljes kitérésnél futás), jobb oldalt húzás = körbenézés; gombok: 🦷 harapás, ⌄/⌃ másodlagos, E, F, X, G, ␣ (Odontomachus ugrás), Q kilépés.
+- **Alapértelmezett takarékos beállítások** telefonon: alacsony minőség, árnyék nélkül, 0,8-as felbontás-skála, élsimítás nélkül; a nehéz (4–12 MB) környezeti modellek kimaradnak (kevesebb letöltés és memória).
+- **Dinamikus felbontás:** ha a képkockaidő tartósan 36 ms fölött van, a belső felbontás 0,4-ig csökken, és visszanő, ha van tartalék (Beállítások → Automatikus felbontás).
+- **Felület:** reszponzív elrendezés fekvő és álló telefonhoz, biztonságos területek (notch), teljes képernyő gomb (Android), telepíthető webalkalmazás (`manifest.webmanifest`).

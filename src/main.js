@@ -1,4 +1,5 @@
 // Belépési pont: főmenü, fajválasztó, játékhurok, kamerák (szabad/felső/first person), bemenet, HUD, mentés.
+import { initTouch, isTouchDevice } from './touch.js';
 import * as THREE from 'three';
 import { Sim } from './sim/sim.js';
 import { SPECIES, TASK_HU, DIFFICULTY, CLIMATE } from './sim/config.js';
@@ -13,15 +14,17 @@ import { SPECIES_TEXT } from './ui/texts.js';
 
 const $ = (id) => document.getElementById(id);
 const SAVE_KEY = 'mf.save1', SET_KEY = 'mf.settings';
-const S = Object.assign({ quality: 'medium', shadow: 1, scale: 1, sens: 1, inv: 0, auto: 1 }, (() => { try { return JSON.parse(localStorage.getItem(SET_KEY)) || {}; } catch { return {}; } })());
+// telefon / táblagép: alapból takarékos beállítások (alacsony minőség, árnyék nélkül, kisebb felbontás), mert a GPU és az akkumulátor szűkös
+const MOBILE = isTouchDevice() && Math.min(screen.width, screen.height) < 1000;
+const S = Object.assign({ quality: MOBILE ? 'low' : 'medium', shadow: MOBILE ? 0 : 1, scale: MOBILE ? 0.8 : 1, sens: 1, inv: 0, auto: 1, dyn: 1 }, (() => { try { return JSON.parse(localStorage.getItem(SET_KEY)) || {}; } catch { return {}; } })());
 const saveSettings = () => { try { localStorage.setItem(SET_KEY, JSON.stringify(S)); } catch {} };
 
 // ---------------------------------------------------------------- renderer
 const canvas = $('gl');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' }); renderer.localClippingEnabled = true;
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: !MOBILE, powerPreference: 'high-performance' }); renderer.localClippingEnabled = true;
 renderer.shadowMap.enabled = !!S.shadow; renderer.shadowMap.type = THREE.PCFSoftShadowMap; renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.25;
-function resize() { const k = S.scale * Math.min(window.devicePixelRatio, 2); renderer.setPixelRatio(k); renderer.setSize(window.innerWidth, window.innerHeight, false); canvas.style.width = '100%'; canvas.style.height = '100%'; if (G.cam) { G.cam.aspect = innerWidth / innerHeight; G.cam.updateProjectionMatrix(); } }
+function resize() { const k = (G.dynScale || S.scale) * Math.min(window.devicePixelRatio, MOBILE ? 2 : 2); renderer.setPixelRatio(k); renderer.setSize(window.innerWidth, window.innerHeight, false); canvas.style.width = '100%'; canvas.style.height = '100%'; if (G.cam) { G.cam.aspect = innerWidth / innerHeight; G.cam.updateProjectionMatrix(); } }
 const G = { mode: 'menu', sim: null, speed: 1, paused: false, nestView: false, sel: null, dig: false, fpv: false, cam: null, orbit: { x: 0, y: 0, z: 0, yaw: 0.6, pitch: 0.95, dist: 70 }, keys: {}, rmb: false };
 window.addEventListener('resize', resize);
 
@@ -54,9 +57,12 @@ $('bCont').onclick = () => { try { startGame(null, Sim.deserialize(localStorage.
 $('setBack').onclick = () => { saveSettings(); show(G.back === 'game' ? 'pause' : 'title'); };
 $('pSet').onclick = () => { G.back = 'game'; show('settings'); };
 function bindSettings() {
-  const map = [['sQual', 'quality'], ['sShadow', 'shadow'], ['sScale', 'scale'], ['sSens', 'sens'], ['sInv', 'inv'], ['sAuto', 'auto']];
+  const map = [['sQual', 'quality'], ['sShadow', 'shadow'], ['sScale', 'scale'], ['sSens', 'sens'], ['sInv', 'inv'], ['sAuto', 'auto'], ['sDyn', 'dyn']];
   for (const [id, key] of map) { const el = $(id); el.value = S[key]; el.onchange = el.oninput = () => { S[key] = typeof S[key] === 'number' ? parseFloat(el.value) : el.value; if (key === 'shadow') { renderer.shadowMap.enabled = !!S.shadow; if (G.view) G.view.sun.castShadow = !!S.shadow; } if (key === 'scale') resize(); saveSettings(); }; }
 }
+$('sScale').addEventListener('input', () => { G.dynScale = null; resize(); }); $('sDyn').addEventListener('change', () => { G.dynScale = null; resize(); });
+// teljes képernyő (Android / asztali böngésző; iPhone Safari nem támogatja): fekvő tájolásra is kérünk zárat
+if (document.fullscreenEnabled) { $('bFull').style.display = ''; $('bFull').onclick = async () => { try { if (document.fullscreenElement) await document.exitFullscreen(); else { await document.documentElement.requestFullscreen({ navigationUI: 'hide' }); try { await screen.orientation.lock('landscape'); } catch {} } } catch {} }; }
 bindSettings();
 
 // ---------------------------------------------------------------- játék indítása
@@ -67,7 +73,7 @@ async function startGame(opts, loaded) {
   G.scene = new THREE.Scene(); G.cam = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.05, 16000);
   G.view = new WorldView(G.scene, renderer, S.quality); G.view.sun.castShadow = !!S.shadow; G.view.build(sim);
   G.layer = new CreatureLayer(G.scene); await G.layer.load(sim.speciesId);
-  G.env = new EnvView(G.scene, renderer, SPECIES[sim.speciesId].climate, sim.seed); G.env.build().catch((e) => console.warn('env', e));
+  G.env = new EnvView(G.scene, renderer, SPECIES[sim.speciesId].climate, sim.seed, MOBILE || S.quality === 'low'); G.env.build().catch((e) => console.warn('env', e));
   const q = sim.queen; G.orbit.x = q ? q.x : 0; G.orbit.z = q ? q.z : 0; G.orbit.y = 0; G.orbit.dist = 55; G.orbit.pitch = 0.95; G.follow = true; setFollowBtn();
   G.mode = 'game'; G.speed = 1; G.paused = false; G.nestView = false; G.sel = q ? { kind: 'ant', id: q.id } : null; G.fpv = false; G.logIdx = sim.logs.length; G.autoT = 0; G.over = false;
   buildDirs(sim); setSpeed(1); show('hud'); $('loading').style.display = 'none'; $('bNestV').classList.remove('on'); resize();
@@ -121,7 +127,7 @@ function updateHud() {
 }
 function updateFpvHud() {
   const sim = G.sim, a = sim.controlTarget(); if (!a) return; $('fE').style.width = pct(a.energy); $('fH').style.width = pct(a.hyd); $('fL').style.width = pct(a.hp / a.maxHp * 100);
-  const od = SPECIES[sim.speciesId].id === 'odonto'; $('fMand').style.display = od ? '' : 'none'; $('fM').style.width = pct(a.mand * 100); $('kJ').style.display = od ? '' : 'none'; $('kR').textContent = od ? 'RMB ⌃' : 'RMB ⌄';
+  const od = SPECIES[sim.speciesId].id === 'odonto'; $('fMand').style.display = od ? '' : 'none'; $('fM').style.width = pct(a.mand * 100); $('kJ').style.display = od ? '' : 'none'; $('kR').textContent = TOUCH ? (od ? '⌃' : '⌄') : (od ? 'RMB ⌃' : 'RMB ⌄');
   $('fCarry').textContent = a.carry ? { prey: '🍖', sugar: '🍯', water: '💧', eggs: '🥚', soil: '🟤', brood: '🥚' }[a.carry.kind] || '' : '';
   let cls = ''; const tg = a.loc !== 'nest' ? manualTargets(sim, a, Math.max(SPECIES[sim.speciesId].hunt.reach * a.len * 1.4, 3.2)) : [];
   if (tg.length) { const k = tg[0]; cls = k.kind === 'spider' ? 'enemy' : k.kind === 'clutch' ? 'egg' : k.p.dead ? 'src' : 'prey'; }
@@ -195,7 +201,8 @@ window.addEventListener('keydown', (e) => {
 window.addEventListener('keyup', (e) => { const k = KEYMAP[e.code]; if (k) G.keys[k] = false; if (G.fpv && e.code === 'KeyE') G.sim.input.useHold = false; if (G.fpv && e.code === 'KeyX') { G.sim.input.digSurf = false; if (G.topNest) G.sim.input.dig = false; } });
 document.querySelectorAll('#fpv .key.kb').forEach((el) => {
   const k = el.dataset.k, press = (on) => { if (!G.fpv || !G.sim) return; const inp = G.sim.input;
-    if (k === 'E') { inp.use = on; inp.useHold = on; } else if (k === 'X') { inp.digSurf = on; if (G.topNest) inp.dig = on; } else if (k === 'F') { if (on) inp.climb = true; } else if (k === 'G') { if (on) inp.drop = true; } };
+    if (k === 'B') { if (on) inp.act1 = true; } else if (k === 'A') inp.act2 = on; else if (k === 'J') { if (on) inp.jump = true; } else if (k === 'Q') { if (on) exitFpv(); }
+    else if (k === 'E') { inp.use = on; inp.useHold = on; } else if (k === 'X') { inp.digSurf = on; if (G.topNest) inp.dig = on; } else if (k === 'F') { if (on) inp.climb = true; } else if (k === 'G') { if (on) inp.drop = true; } };
   el.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); press(true); }); el.addEventListener('pointerup', () => press(false)); el.addEventListener('pointerleave', () => press(false));
 });
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -241,6 +248,7 @@ function click(cx, cy) {
   if (cur && best && (best.kind === 'isopod' || best.kind === 'springtail') && sim.order(cur.id, best.kind, best.id)) { G.orderMark = { kind: best.kind, id: best.id, t: performance.now() }; toast('🎯', 900, true); return; }
   G.sel = best; if (best && best.kind === 'ant') { const a = selEntity(); if (a) { G.orbit.x = a.x; G.orbit.z = a.z; } }
 }
+const touchCtl = initTouch({ G, canvas, S, click, enterFpv, setFollowBtn }); const TOUCH = document.body.classList.contains('touch'); if (TOUCH) $('kL').textContent = '🦷';
 // figyelmeztető nyilak a közeli pókokra
 const ind = $('ind'); const arrows = [];
 function updateHome(a) {
@@ -261,14 +269,21 @@ function updateArrows(a0) {
 
 // ---------------------------------------------------------------- hurok
 let last = performance.now(), hudT = 0;
+let fAcc = 0, fN = 0;
+function dynRes(raw) {   // dinamikus felbontás: ha a képkockaidő tartósan magas, a belső felbontás csökken (és vissza nő, ha van tartalék)
+  if (!S.dyn || raw > 1.5 || document.hidden) return; fAcc += raw; fN++; if (fAcc < 1.6) return; const avg = fAcc / fN; fAcc = 0; fN = 0; const top = S.scale, cur = G.dynScale || top;
+  let nx = cur; if (avg > 0.036) nx = Math.max(0.4, cur * 0.86); else if (avg < 0.021 && cur < top) nx = Math.min(top, cur * 1.07);
+  if (Math.abs(nx - cur) > 0.01) { G.dynScale = nx; resize(); }
+}
 function frame(now) {
-  const dt = Math.min(0.1, (now - last) / 1000); last = now; requestAnimationFrame(frame);
+  const dt = Math.min(0.1, (now - last) / 1000); dynRes((now - last) / 1000); last = now; requestAnimationFrame(frame);
   if (G.mode === 'menu') { menu.render(dt); return; }
   const sim = G.sim; if (!sim || !G.view) return;
+  touchCtl.tick();
   if (!G.paused) {
     if (G.fpv) { const k = G.keys, inp = sim.input; const c0 = sim.controlTarget();
       if (c0 && c0.loc === 'nest') nestInput(c0, inp, dt);          // föld alatt felülnézet: a billentyűk a képernyő irányait jelentik
-      else { inp.fwd = (k.w ? 1 : 0) - (k.s ? 1 : 0); inp.strafe = (k.a ? 1 : 0) - (k.d ? 1 : 0); inp.sprint = !!k.shift; } }
+      else { inp.fwd = (k.w ? 1 : 0) - (k.s ? 1 : 0); inp.strafe = (k.a ? 1 : 0) - (k.d ? 1 : 0); inp.sprint = !!k.shift; if (G.joy.on) { inp.fwd = G.joy.y; inp.strafe = -G.joy.x; inp.sprint = G.joy.sprint; } } }
     sim.advance(dt, G.speed); if (G.fpv && !sim.player.active) exitFpv();
   }
   const ctl = G.fpv ? sim.controlTarget() : null; const under = !!ctl && ctl.loc === 'nest';
