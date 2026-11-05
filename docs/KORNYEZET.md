@@ -46,3 +46,9 @@ A méz / növényi nedv csak a Cephalotes fáján (törzs, ágak) található; a
 - Új játék indításakor, a faj kiválasztása után egy ~19 mp-es filmes bevezető fut (`src/intro.js`, képek: `assets/intro/s1..s4.jpg`): 4 jelenet, lassú kamera/parallaxis, keresztáttűnés, részecskék, felirat. Kattintással/érintéssel/Esc/Enter/Space gombbal átugorható; a Beállításokban ("Bevezető animáció") kikapcsolható; `prefers-reduced-motion` esetén egyszerűsített.
 - A feliratok angolul vannak (a specifikáció szerint); a `LANG` konstans átváltja magyarra.
 - A 3. jelenethez nem volt föld alatti fotó, ezért a meglévő képet sötét, barna színkorrekcióval használja.
+
+## Háttérzene
+
+- A `assets/music/theme.m4a` a főmenü, a faj-választó, a beállítások és a bevezető slideshow alatt szól, lassú be- és kifade-del (`src/music.js`).
+- A böngésző csak felhasználói érintés után engedi a hangot, ezért az első kattintásnál/billentyűnél indul.
+- A játék indításakor elhalkul. A hangerő a Beállításokban ("Háttérzene") állítható: Ki / Halk / Közepes / Hangos.

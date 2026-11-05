@@ -1,6 +1,7 @@
 // Belépési pont: főmenü, fajválasztó, játékhurok, kamerák (szabad/felső/first person), bemenet, HUD, mentés.
 import { initTouch, isTouchDevice } from './touch.js';
 import { playIntro } from './intro.js';
+import { musicPlay, musicStop, setMusicVolume } from './music.js';
 import * as THREE from 'three';
 import { Sim } from './sim/sim.js';
 import { SPECIES, TASK_HU, DIFFICULTY, CLIMATE } from './sim/config.js';
@@ -20,7 +21,7 @@ const stored = (() => { try { return JSON.parse(localStorage.getItem('mf.setting
 const AUTO_PHONE = isTouchDevice() && Math.min(screen.width, screen.height) < 1000;        // találgatás, amíg a játékos nem választott eszközt
 const MOBILE = stored.device ? stored.device === 'phone' : AUTO_PHONE;
 const DEVICE_DEFAULTS = { phone: { quality: 'low', shadow: 0, scale: 0.8 }, desktop: { quality: 'medium', shadow: 1, scale: 1 } };
-const S = Object.assign({ ...DEVICE_DEFAULTS[MOBILE ? 'phone' : 'desktop'], sens: 1, inv: 0, auto: 1, dyn: 1, intro: 1 }, (() => { try { return JSON.parse(localStorage.getItem(SET_KEY)) || {}; } catch { return {}; } })());
+const S = Object.assign({ ...DEVICE_DEFAULTS[MOBILE ? 'phone' : 'desktop'], sens: 1, inv: 0, auto: 1, dyn: 1, intro: 1, music: 0.5 }, (() => { try { return JSON.parse(localStorage.getItem(SET_KEY)) || {}; } catch { return {}; } })());
 const saveSettings = () => { try { localStorage.setItem(SET_KEY, JSON.stringify(S)); } catch {} };
 
 // ---------------------------------------------------------------- renderer
@@ -34,7 +35,7 @@ window.addEventListener('resize', resize);
 
 // ---------------------------------------------------------------- képernyők
 const screens = ['title', 'species', 'settings', 'hud', 'fpv', 'pause'];
-function show(...names) { for (const s of screens) $(s).classList.toggle('on', names.includes(s)); }
+function show(...names) { for (const s of screens) $(s).classList.toggle('on', names.includes(s)); if (names.includes('title') || names.includes('species') || names.includes('settings')) { if (S.music > 0) musicPlay(); } }
 const menu = new MenuScene(renderer);
 let menuReady = menu.load().then(() => { $('loading').style.display = 'none'; });
 const hasSave = () => { try { return !!localStorage.getItem(SAVE_KEY); } catch { return false; } };
@@ -54,6 +55,7 @@ function selectSpecies(id) {
   const d = t.diff ? `<div class="dots" style="margin:6px 0">${[1, 2, 3].map((i) => `<i class="${i <= t.diff ? 'f' : ''}"></i>`).join('')} <span style="color:var(--dim);margin-left:6px">${t.diffName}</span></div>` : '';
   $('spInfo').innerHTML = `<h2>${t.name}</h2><div class="lat">${t.latin}</div>${SPECIES[id] ? `<span class="tag">${CLIMATE[SPECIES[id].climate].name} éghajlat</span>` : ''}${d}<p>${t.blurb}</p><p class="bio"><span class="tag">biológia</span>${t.bio}</p><p class="game"><span class="tag">játékbeli egyszerűsítés</span>${t.game}</p>`;
 }
+setMusicVolume(S.music);
 $('bNew').onclick = () => openSpecies('new'); $('bSpecies').onclick = () => openSpecies('all'); $('bSet').onclick = () => { G.back = 'title'; show('settings'); };
 $('spBack').onclick = () => { menu.setMode('title'); show('title'); };
 $('spStart').onclick = async () => {
@@ -65,7 +67,7 @@ $('bCont').onclick = () => { try { startGame(null, Sim.deserialize(localStorage.
 $('setBack').onclick = () => { saveSettings(); show(G.back === 'game' ? 'pause' : 'title'); };
 $('pSet').onclick = () => { G.back = 'game'; show('settings'); };
 function bindSettings() {
-  const map = [['sQual', 'quality'], ['sShadow', 'shadow'], ['sScale', 'scale'], ['sSens', 'sens'], ['sInv', 'inv'], ['sAuto', 'auto'], ['sDyn', 'dyn'], ['sIntro', 'intro']];
+  const map = [['sQual', 'quality'], ['sShadow', 'shadow'], ['sScale', 'scale'], ['sSens', 'sens'], ['sInv', 'inv'], ['sAuto', 'auto'], ['sDyn', 'dyn'], ['sIntro', 'intro'], ['sMusic', 'music']];
   for (const [id, key] of map) { const el = $(id); el.value = S[key]; el.onchange = el.oninput = () => { S[key] = typeof S[key] === 'number' ? parseFloat(el.value) : el.value; if (key === 'shadow') { renderer.shadowMap.enabled = !!S.shadow; if (G.view) G.view.sun.castShadow = !!S.shadow; } if (key === 'scale') resize(); saveSettings(); }; }
 }
 // eszközválasztás: az első indításkor rákérdezünk; a beállításokban bármikor módosítható (újratöltéssel érvényesül)
@@ -81,9 +83,11 @@ $('sScale').addEventListener('input', () => { G.dynScale = null; resize(); }); $
 // teljes képernyő (Android / asztali böngésző; iPhone Safari nem támogatja): fekvő tájolásra is kérünk zárat
 if (document.fullscreenEnabled) { $('bFull').style.display = ''; $('bFull').onclick = async () => { try { if (document.fullscreenElement) await document.exitFullscreen(); else { await document.documentElement.requestFullscreen({ navigationUI: 'hide' }); try { await screen.orientation.lock('landscape'); } catch {} } } catch {} }; }
 bindSettings();
+$('sMusic').addEventListener('change', () => { setMusicVolume(S.music); if (S.music > 0) musicPlay(); else musicStop(); });
 
 // ---------------------------------------------------------------- játék indítása
 async function startGame(opts, loaded) {
+  musicStop();
   $('loading').style.display = 'flex'; await new Promise((r) => setTimeout(r, 30));
   disposeGame();
   const sim = loaded || new Sim({ species: opts.species, difficulty: opts.difficulty, seed: (Math.random() * 1e6) | 0 }); G.sim = sim;
