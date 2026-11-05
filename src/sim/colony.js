@@ -75,14 +75,14 @@ export function stepBrood(sim, dt) {
     const { q, qh } = chamberQuality(sim, nd);
     const speed = q;                               // rossz klíma = lassú fejlődés
     b.badT = (b.badT || 0) + (q < 0.2 ? dt : -dt * 2); b.badT = Math.max(0, b.badT);
-    if (b.badT > DAY * 0.5 || (nd.flood > 0 && sim.rng.chance(dt * 0.02))) { b.dead = true; continue; }       // kiszáradás vagy átnedvesedés miatti pusztulás
+    if (b.badT > DAY * 0.75 || (nd.flood > 0 && sim.rng.chance(dt * 0.008))) { b.dead = true; continue; }       // kiszáradás vagy átnedvesedés miatti pusztulás
     if (b.stage === 'egg') { b.prog += days * speed / sp.brood.egg; if (b.prog >= 1) { b.stage = 'larva'; b.prog = 0; b.fed = 0.5; } }
     else if (b.stage === 'larva') {
       b.fed -= dt / (DAY * 1.1);
       // félig claustrális alapítás (játékmechanikai egyszerűsítés): munkások nélkül az anya testtartalékából (trofikus váladék) lassan eteti a lárvákat
       const qq = sim.ants.find((x) => x.caste === 'queen' && !x.dead);
       if (qq && qq.loc === 'nest' && qq.energy > 12 && !sim.ants.some((x) => x.caste !== 'queen' && !x.dead) && b.fed < 0.7) { b.fed += dt / (DAY * 0.9); qq.energy -= dt * 0.012; }                    // éheztetés: a lárvát etetni kell
-      if (b.fed <= 0) { b.starve = (b.starve || 0) + dt; if (b.starve > DAY * 0.6) { b.dead = true; continue; } } else b.starve = 0;
+      if (b.fed <= 0) { b.starve = (b.starve || 0) + dt; if (b.starve > DAY * 1.0) { b.dead = true; continue; } } else b.starve = 0;
       if (b.fed > 0.25) b.prog += days * speed * clamp(0.5 + b.fed, 0.5, 1.4) / sp.brood.larva;
       if (b.prog >= 1) { b.stage = 'pupa'; b.prog = 0; }
     } else if (b.stage === 'pupa') {
