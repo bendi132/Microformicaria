@@ -1,5 +1,6 @@
 // Belépési pont: főmenü, fajválasztó, játékhurok, kamerák (szabad/felső/first person), bemenet, HUD, mentés.
 import { initTouch, isTouchDevice } from './touch.js';
+import { playIntro } from './intro.js';
 import * as THREE from 'three';
 import { Sim } from './sim/sim.js';
 import { SPECIES, TASK_HU, DIFFICULTY, CLIMATE } from './sim/config.js';
@@ -15,8 +16,11 @@ import { SPECIES_TEXT } from './ui/texts.js';
 const $ = (id) => document.getElementById(id);
 const SAVE_KEY = 'mf.save1', SET_KEY = 'mf.settings';
 // telefon / táblagép: alapból takarékos beállítások (alacsony minőség, árnyék nélkül, kisebb felbontás), mert a GPU és az akkumulátor szűkös
-const MOBILE = isTouchDevice() && Math.min(screen.width, screen.height) < 1000;
-const S = Object.assign({ quality: MOBILE ? 'low' : 'medium', shadow: MOBILE ? 0 : 1, scale: MOBILE ? 0.8 : 1, sens: 1, inv: 0, auto: 1, dyn: 1 }, (() => { try { return JSON.parse(localStorage.getItem(SET_KEY)) || {}; } catch { return {}; } })());
+const stored = (() => { try { return JSON.parse(localStorage.getItem('mf.settings')) || {}; } catch { return {}; } })();
+const AUTO_PHONE = isTouchDevice() && Math.min(screen.width, screen.height) < 1000;        // találgatás, amíg a játékos nem választott eszközt
+const MOBILE = stored.device ? stored.device === 'phone' : AUTO_PHONE;
+const DEVICE_DEFAULTS = { phone: { quality: 'low', shadow: 0, scale: 0.8 }, desktop: { quality: 'medium', shadow: 1, scale: 1 } };
+const S = Object.assign({ ...DEVICE_DEFAULTS[MOBILE ? 'phone' : 'desktop'], sens: 1, inv: 0, auto: 1, dyn: 1, intro: 1 }, (() => { try { return JSON.parse(localStorage.getItem(SET_KEY)) || {}; } catch { return {}; } })());
 const saveSettings = () => { try { localStorage.setItem(SET_KEY, JSON.stringify(S)); } catch {} };
 
 // ---------------------------------------------------------------- renderer
@@ -52,14 +56,27 @@ function selectSpecies(id) {
 }
 $('bNew').onclick = () => openSpecies('new'); $('bSpecies').onclick = () => openSpecies('all'); $('bSet').onclick = () => { G.back = 'title'; show('settings'); };
 $('spBack').onclick = () => { menu.setMode('title'); show('title'); };
-$('spStart').onclick = () => startGame({ species: spSel, difficulty: $('diffSel').value });
+$('spStart').onclick = async () => {
+  const opts = { species: spSel, difficulty: $('diffSel').value };
+  if (S.intro) { $('spStart').disabled = true; try { await playIntro({ sub: (SPECIES_TEXT[spSel] || {}).name || '' }); } catch (e) { console.warn('intro', e); } $('spStart').disabled = false; }
+  startGame(opts);
+};
 $('bCont').onclick = () => { try { startGame(null, Sim.deserialize(localStorage.getItem(SAVE_KEY))); } catch (e) { toast('A mentés nem tölthető be.'); } };
 $('setBack').onclick = () => { saveSettings(); show(G.back === 'game' ? 'pause' : 'title'); };
 $('pSet').onclick = () => { G.back = 'game'; show('settings'); };
 function bindSettings() {
-  const map = [['sQual', 'quality'], ['sShadow', 'shadow'], ['sScale', 'scale'], ['sSens', 'sens'], ['sInv', 'inv'], ['sAuto', 'auto'], ['sDyn', 'dyn']];
+  const map = [['sQual', 'quality'], ['sShadow', 'shadow'], ['sScale', 'scale'], ['sSens', 'sens'], ['sInv', 'inv'], ['sAuto', 'auto'], ['sDyn', 'dyn'], ['sIntro', 'intro']];
   for (const [id, key] of map) { const el = $(id); el.value = S[key]; el.onchange = el.oninput = () => { S[key] = typeof S[key] === 'number' ? parseFloat(el.value) : el.value; if (key === 'shadow') { renderer.shadowMap.enabled = !!S.shadow; if (G.view) G.view.sun.castShadow = !!S.shadow; } if (key === 'scale') resize(); saveSettings(); }; }
 }
+// eszközválasztás: az első indításkor rákérdezünk; a beállításokban bármikor módosítható (újratöltéssel érvényesül)
+function chooseDevice(dev, fromSettings) {
+  const was = MOBILE ? 'phone' : 'desktop'; S.device = dev;
+  if (dev !== was || fromSettings) Object.assign(S, DEVICE_DEFAULTS[dev]);
+  saveSettings(); $('device').classList.remove('on'); if (dev !== was) location.reload();
+}
+document.querySelectorAll('#device [data-dev]').forEach((b) => { b.onclick = () => chooseDevice(b.dataset.dev, false); });
+$('sDevice').value = S.device || (MOBILE ? 'phone' : 'desktop'); $('sDevice').onchange = () => chooseDevice($('sDevice').value, true);
+menuReady.then(() => { if (!S.device) $('device').classList.add('on'); });
 $('sScale').addEventListener('input', () => { G.dynScale = null; resize(); }); $('sDyn').addEventListener('change', () => { G.dynScale = null; resize(); });
 // teljes képernyő (Android / asztali böngésző; iPhone Safari nem támogatja): fekvő tájolásra is kérünk zárat
 if (document.fullscreenEnabled) { $('bFull').style.display = ''; $('bFull').onclick = async () => { try { if (document.fullscreenElement) await document.exitFullscreen(); else { await document.documentElement.requestFullscreen({ navigationUI: 'hide' }); try { await screen.orientation.lock('landscape'); } catch {} } } catch {} }; }
@@ -248,7 +265,7 @@ function click(cx, cy) {
   if (cur && best && (best.kind === 'isopod' || best.kind === 'springtail') && sim.order(cur.id, best.kind, best.id)) { G.orderMark = { kind: best.kind, id: best.id, t: performance.now() }; toast('🎯', 900, true); return; }
   G.sel = best; if (best && best.kind === 'ant') { const a = selEntity(); if (a) { G.orbit.x = a.x; G.orbit.z = a.z; } }
 }
-const touchCtl = initTouch({ G, canvas, S, click, enterFpv, setFollowBtn }); const TOUCH = document.body.classList.contains('touch'); if (TOUCH) $('kL').textContent = '🦷';
+const touchCtl = initTouch({ G, canvas, S, click, enterFpv, setFollowBtn, enabled: MOBILE }); const TOUCH = document.body.classList.contains('touch'); if (TOUCH) $('kL').textContent = '🦷';
 // figyelmeztető nyilak a közeli pókokra
 const ind = $('ind'); const arrows = [];
 function updateHome(a) {

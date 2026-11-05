@@ -49,6 +49,13 @@ select,input[type=range]{background:#2a2016;color:var(--fg);border:1px solid var
 #pause .box{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);padding:20px;display:flex;flex-direction:column;gap:9px;width:250px}
 #loading{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;font:700 22px Georgia,serif;letter-spacing:.2em;z-index:9}
 
+#device{z-index:9;background:rgba(6,4,2,.82);backdrop-filter:blur(8px)}
+#device .dv{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;width:min(640px,92vw)}
+#device h2{font:300 clamp(24px,4vw,40px) Georgia,serif;letter-spacing:.06em;margin:0 0 22px}
+#device .dvrow{display:flex;gap:16px;justify-content:center;flex-wrap:wrap}
+#device .dvrow button{flex:1 1 240px;display:flex;flex-direction:column;align-items:center;gap:6px;padding:22px 16px;border-radius:12px;background:rgba(40,28,16,.8)}
+#device .dvrow button span{font-size:42px}#device .dvrow button b{font-size:17px;letter-spacing:.04em}#device .dvrow button small{color:var(--dim)}
+#device p{color:var(--dim);font-size:12px;margin-top:16px}
 /* ---- érintőképernyő / telefon ---- */
 html,body{overscroll-behavior:none;touch-action:none;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}
 body{padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
@@ -100,6 +107,8 @@ body.touch #hud .tr button{min-width:40px;padding:6px 10px}
 <section id="species" class="screen"><div class="list" id="spList"></div><div class="info card" id="spInfo"></div>
 <div class="bot card" style="padding:8px 12px"><button id="spBack">← Vissza</button><span id="diffWrap">Nehézség: <select id="diffSel"><option value="easy">Könnyű</option><option value="normal" selected>Normál</option><option value="hard">Nehéz</option></select></span><button id="spStart" class="on">Indítás</button></div></section>
 <section id="settings" class="screen"><div class="box card"><h2 style="margin:0 0 6px">Beállítások</h2>
+<label>Eszköz<select id="sDevice"><option value="desktop">Számítógép / laptop</option><option value="phone">Telefon / táblagép</option></select></label>
+<label>Bevezető animáció<select id="sIntro"><option value="1" selected>Be</option><option value="0">Ki</option></select></label>
 <label>Grafikai minőség<select id="sQual"><option value="low">Alacsony</option><option value="medium" selected>Közepes</option><option value="high">Magas</option></select></label>
 <label>Árnyékok<select id="sShadow"><option value="1" selected>Be</option><option value="0">Ki</option></select></label>
 <label>Felbontás-skála<input id="sScale" type="range" min="0.5" max="1" step="0.05" value="1"></label>
@@ -121,6 +130,7 @@ body.touch #hud .tr button{min-width:40px;padding:6px 10px}
  <div class="bars card"><div class="row"><span class="ic">⚡</span><div class="bar"><i id="fE"></i></div><span class="ic">💧</span><div class="bar"><i id="fH" style="background:var(--water)"></i></div><span class="ic">♥</span><div class="bar"><i id="fL" style="background:var(--bad)"></i></div></div><div class="row" id="fMand" style="display:none"><span class="ic">🦷</span><div class="bar"><i id="fM" style="background:#ddd"></i></div></div></div>
  <div class="keys"><span class="key nt">WASD</span><span class="key nt">⇧</span><span class="key kb" data-k="B" id="kL">LMB</span><span class="key kb" data-k="A" id="kR">RMB</span><span class="key kb" data-k="E" title="evés / ivás / belépés">E</span><span class="key kb" data-k="F" title="mászás (kő, rönk)">F</span><span class="key kb" data-k="X" title="ásás">X</span><span class="key kb" data-k="G" title="letesz">G</span><span class="key kb" id="kJ" data-k="J" style="display:none">␣</span><span class="key kb" data-k="Q" title="kilépés az irányításból">Q ⟲</span></div></div></section>
 <section id="pause" class="screen"><div class="box card"><button id="pResume">Folytatás</button><button id="pSave">Mentés</button><button id="pSet">Beállítások</button><button id="pQuit">Kilépés a főmenübe</button></div></section>
+<section id="device" class="screen"><div class="dv"><h2>Min játszol?</h2><div class="dvrow"><button data-dev="desktop"><span>🖥</span><b>Számítógép / laptop</b><small>billentyűzet + egér</small></button><button data-dev="phone"><span>📱</span><b>Telefon / táblagép</b><small>érintésvezérlés, takarékos grafika</small></button></div><p>Később a Beállításokban módosítható.</p></div></section>
 <div id="toast"></div><div id="click">Kattints a folytatáshoz</div><div id="loading">MICROFORMICARIA</div>
 <script type="module" src="src/main.js"></script>
 </body></html>

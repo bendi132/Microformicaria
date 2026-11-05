@@ -39,3 +39,10 @@ A méz / növényi nedv csak a Cephalotes fáján (törzs, ágak) található; a
 - **Alapértelmezett takarékos beállítások** telefonon: alacsony minőség, árnyék nélkül, 0,8-as felbontás-skála, élsimítás nélkül; a nehéz (4–12 MB) környezeti modellek kimaradnak (kevesebb letöltés és memória).
 - **Dinamikus felbontás:** ha a képkockaidő tartósan 36 ms fölött van, a belső felbontás 0,4-ig csökken, és visszanő, ha van tartalék (Beállítások → Automatikus felbontás).
 - **Felület:** reszponzív elrendezés fekvő és álló telefonhoz, biztonságos területek (notch), teljes képernyő gomb (Android), telepíthető webalkalmazás (`manifest.webmanifest`).
+
+## Bevezető animáció és eszközválasztás
+
+- Első indításkor a játék megkérdezi, hogy számítógépen/laptopon vagy telefonon játszol (`mf.settings.device`). Beállításokban ("Eszköz") később módosítható; a váltás újratölti az oldalt, és az eszköznek megfelelő alapbeállításokat alkalmazza.
+- Új játék indításakor, a faj kiválasztása után egy ~19 mp-es filmes bevezető fut (`src/intro.js`, képek: `assets/intro/s1..s4.jpg`): 4 jelenet, lassú kamera/parallaxis, keresztáttűnés, részecskék, felirat. Kattintással/érintéssel/Esc/Enter/Space gombbal átugorható; a Beállításokban ("Bevezető animáció") kikapcsolható; `prefers-reduced-motion` esetén egyszerűsített.
+- A feliratok angolul vannak (a specifikáció szerint); a `LANG` konstans átváltja magyarra.
+- A 3. jelenethez nem volt föld alatti fotó, ezért a meglévő képet sötét, barna színkorrekcióval használja.

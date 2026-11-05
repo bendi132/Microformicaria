@@ -7,7 +7,7 @@ export const isTouchDevice = () => (window.matchMedia && matchMedia('(pointer:co
 
 export function initTouch(ctx) {
   const { G, canvas, S, click, enterFpv, setFollowBtn } = ctx;
-  const touch = isTouchDevice(); document.body.classList.toggle('touch', touch);
+  const touch = ctx.enabled !== undefined ? !!ctx.enabled : isTouchDevice(); document.body.classList.toggle('touch', touch);
   G.joy = { x: 0, y: 0, on: false, sprint: false };
   if (!touch) return { tick() {} };
   const ptr = new Map(); let joyId = null, joyO = null, lookId = null, lastTap = { t: 0, x: 0, y: 0 }, pinch = null;
