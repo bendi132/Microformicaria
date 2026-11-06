@@ -62,7 +62,7 @@ export function layEgg(sim, q) {
   if (inChamber >= limit || sim.brood.filter((b) => b.stage !== 'pupa').length >= limit) return false;
   if (chamberQuality(sim, nd).q < 0.35) return false;
   q.energy -= sp.brood.eggCost; c.eggsLaid++; c.lastLay = sim.t;
-  const b = makeBrood(sim, 'egg', nd.id); sim.brood.push(b); return true;
+  const b = makeBrood(sim, 'egg', nd.id); sim.brood.push(b); sim.event('lay', q); return true;
 }
 
 // ---- fiasítás fejlődése

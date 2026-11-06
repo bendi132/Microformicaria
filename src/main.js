@@ -2,6 +2,7 @@
 import { initTouch, isTouchDevice } from './touch.js';
 import { playIntro } from './intro.js';
 import { musicPlay, musicStop, setMusicVolume } from './music.js';
+import { sfxStart, sfxStop, sfxFrame, sfxHush, setSfxVolume } from './sfx.js';
 import * as THREE from 'three';
 import { Sim } from './sim/sim.js';
 import { SPECIES, TASK_HU, DIFFICULTY, CLIMATE } from './sim/config.js';
@@ -21,7 +22,7 @@ const stored = (() => { try { return JSON.parse(localStorage.getItem('mf.setting
 const AUTO_PHONE = isTouchDevice() && Math.min(screen.width, screen.height) < 1000;        // találgatás, amíg a játékos nem választott eszközt
 const MOBILE = stored.device ? stored.device === 'phone' : AUTO_PHONE;
 const DEVICE_DEFAULTS = { phone: { quality: 'low', shadow: 0, scale: 0.8 }, desktop: { quality: 'medium', shadow: 1, scale: 1 } };
-const S = Object.assign({ ...DEVICE_DEFAULTS[MOBILE ? 'phone' : 'desktop'], sens: 1, inv: 0, auto: 1, dyn: 1, intro: 1, music: 0.5 }, (() => { try { return JSON.parse(localStorage.getItem(SET_KEY)) || {}; } catch { return {}; } })());
+const S = Object.assign({ ...DEVICE_DEFAULTS[MOBILE ? 'phone' : 'desktop'], sens: 1, inv: 0, auto: 1, dyn: 1, intro: 1, music: 0.5, sfx: 0.6 }, (() => { try { return JSON.parse(localStorage.getItem(SET_KEY)) || {}; } catch { return {}; } })());
 const saveSettings = () => { try { localStorage.setItem(SET_KEY, JSON.stringify(S)); } catch {} };
 
 // ---------------------------------------------------------------- renderer
@@ -55,7 +56,7 @@ function selectSpecies(id) {
   const d = t.diff ? `<div class="dots" style="margin:6px 0">${[1, 2, 3].map((i) => `<i class="${i <= t.diff ? 'f' : ''}"></i>`).join('')} <span style="color:var(--dim);margin-left:6px">${t.diffName}</span></div>` : '';
   $('spInfo').innerHTML = `<h2>${t.name}</h2><div class="lat">${t.latin}</div>${SPECIES[id] ? `<span class="tag">${CLIMATE[SPECIES[id].climate].name} éghajlat</span>` : ''}${d}<p>${t.blurb}</p><p class="bio"><span class="tag">biológia</span>${t.bio}</p><p class="game"><span class="tag">játékbeli egyszerűsítés</span>${t.game}</p>`;
 }
-setMusicVolume(S.music);
+setMusicVolume(S.music); setSfxVolume(S.sfx);
 $('bNew').onclick = () => openSpecies('new'); $('bSpecies').onclick = () => openSpecies('all'); $('bSet').onclick = () => { G.back = 'title'; show('settings'); };
 $('spBack').onclick = () => { menu.setMode('title'); show('title'); };
 $('spStart').onclick = async () => {
@@ -67,7 +68,7 @@ $('bCont').onclick = () => { try { startGame(null, Sim.deserialize(localStorage.
 $('setBack').onclick = () => { saveSettings(); show(G.back === 'game' ? 'pause' : 'title'); };
 $('pSet').onclick = () => { G.back = 'game'; show('settings'); };
 function bindSettings() {
-  const map = [['sQual', 'quality'], ['sShadow', 'shadow'], ['sScale', 'scale'], ['sSens', 'sens'], ['sInv', 'inv'], ['sAuto', 'auto'], ['sDyn', 'dyn'], ['sIntro', 'intro'], ['sMusic', 'music']];
+  const map = [['sQual', 'quality'], ['sShadow', 'shadow'], ['sScale', 'scale'], ['sSens', 'sens'], ['sInv', 'inv'], ['sAuto', 'auto'], ['sDyn', 'dyn'], ['sIntro', 'intro'], ['sMusic', 'music'], ['sSfx', 'sfx']];
   for (const [id, key] of map) { const el = $(id); el.value = S[key]; el.onchange = el.oninput = () => { S[key] = typeof S[key] === 'number' ? parseFloat(el.value) : el.value; if (key === 'shadow') { renderer.shadowMap.enabled = !!S.shadow; if (G.view) G.view.sun.castShadow = !!S.shadow; } if (key === 'scale') resize(); saveSettings(); }; }
 }
 // eszközválasztás: az első indításkor rákérdezünk; a beállításokban bármikor módosítható (újratöltéssel érvényesül)
@@ -83,6 +84,7 @@ $('sScale').addEventListener('input', () => { G.dynScale = null; resize(); }); $
 // teljes képernyő (Android / asztali böngésző; iPhone Safari nem támogatja): fekvő tájolásra is kérünk zárat
 if (document.fullscreenEnabled) { $('bFull').style.display = ''; $('bFull').onclick = async () => { try { if (document.fullscreenElement) await document.exitFullscreen(); else { await document.documentElement.requestFullscreen({ navigationUI: 'hide' }); try { await screen.orientation.lock('landscape'); } catch {} } } catch {} }; }
 bindSettings();
+$('sSfx').addEventListener('change', () => setSfxVolume(S.sfx));
 $('sMusic').addEventListener('change', () => { setMusicVolume(S.music); if (S.music > 0) musicPlay(); else musicStop(); });
 
 // ---------------------------------------------------------------- játék indítása
@@ -98,9 +100,10 @@ async function startGame(opts, loaded) {
   const q = sim.queen; G.orbit.x = q ? q.x : 0; G.orbit.z = q ? q.z : 0; G.orbit.y = 0; G.orbit.dist = 55; G.orbit.pitch = 0.95; G.follow = true; setFollowBtn();
   G.mode = 'game'; G.speed = 1; G.paused = false; G.nestView = false; G.sel = q ? { kind: 'ant', id: q.id } : null; G.fpv = false; G.logIdx = sim.logs.length; G.autoT = 0; G.over = false;
   buildDirs(sim); setSpeed(1); show('hud'); $('loading').style.display = 'none'; $('bNestV').classList.remove('on'); resize();
+  sfxStart();
 }
 function disposeGame() { if (G.env) { G.env.dispose(); G.env = null; } if (G.view) { G.view.dispose(); } if (G.layer) G.scene.remove(G.layer.group); G.view = G.layer = G.scene = null; }
-function quitToMenu() { if (G.fpv) exitFpv(); disposeGame(); G.mode = 'menu'; G.sim = null; menu.setMode('title'); refreshTitle(); show('title'); }
+function quitToMenu() { if (G.fpv) exitFpv(); sfxStop(); disposeGame(); G.mode = 'menu'; G.sim = null; menu.setMode('title'); refreshTitle(); show('title'); }
 
 // ---------------------------------------------------------------- HUD
 function buildDirs(sim) {
@@ -320,6 +323,7 @@ function frame(now) {
   if (G.fpv) updateHome(ctl); else $('home').style.display = 'none';
   // kijelölés-gyűrű
   hudT += dt; if (hudT > 0.2) { hudT = 0; if (G.fpv) { updateFpvHud(); } else updateHud(); const foc = ctl || sim.queen || null; updateArrows(foc); }
+  if (G.paused) sfxHush(); else sfxFrame(sim, { cam: G.cam, ctlId: ctl ? ctl.id : 0, underView: G.nestView || under, speed: G.speed });
   sim.fx.length = 0;
   G.autoT += dt; if (S.auto && G.autoT > 60) { G.autoT = 0; saveGame(false); }
   renderer.render(G.scene, G.cam);
