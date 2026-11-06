@@ -94,7 +94,7 @@ export const SPIDER = {
 };
 
 export const DIFFICULTY = {
-  easy:   { name: 'Könnyű',  lairs: 1, spiderMax: 1, sizeBias: -0.3, isopods: 1.25, drain: 0.8, spawnPerDay: 0.35 },
+  easy:   { name: 'Kezdő',  lairs: 1, spiderMax: 1, sizeBias: -0.3, isopods: 1.25, drain: 0.8, spawnPerDay: 0.35 },
   normal: { name: 'Normál',  lairs: 2, spiderMax: 2, sizeBias: 0.0,  isopods: 1.0,  drain: 1.0, spawnPerDay: 0.6 },
   hard:   { name: 'Nehéz',   lairs: 3, spiderMax: 3, sizeBias: 0.25, isopods: 0.8,  drain: 1.2, spawnPerDay: 0.9 },
 };

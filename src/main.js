@@ -101,6 +101,12 @@ async function startGame(opts, loaded) {
   G.mode = 'game'; G.speed = 1; G.paused = false; G.nestView = false; G.sel = q ? { kind: 'ant', id: q.id } : null; G.fpv = false; G.logIdx = sim.logs.length; G.autoT = 0; G.over = false;
   buildDirs(sim); setSpeed(1); show('hud'); $('loading').style.display = 'none'; $('bNestV').classList.remove('on'); resize();
   sfxStart();
+  G.intro = null;
+  if (sim.nest && sim.difficulty === 'easy' && !loaded) {            // Kezdő: a kész fészek egészét mutatjuk először
+    const ns = sim.nest.nodes; let sx = 0, sz = 0; for (const n of ns) { sx += n.x; sz += n.z; } sx /= ns.length; sz /= ns.length;
+    let rad = 0; for (const n of ns) rad = Math.max(rad, Math.hypot(n.x - sx, n.z - sz) + n.r);
+    G.intro = { x: sx, z: sz, dist: Math.max(30, rad * 3.0) };
+  }
 }
 function disposeGame() { if (G.env) { G.env.dispose(); G.env = null; } if (G.view) { G.view.dispose(); } if (G.layer) G.scene.remove(G.layer.group); G.view = G.layer = G.scene = null; }
 function quitToMenu() { if (G.fpv) exitFpv(); sfxStop(); disposeGame(); G.mode = 'menu'; G.sim = null; menu.setMode('title'); refreshTitle(); show('title'); }
@@ -314,7 +320,7 @@ function frame(now) {
   G.view.update(dt, sim, G.nestView || under); if (G.env) G.env.group.visible = !(G.nestView || under);
   { const fx = ctl ? ctl.x : G.orbit.x, fz = ctl ? ctl.z : G.orbit.z; G.view.uniforms.uFocus.value.set(fx, fz, ctl ? 3.5 : Math.min(60, 8 + G.orbit.dist * 0.3)); }
   { const sa = !G.fpv && G.sel && G.sel.kind === 'ant' ? selEntity() : null;
-    if (sa && sa.loc === 'nest') { if (G.autoNestId !== sa.id) { G.autoNestId = sa.id; if (!G.nestView) { toggleNest(); G.autoNestOn = true; } G.orbit.pitch = 1.5; G.orbit.dist = 22; G.follow = true; setFollowBtn(); } }
+    if (sa && sa.loc === 'nest') { if (G.autoNestId !== sa.id) { G.autoNestId = sa.id; if (!G.nestView) { toggleNest(); G.autoNestOn = true; } G.orbit.pitch = 1.5; G.orbit.dist = 22; G.follow = true; if (G.intro) { G.orbit.x = G.intro.x; G.orbit.z = G.intro.z; G.orbit.dist = G.intro.dist; G.follow = false; G.intro = null; } setFollowBtn(); } }
     else if (G.autoNestOn && G.nestView) { G.autoNestOn = false; G.autoNestId = null; toggleNest(); if (sa) { G.orbit.pitch = 0.85; G.orbit.dist = 18; G.follow = true; setFollowBtn(); } } }
   if (G.nestView || under) { G.scene.background.set(0x1c130c); G.scene.fog.color.set(0x1c130c); G.scene.fog.near = 60; G.scene.fog.far = 420; G.view.hemi.intensity = 1.5; G.view.sun.intensity = 0.9; }
   if (under !== !!G.topNest) setTopNest(under);

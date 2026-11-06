@@ -5,6 +5,7 @@ import { decay as pheroDecay } from './phero.js';
 import { clamp, dist } from '../core/util.js';
 import { SPECIES, DIFFICULTY, DAY, GAME_START_HOUR, SPIDER, ISOPOD, CLIMATE } from './config.js';
 import { createWorld, stepWorld, newDew, moistureAt, heightAt, limbPoint } from './world.js';
+import { seedStarterColony } from './starter.js';
 import { createNest, addDigJob, updateClimate, node, chambers } from './nest.js';
 import { makeAnt } from './entities.js';
 import { initColony, colonyNeeds, stepBrood, queen, workers, storeCap } from './colony.js';
@@ -31,6 +32,7 @@ export class Sim {
     initColony(this); this.needs = colonyNeeds({ ...this, nest: null, brood: [], ants: [], colony: this.colony, speciesId: this.speciesId });
     const q = makeAnt(this, 'queen', this.world.spawn.x, this.world.spawn.z); q.energy = 82; q.hyd = 72; q.loc = 'ground'; this.ants.push(q); placeAnt(this, q);
     this.updateEnv(0); initEcology(this);
+    if (this.difficulty === 'easy') seedStarterColony(this);          // Kezdő: kész kis kolónia
     this.needs = this.nest ? colonyNeeds(this) : { protein: 0.6, sugar: 0.5, water: 0.6, nurse: 0, dig: 0, repair: 0, guard: 0.1 };
   }
   // ------------------------------------------------------------ segédek

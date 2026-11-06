@@ -52,3 +52,15 @@ A méz / növényi nedv csak a Cephalotes fáján (törzs, ágak) található; a
 - A `assets/music/theme.m4a` a főmenü, a faj-választó, a beállítások és a bevezető slideshow alatt szól, lassú be- és kifade-del (`src/music.js`).
 - A böngésző csak felhasználói érintés után engedi a hangot, ezért az első kattintásnál/billentyűnél indul.
 - A játék indításakor elhalkul. A hangerő a Beállításokban ("Háttérzene") állítható: Ki / Halk / Közepes / Hangos.
+
+## Nehézség és a Kezdő kolónia
+
+- A nehézség az "Új játék" faj-választó alján állítható: **Kezdő / Normál / Nehéz** (zsákmány-, pók- és ürítés-szorzók, `DIFFICULTY` a `config.js`-ben).
+- **Kezdő**: a játék kész kis kolóniával indul (`src/sim/starter.js`): királynő, 5 dolgozó (a dugaszoló fajnál 1 katona + 4 dolgozó), 4 pete, 4 lárva, 3 báb és induló készletek. Talajfajoknál kiásott járatrendszer 4 kamrával (fiasításkamra, bábkamra, élelemraktár, királynő-/pihenőkamra; hurokkal), a Cephalotesnél a faüreg minden helyisége kész. A kamrák klímája az indulás előtt egyensúlyba áll. A kezdőnézet a teljes fészket mutatja.
+- **Normál / Nehéz**: a királynő egyedül indul, fészkelőhelyet keres és kiássa a fészket.
+
+## Hangeffektek
+
+- `assets/sfx/walk.wav`, `lay.wav`: kódból generált (`tools/gen_sfx.py`), 48 kHz / 24 bit / mono, előtte-utána csenddel. `crickets.wav`: a mellékelt felvétel utolsó 2 mp-e levágva, varratmentes hurokká alakítva. `snap.wav`: a mellékelt állkapocs-csattanás, kicsit lehalkítva (0,5×).
+- A járás folyamatos hurok; a kamera közelében mozgó hangyák száma/távolsága szabja a hangerőt, az irányított hangya sprintelve gyorsabb. A peterakás és a csattanás térbeli (távolság, oldalirány). A tücsök a játék alatt szól: este erősebb, esőben halkabb, föld alatt tompább.
+- Beállítások: "Hangeffektek" és "Háttérzene" (Ki / Halk / Közepes / Hangos).

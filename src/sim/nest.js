@@ -20,7 +20,8 @@ export function createNest(world, speciesId, site) {
     let prev = e;
     for (let i = 0; i < cav.rooms; i++) {
       const depth = 3.5 + i * 3.4, lat = (i % 2 ? 1 : -1) * (i > 0 ? 2.2 : 0);
-      const cx = p.x - p.nx * depth + p.dx * (i * 2.5) , cy = p.y - p.ny * depth + p.dy * (i * 2.5), cz = p.z - p.nz * depth + p.dz * (i * 2.5);
+      const ax = i * 8 * (cav.s > 55 ? -1 : 1);     // a helyiségek a törzs/ág tengelye mentén is eltolódnak, hogy ne fedjék egymást
+      const cx = p.x - p.nx * depth + p.dx * ax, cy = p.y - p.ny * depth + p.dy * ax, cz = p.z - p.nz * depth + p.dz * ax;
       const node = addNode(n, { x: cx + lat * 0.2, y: cy, z: cz, r: i === 0 ? 2.2 : sp.nest.chamberR * (0.7 + 0.1 * (i % 3)), kind: i === 0 ? 'tunnel' : 'chamber', ready: i < 2, hidden: true });
       addEdge(n, prev.id, node.id, sp.nest.tunnelW);
       prev = node;
