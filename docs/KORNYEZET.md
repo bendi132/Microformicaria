@@ -64,3 +64,12 @@ A méz / növényi nedv csak a Cephalotes fáján (törzs, ágak) található; a
 - `assets/sfx/walk.wav`, `lay.wav`: kódból generált (`tools/gen_sfx.py`), 48 kHz / 24 bit / mono, előtte-utána csenddel. `crickets.wav`: a mellékelt felvétel utolsó 2 mp-e levágva, varratmentes hurokká alakítva. `snap.wav`: a mellékelt állkapocs-csattanás, kicsit lehalkítva (0,5×).
 - A járás folyamatos hurok; a kamera közelében mozgó hangyák száma/távolsága szabja a hangerőt, az irányított hangya sprintelve gyorsabb. A peterakás és a csattanás térbeli (távolság, oldalirány). A tücsök a játék alatt szól: este erősebb, esőben halkabb, föld alatt tompább.
 - Beállítások: "Hangeffektek" és "Háttérzene" (Ki / Halk / Közepes / Hangos).
+
+## Sivatag (v. 2026-11)
+
+- **Talaj:** homok, procedurális textúrával (`sandTextures`: szemcsézet + szél-fodrozás a normáltérképben); nincs külső képfájl. A szürke, sötét kövek és a kis kavicsok sivatagi színt kapnak.
+- **Növények:** a `desert shrubs.fbx` (Tree IT, FBX 6.1 ASCII) tíz elemét a saját ASCII-parserrel olvastuk ki (`tools/` konverzió: háromszögelés, UV, a textúra és az alfa-maszk GLB-be ágyazva). Modellek: `assets/env/desert/*.glb` – agávé, jukka (2 típus), cholla (2), ocotillo (2), kreozotbokor, korhadó törzs (2). Méretük a `ENV_MODELS`-ban van megadva, a határolódobozuk szerint skálázódik.
+- **Száraz fű:** a szimuláció `tufts` csomói köré száraz, sárgás-szürke szálak kerülnek, szélben lengve.
+- **Mag:** a magvak (`assets/models/seed.glb`) valódi, fotóból rekonstruált modellel jelennek meg; a hangya a magot a szájában viszi.
+- **Eső:** ritka. Csak akkor esik, ha a tényleges időjárási modell ezt kiszámolja; a kis pocsolyák a homokon kis vízmennyiséget adnak.
+- **Éjszaka:** a skorpió ritka, éjszakai ragadozó (`assets/models/scorpion.glb`, valódi modell, a rig-shader „kind 4” ága).

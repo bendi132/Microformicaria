@@ -19,11 +19,23 @@ export const ENV_MODELS = {
   tree1:    { url: 'assets/env/tree_lowpoly.glb',    size: 9000, dim: 'h', part: 'Tree 1', note: 'mérsékelt övi fa, ~9 m' },
   tree2:    { url: 'assets/env/tree_lowpoly.glb',    size: 8200, dim: 'h', part: 'Tree 2', note: 'mérsékelt övi fa, ~8 m' },
   oak:      { url: 'assets/env/oak_litter.glb',      size: 1000, dim: 'm', note: 'tölgyavar-folt, ~1 m (becsült)', flat: true },
+  // sivatagi növények (valós fotó-alapú textúrájú modellek; a határolódoboz szerint méretezve, 'm' = legnagyobb kiterjedés)
+  agave:    { url: 'assets/env/desert/agave.glb',     size: 1000, dim: 'm', note: 'agávé, ~1 m átmérő (becsült)' },
+  yucca:    { url: 'assets/env/desert/yucca.glb',     size: 1000, dim: 'm', note: 'jukka, ~1 m (becsült)' },
+  yucca_b:  { url: 'assets/env/desert/yucca_b.glb',   size: 700,  dim: 'm', note: 'fiatal jukka, ~70 cm (becsült)' },
+  cholla:   { url: 'assets/env/desert/cholla.glb',    size: 1200, dim: 'm', note: 'kaktusz (cholla), ~1,2 m (becsült)' },
+  cholla_b: { url: 'assets/env/desert/cholla_b.glb',  size: 900,  dim: 'm', note: 'kaktusz (cholla), ~90 cm (becsült)' },
+  ocotillo: { url: 'assets/env/desert/ocotillo.glb',  size: 2600, dim: 'm', note: 'ocotillo, ~2,6 m (becsült)' },
+  ocotillo_b:{ url: 'assets/env/desert/ocotillo_b.glb', size: 2200, dim: 'm', note: 'ocotillo, ~2,2 m (becsült)' },
+  creosote: { url: 'assets/env/desert/creosote.glb',   size: 1000, dim: 'm', note: 'kreozotbokor, ~1 m (becsült)' },
+  bark_log: { url: 'assets/env/desert/bark_log.glb',   size: 1500, dim: 'm', note: 'korhadó fatörzs, ~1,5 m (becsült)' },
+  bark_log_b:{ url: 'assets/env/desert/bark_log_b.glb', size: 1200, dim: 'm', note: 'korhadó fatörzs, ~1,2 m (becsült)' },
   branch:   { url: 'assets/env/mossy/branch.fbx',    size: 1200, dim: 'm', note: 'mohás ág, ~1,2 m (becsült)', fbx: true },
 };
 // elhelyezés éghajlatonként: [modell, darab, rmin, rmax]
 const PLAN = {
   tropical: [['roots', 3, 600, 1500], ['bromeliad', 6, 150, 800], ['flower', 5, 160, 700], ['trunk', 1, 800, 1000], ['banana', 4, 1700, 3400], ['banana', 3, 4200, 7000]],
+  desert: [['bark_log', 2, 700, 1600], ['bark_log_b', 2, 800, 1800], ['ocotillo', 3, 1500, 3600], ['ocotillo_b', 3, 1400, 3400], ['cholla', 3, 1200, 2600], ['cholla_b', 3, 1300, 2800], ['agave', 4, 900, 2400], ['yucca', 3, 1300, 3000], ['yucca_b', 3, 1100, 2500], ['creosote', 4, 800, 2200]],
   temperate: [['oak', 4, 600, 1900], ['branch', 3, 220, 900], ['trunk', 1, 800, 1000], ['tree1', 2, 2400, 3600], ['tree2', 2, 2500, 3700], ['tree1', 3, 4200, 8000], ['tree2', 3, 4400, 8200]],
 };
 

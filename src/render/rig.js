@@ -24,7 +24,7 @@ float act = iA.z; float dead = (act > 8.5) ? 1.0 : 0.0;                         
 float feed = (act > 3.5 && act < 4.5) ? clamp(iA.w, 0.0, 1.0) : 0.0;     // act = 4: étkezés (a fej lent, az első lábak a táplálékot fogják)
 float dry = dead * clamp(iB.w, 0.0, 1.0);                                  // kiszívott tetem: lapul
 float alertv = iB.w * (1.0 - dead);
-if (uKind < 0.5 || uKind > 2.5) {            // ---- hangya / ugróvilla
+if (uKind < 0.5 || (uKind > 2.5 && uKind < 3.5)) {            // ---- hangya / ugróvilla / bogár
   if (part > 0.5 && part < 1.5) {                  // láb (tripod járás)
     float k = floor(lid*0.5); float sd = mod(lid,2.0);
     float grp = mod(k + sd, 2.0);
@@ -72,7 +72,7 @@ if (uKind < 0.5 || uKind > 2.5) {            // ---- hangya / ugróvilla
   }
   p.z += sin(p.x*7.0 - ph*1.0)*0.012*mv*step(part,0.5);
   p.y += abs(sin(ph*0.5))*0.004*mv;
-} else {                      // ---- pók
+} else if (uKind < 2.5) {    // ---- pók
   if (part > 0.5 && part < 1.5) {                  // járólábak (tetrapod)
     float k = floor(lid*0.5); float sd = mod(lid,2.0);
     float grp = mod(k + sd, 2.0);
@@ -94,6 +94,30 @@ if (uKind < 0.5 || uKind > 2.5) {            // ---- hangya / ugróvilla
     p = rotAbout(rotZ(-iB.y*0.9)*rotY(sgn*iB.y*0.3), p, aPivot);
   }
   p.y += abs(sin(ph))*0.01*mv;
+}
+else {                       // ---- skorpió: 8 láb (tetrapod, megáll-és-indul), ollós tapogatók, hajlékony farok
+  if (part > 0.5 && part < 1.5) {
+    float k = floor(lid*0.5); float sd = mod(lid,2.0);
+    float f = ph + mod(k + sd, 2.0)*3.14159;
+    float swing = sin(f)*0.36*mv; float lift = max(0.0, cos(f))*0.60*mv;
+    if (dead > 0.5) { swing = -0.25 + 0.1*sin(lid*1.7); lift = -1.9 - 0.12*sin(lid); }
+    p = rotAbout(rotY(swing*side*wt)*rotX(-side*lift*wt), p, aPivot);
+  } else if (part > 1.5 && part < 2.5) {           // ollós tapogatók: előretartva, tapogat; támadáskor/evéskor összecsukódik
+    float t = uTime*1.6 + lid*2.1;
+    float strike = (iA.z > 0.5 && iA.z < 1.5) ? sin(clamp(iA.w,0.0,1.0)*3.14159) : 0.0;
+    float raise = 0.10*sin(t) + 0.28*alertv + 0.18*mv;
+    float sweep = 0.12*sin(t*0.7+1.0) - 0.5*strike - 0.6*feed;
+    float sd2 = aPivot.z >= 0.0 ? 1.0 : -1.0;
+    if (dead > 0.5) { raise = -0.4; sweep = -0.5; }
+    p = rotAbout(rotZ(raise*wt)*rotY(sweep*sd2*wt), p, aPivot);
+  } else if (part > 6.5) {                          // farok: hullámzó, éberen felemelt; szúrás = előrecsapás
+    float ww = pow(clamp(aW,0.0,1.0), 1.2);
+    float strike = (iA.z > 0.5 && iA.z < 1.5) ? sin(clamp(iA.w,0.0,1.0)*3.14159) : 0.0;
+    float sw = sin(uTime*1.3 + 0.7)*0.10*(0.5+alertv) + sin(uTime*0.45)*0.05;
+    float pitch = -0.95*strike + 0.16*alertv + 0.03*sin(uTime*0.9) - 0.9*dead - 0.12*mv*sin(ph*2.0);
+    p = rotAbout(rotZ(pitch*ww)*rotY(sw*ww), p, aPivot);
+  }
+  p.y += abs(sin(ph))*0.006*mv; p.z += sin(ph)*0.008*mv;
 }
 if (dead > 0.5) { p.y *= 1.0 - 0.38*dry; p.z *= 1.0 - 0.22*dry; }                  // kiszívott, összelapult test
 vec3 transformed = p;

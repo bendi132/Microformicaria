@@ -21,9 +21,10 @@ def local_thickness(mesh, max_d=1.0):
         rm = RayMeshIntersector(mesh)
     except Exception:
         rm = mesh.ray
-    loc, ridx, _ = rm.intersects_location(org, d, multiple_hits=False)
     th = np.full(len(mesh.vertices), max_d)
-    th[ridx] = np.linalg.norm(loc - org[ridx], axis=1)
+    for a in range(0, len(org), 1500):            # darabolva: a beágyazott sugárkövetés különben rengeteg memóriát használ
+        loc, ridx, _ = rm.intersects_location(org[a:a + 1500], d[a:a + 1500], multiple_hits=False)
+        th[a + ridx] = np.linalg.norm(loc - org[a + ridx], axis=1)
     return th
 
 def vertex_components(n, faces, mask):

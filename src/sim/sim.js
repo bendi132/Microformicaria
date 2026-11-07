@@ -4,7 +4,7 @@ import { RNG } from '../core/rng.js';
 import { decay as pheroDecay } from './phero.js';
 import { clamp, dist } from '../core/util.js';
 import { SPECIES, DIFFICULTY, DAY, GAME_START_HOUR, SPIDER, ISOPOD, CLIMATE } from './config.js';
-import { createWorld, stepWorld, newDew, moistureAt, heightAt, limbPoint } from './world.js';
+import { createWorld, stepWorld, newDew, moistureAt, heightAt, limbPoint, seedAt } from './world.js';
 import { seedStarterColony } from './starter.js';
 import { createNest, addDigJob, updateClimate, node, chambers } from './nest.js';
 import { makeAnt } from './entities.js';
@@ -78,7 +78,7 @@ export class Sim {
     e.wxLeft -= dt; const rng = this.rng;
     if (e.forecast) e.forecast.eta = Math.max(0, e.wxLeft);
     if (!e.forecast && e.wxLeft < DAY * 0.35 && !e.fcDone) { e.forecast = { type: this.nextWeather(), eta: e.wxLeft }; e.fcDone = true; }
-    if (e.wxLeft <= 0) { e.weather = e.forecast ? e.forecast.type : this.nextWeather(); e.forecast = null; e.fcDone = false; e.wxLeft = DAY * rng.range(0.5, 1.6); if (e.weather === 'rain') { this.log('Eső érkezett.', 'info'); } }
+    if (e.wxLeft <= 0) { e.weather = e.forecast ? e.forecast.type : this.nextWeather(); e.forecast = null; e.fcDone = false; e.wxLeft = DAY * rng.range(0.5, 1.6); if (e.weather === 'rain') { this.log(this.world.biome === 'desert' ? 'Ritka sivatagi eső! Néhány tócsa keletkezik.' : 'Eső érkezett.', 'info'); } }
     const CL = CLIMATE[SPECIES[this.speciesId].climate || 'temperate']; const meanT = { clear: 20, cloud: 17, rain: 14.5, heat: 28, cold: 9 }[e.weather] + CL.tempShift;
     e.tempMean += (meanT - e.tempMean) * Math.min(1, dt / (DAY * 0.25));
     const diurnal = 5.5 * CL.tempAmp * Math.sin(((e.hour - 9) / 24) * Math.PI * 2) * (e.weather === 'cloud' || e.weather === 'rain' ? 0.5 : 1);
@@ -93,7 +93,12 @@ export class Sim {
     if (r < pr) return 'rain'; if (r < pr + ph) return 'heat'; if (r < pr + ph + pc) return 'cold'; if (r < 0.62) return 'cloud'; return 'clear';
   }
   onNewDay() {
-    newDew(this.world, this.rng, 4 + this.rng.int(0, 3));
+    if (this.world.biome === 'desert') {
+      // sivatag: harmat alig lehet találni (ritka, apró csepp); a füvek új magokat hullatnak
+      const w = this.world; if (this.rng.chance(CLIMATE.desert.dew)) { newDew(w, this.rng, 1); w.droplets[w.droplets.length - 1].vol *= 0.35; }
+      const seeds = w.foods.filter((f) => f.kind === 'seed').length;
+      if (seeds < 90 && w.tufts.length) for (let k = 0, n = this.rng.int(4, 8); k < n; k++) { const t = this.rng.pick(w.tufts), a = this.rng.range(0, 6.28), d = this.rng.range(t.r * 0.5, t.r * 2.0); seedAt(w, null, this.rng, t.x + Math.cos(a) * d, t.z + Math.sin(a) * d); }
+    } else newDew(this.world, this.rng, 4 + this.rng.int(0, 3));
     const lowPrey = this.rng.chance(0.12 * (this.difficulty === 'hard' ? 1.5 : 1));
     this.preyScarcity = lowPrey ? 0.7 : Math.max(0, this.preyScarcity - 0.25);
   }
@@ -120,7 +125,7 @@ export class Sim {
   }
   step(dt) {
     this.t += dt; this.updateEnv(dt);
-    stepWorld(this.world, dt, this.env); if (this.env.step % 10 === 0) pheroDecay(this, dt * 10);
+    stepWorld(this.world, dt, this.env); this.desertRain(dt); if (this.env.step % 10 === 0) pheroDecay(this, dt * 10);
     if (this.nest && this.env.step % 10 === 0) updateClimate(this.nest, this.world, this.env, dt * 10, SPECIES[this.speciesId]);
     stepEcology(this, dt);
     for (const p of this.isopods) updateIsopod(this, p, dt);
@@ -131,6 +136,11 @@ export class Sim {
     if (this.nest) { stepBrood(this, dt); this.rainDamage(dt); this.updateNestEffects(dt); }
     this.colony.store.prey = Math.max(0, this.colony.store.prey - this.colony.store.prey * dt * 0.00008);
     this.cleanup(); this.checkEnd();
+  }
+  // sivatagi eső: csak ilyenkor keletkeznek (kevés, gyorsan párolgó) tócsák
+  desertRain(dt) {
+    const w = this.world, e = this.env; if (w.biome !== 'desert' || e.rain < 0.3 || e.step % 60 !== 0 || w.droplets.length >= 7) return;
+    const rng = this.rng; w.droplets.push({ id: w.nextId++, x: rng.range(-w.half + 12, w.half - 12), z: rng.range(-w.half + 12, w.half - 12), vol: rng.range(26, 40), max: 44, puddle: true });
   }
   updateNestEffects(dt) {
     const n = this.nest;

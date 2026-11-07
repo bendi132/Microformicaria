@@ -7,7 +7,7 @@ export const DAY = 150;                      // game
 export const WORLD_HALF = 90;                // a játéktér fél-oldala (mm)
 export const GAME_START_HOUR = 7;
 
-export const ANIMALS = ['ant', 'isopod', 'spider', 'springtail']; // a játékban hangyák, ászkák, pókok és ugróvillások szerepelnek (atka nem)
+export const ANIMALS = ['ant', 'isopod', 'spider', 'springtail', 'scorpion']; // a játékban hangyák, ászkák, pókok és ugróvillások szerepelnek (atka nem)
 
 export const SPECIES = {
   ponera: {
@@ -66,6 +66,21 @@ export const SPECIES = {
     capacity: 24, health: { queen: 100, worker: 65 }, carry: 6, crop: { queen: 28, worker: 8 },
     colorWorker: 0x120f0d,
   },
+  messor: {
+    id: 'messor', gait: { swing: 0.6, stride: 0.65 }, climate: 'desert', name: 'Messor barbarus', latin: 'Messor barbarus – ibériai aratóhangya', difficulty: 'Közepes', diffLevel: 2, model: 'messor', queenModel: 'messor_q', tint: 0xffffff,
+    blurb: 'Sivatagi, magot gyűjtő hangya. Füvek magvait hordja a föld alatti magtárba, és abból él; a lárvákat őrölt maggal eteti. Nagyon kevés vizet igényel: a magok anyagcsere-vizéből is megél. A fő veszély a szárazság, a hőség és az éjszakai skorpió.',
+    blurbIso: 'Elsősorban magevő, nem vadász: az elpusztult sötétbogarakat és más tetemeket felszedi, élő zsákmányt csak a kicsiket, csapatban ejt el. A skorpió elől kitér, a keskeny járatok védik.',
+    size: { queen: 15, worker: 9 }, speed: { queen: 5.2, worker: 8.2 }, run: 1.7,
+    senses: { prey: 9, water: 18, spider: 20, seed: 30 },
+    hunt: { live: true, scavenge: true, style: 'bite', reach: 0.5, base: 0.35, maxRatio: 0.9, group: 0.9, cooldown: 3.0, energyCost: 1.0, injury: 0.05, crevice: 0.4, armorPierce: 0.45, paralyze: 0 },
+    defend: { armor: 0.9, dodge: 0.22, stealth: 0.25, fight: { dmg: 1.8, rate: 0.45, range: 0.55 }, group: 4, escape: 'hide', flee: 1.6 },
+    nest: { type: 'soil', tunnelW: 2.6, chamberR: 4.6, maxChambers: 8, digRate: 0.55, entranceW: 2.6 },
+    brood: { egg: 2.4, larva: 5.5, pupa: 4.0, layEvery: 0.6, eggCost: 5, larvaNeed: 9, firstWorkers: 2 },
+    needs: { energyDrain: 24, waterDrain: 5, waterScale: 0.22, humOpt: [0.06, 0.75], tempOpt: [20, 36] },
+    diet: { seeds: true },
+    capacity: 40, health: { queen: 110, worker: 75 }, carry: 1.6, crop: { queen: 30, worker: 10 },
+    colorWorker: 0xffffff,
+  },
 };
 
 // Ugróvillások (zsákmány) – apró, nedves almot kedvelő, ugrással menekülő állatok. bio: furcula (ugróvilla); game: ugrástáv/időzítés.
@@ -83,15 +98,30 @@ export const ISOPOD = {
   max: 26, gravidChance: 0.35, eggs: [14, 34], brood: 2.6,
 };
 
+// Sötétbogarak (Eleodes) – a sivatagi biomban az ászkák helyét veszik át: ugyanazt a viselkedést követik (nappal búvóhelyen, éjjel keresgélnek, menekülnek, elejthetők),
+// de kiszáradás-tűrők és vastag páncélúak. game: statok.
+export const ELEODES = {
+  classes: {
+    small:  { len: [5.0, 7.0],   weight: 0.45, armor: 0.30, hp: 9,  speed: 3.0 },
+    medium: { len: [9.0, 12.0],  weight: 0.38, armor: 0.58, hp: 34, speed: 3.4 },
+    large:  { len: [14.0, 18.0], weight: 0.17, armor: 0.86, hp: 95, speed: 3.8 },
+  },
+};
+
 // Pókok – méretosztályok és veszélyesség (game).
 export const SPIDER = {
   classes: {
     small:  { len: 4.5,  hp: 12, bite: 22, speed: 7.5,  burst: 34, detect: 16, lunge: 7,  weight: 0.5 },
     medium: { len: 7.5,  hp: 34, bite: 40, speed: 9.5,  burst: 42, detect: 24, lunge: 10, weight: 0.35 },
     large:  { len: 11.5, hp: 80, bite: 70, speed: 11.5, burst: 50, detect: 32, lunge: 14, weight: 0.15 },
+    // skorpió (sivatag): lassú, megáll-és-indul, éjszakai; a csípés/olló nagyon veszélyes. weight 0: a pókok közé nem sorsolódik, külön kezeljük (ecology.js).
+    scorpion: { len: 30, hp: 150, bite: 95, speed: 4.6, burst: 40, detect: 24, lunge: 16, weight: 0 },
   },
   territory: 42, cooldown: 3.2, huntNightBias: 0.65, sacDays: 6, sacEggs: [18, 46], guardRadius: 11,
 };
+
+// A skorpió ritka: a sivatagban legfeljebb ennyi él egyszerre, kövek és növények tövében lakik, éjjel aktív.
+export const SCORPION = { max: { easy: 1, normal: 1, hard: 2 }, startChance: { easy: 0.35, normal: 0.55, hard: 0.8 }, moveSpell: [1.2, 3.0], pauseSpell: [1.5, 5.0], nightOnly: 0.92 };
 
 export const DIFFICULTY = {
   easy:   { name: 'Kezdő',  lairs: 1, spiderMax: 1, sizeBias: -0.3, isopods: 1.25, drain: 0.8, spawnPerDay: 0.35 },
@@ -106,5 +136,6 @@ export const TASK_HU = { raid: 'Petelopás', manual: 'Irányítva', hunt: 'Vadá
 // Az értékek játékmechanikai közelítések (nem mért éghajlati adatok).
 export const CLIMATE = {
   temperate: { name: 'Mérsékelt övi', tempShift: 0, tempAmp: 1.0, humShift: 0, rainBias: 0, coldBias: 1, heatBias: 1 },
+  desert:    { name: 'Sivatagi', tempShift: 9, tempAmp: 2.0, humShift: -0.32, rainBias: -0.205, coldBias: 0.5, heatBias: 1.3, moist: 0.05, dew: 0.15 },
   tropical:  { name: 'Trópusi', tempShift: 7, tempAmp: 0.55, humShift: 0.16, rainBias: 0.12, coldBias: 0, heatBias: 0.6 },
 };

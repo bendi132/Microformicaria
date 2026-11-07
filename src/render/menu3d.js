@@ -41,8 +41,8 @@ export class MenuScene {
     const n = 160, pos = new Float32Array(n * 3); this.dustSeed = []; for (let i = 0; i < n; i++) { pos[i * 3] = (Math.random() - 0.5) * 200; pos[i * 3 + 1] = (Math.random() - 0.5) * 110; pos[i * 3 + 2] = 2 + Math.random() * 40; this.dustSeed.push(Math.random() * 6); }
     const dg = new THREE.BufferGeometry(); dg.setAttribute('position', new THREE.BufferAttribute(pos, 3)); this.dust = new THREE.Points(dg, new THREE.PointsMaterial({ size: 1.4, map: softDot(), transparent: true, opacity: 0.35, depthWrite: false, color: 0xe0c090 })); sc.add(this.dust);
     // modellek: minden fajhoz a dolgozó (és ahol van, külön királynő / katona) modell
-    const names = ['ponera', 'cephalotes', 'odonto', 'proceratium', 'cephalotes_queen', 'cephalotes_soldier', 'isopod', 'spider', 'springtail']; const kinds = { isopod: 1, spider: 2, springtail: 3 };
-    const tint = { ponera: 0x8b4a2b, cephalotes: 0x1b1814, cephalotes_soldier: 0x1b1814, cephalotes_queen: 0xffffff, odonto: 0xffffff, proceratium: 0xe0701c, isopod: 0x7a746c, spider: 0xffffff, springtail: 0xffffff };
+    const names = ['ponera', 'cephalotes', 'odonto', 'proceratium', 'messor', 'messor_q', 'cephalotes_queen', 'cephalotes_soldier', 'isopod', 'spider', 'springtail']; const kinds = { isopod: 1, spider: 2, springtail: 3 };
+    const tint = { ponera: 0x8b4a2b, cephalotes: 0x1b1814, cephalotes_soldier: 0x1b1814, cephalotes_queen: 0xffffff, odonto: 0xffffff, proceratium: 0xe0701c, messor: 0xffffff, messor_q: 0xffffff, isopod: 0x7a746c, spider: 0xffffff, springtail: 0xffffff };
     const gaitOf = (n) => { if (n === 'cephalotes_queen') return SPECIES.cephalotes.gaitCaste.queen; if (n === 'cephalotes_soldier') return SPECIES.cephalotes.gaitCaste.soldier; return SPECIES[n] && SPECIES[n].gait; };
     this.gait = {}; this.B = {};
     for (const n2 of names) { const m = await loadCreatureGeometry(`assets/models/${n2}.glb`); const g = gaitOf(n2); this.gait[n2] = g || { swing: 0.55, stride: 0.4 }; const b = new CreatureBatch(m, { kind: kinds[n2] || 0, capacity: g ? 48 : 3, color: tint[n2], swing: g ? g.swing : 0.55 }); b.mesh.frustumCulled = false; sc.add(b.mesh); this.B[n2] = b; }
@@ -104,7 +104,7 @@ export class MenuScene {
   buildStage(sel) {
     this.colony = null; for (const k in this.stageBrood) this.stageBrood[k].count = 0; const sp = sel && SPECIES[sel]; if (!sp || !this.B[sel] || !this.gait[sel]) return;
     let seed = 5 + sel.length * 13; const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
-    const W = { ponera: 8.5, cephalotes: 10, odonto: 12, proceratium: 9 }[sel] || 9, sz = sp.size; const qSize = W * sz.queen / sz.worker, sSize = sz.soldier ? W * sz.soldier / sz.worker : 0;
+    const W = { ponera: 8.5, cephalotes: 10, odonto: 12, proceratium: 9, messor: 8 }[sel] || 9, sz = sp.size; const qSize = W * sz.queen / sz.worker, sSize = sz.soldier ? W * sz.soldier / sz.worker : 0;
     const col = { sel, W, qSize, sSize, qKey: sp.queenModel || sel, sKey: sp.soldierModel || null, lane: 25.2 - 0.3 * W, workers: [], nurses: [], q: { dist: 0, t0: rnd() * 6 } };
     const rMin = qSize * 0.5 + 3.2, rMax = col.lane - 0.55 * W - 0.5; const flen = { egg: 0.2, larva: 0.46, pupa: 0.5 }; const f = Math.min(1, 9 / W) ** 1.6, want = { egg: Math.round(9 * f), larva: Math.round(6 * f), pupa: Math.round(5 * f) }; const items = [];
     for (const k of ['pupa', 'larva', 'egg']) for (let n = 0; n < want[k]; n++) { const len = W * flen[k] * (0.9 + rnd() * 0.2);

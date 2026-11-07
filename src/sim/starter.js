@@ -90,7 +90,7 @@ export function seedStarterColony(sim) {
   for (let i = 0; i < 4; i++) addBrood('larva', nursery, rng.range(0.1, 0.8), rng.range(0.55, 0.9));
   for (let i = 0; i < 3; i++) addBrood('pupa', pupal, rng.range(0.15, 0.75));
 
-  c.store = { prey: 44, sugar: sp.nest.type === 'tree' ? 22 : 14, water: 30 };
+  c.store = sp.diet && sp.diet.seeds ? { prey: 6, sugar: 0, water: 8, seed: 34 } : { prey: 44, sugar: sp.nest.type === 'tree' ? 22 : 14, water: 30, seed: 0 };
   c.eggsLaid = 4 + 4 + 3; c.lastLay = sim.t - sp.brood.layEvery * DAY * 0.35;
   sim.nestDirty = true;
   sim.log('Kész kis kolónia: királynő, ' + STARTER_WORKERS + ' dolgozó, fiasítás és kamrák.', 'info');

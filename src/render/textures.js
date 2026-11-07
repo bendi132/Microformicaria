@@ -61,3 +61,14 @@ export function softDot(size = 64) {
   const gr = g.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
   g.fillStyle = gr; g.fillRect(0, 0, size, size); return new THREE.CanvasTexture(c);
 }
+// Homok: finom, de változatos szemcsézet + szél-fodrozás (rippel) a normáltérképben. Nincs külső kép.
+export function sandTextures(size = 256) {
+  const h = heightCanvas(size, (u, v) => {
+    const rip = Math.sin((u * 0.82 + v * 0.57) * Math.PI * 2 * 18 + tile(u, v, 6, 71) * 3.2) * 0.5 + 0.5;
+    return tile(u, v, 14, 72) * 0.5 + tile(u, v, 60, 73) * 0.35 + rip * 0.12;
+  });
+  return toTextures(size, h, (v, u, w) => {
+    const t = 0.82 + (v - 0.5) * 0.25; const speck = tile(u, w, 110, 74) > 0.66 ? -18 : 0; const dark = tile(u, w, 22, 75) < 0.36 ? -10 : 0;
+    return [226 * t + speck + dark, 196 * t + speck + dark, 146 * t + speck * 0.8 + dark];
+  }, 2.6, 22);
+}

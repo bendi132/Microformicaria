@@ -1,7 +1,7 @@
 // A játékvilág: domborzat, kövek, korhadt fa, moha, vízcseppek, nedvességtérkép, fa (Cephalotes), pókfészkek.
 import { RNG } from '../core/rng.js';
 import { fbm, clamp, dist, dist2 } from '../core/util.js';
-import { WORLD_HALF, SPECIES } from './config.js';
+import { WORLD_HALF, SPECIES, CLIMATE } from './config.js';
 
 export const MOIST_N = 60;                       // nedvességtérkép felbontása
 export const CELL = (WORLD_HALF * 2) / MOIST_N;
@@ -11,7 +11,7 @@ export function createWorld(seed, speciesId) {
   const sp = SPECIES[speciesId];
   const w = {
     seed, speciesId, half: WORLD_HALF, nextId: 1,
-    stones: [], logs: [], moss: [], droplets: [], foods: [], covers: [], lairs: [], limbs: [], cavities: [],
+    stones: [], logs: [], moss: [], tufts: [], droplets: [], foods: [], covers: [], lairs: [], limbs: [], cavities: [],
     moist: new Float32Array(MOIST_N * MOIST_N), spawn: { x: 0, z: 0 },
   };
   const id = () => w.nextId++;
@@ -21,7 +21,7 @@ export function createWorld(seed, speciesId) {
     for (const l of w.logs) if (dist(x, z, l.x, l.z) < l.len * 0.5 + r) return false;
     return true;
   };
-  const tree = sp.nest.type === 'tree';
+  const tree = sp.nest.type === 'tree'; const desert = sp.climate === 'desert'; const CL = CLIMATE[sp.climate || 'temperate']; w.biome = sp.climate || 'temperate';
   // ---- fa (Cephalotes): törzs + 2 ág, odúkkal
   if (tree) {
     const bx = -48, bz = 30;
@@ -36,41 +36,48 @@ export function createWorld(seed, speciesId) {
     w.stones.push({ id: id(), x: bx, z: bz, r: 15 + 1.5, h: 0, trunk: true });
   }
   // ---- kövek
-  const nStones = tree ? 7 : 11;
+  const nStones = tree ? 7 : desert ? 13 : 11;
   for (let i = 0, tries = 0; i < nStones && tries < 400; tries++) {
     const r = rng.range(4, 12), x = rng.range(-WORLD_HALF + 14, WORLD_HALF - 14), z = rng.range(-WORLD_HALF + 14, WORLD_HALF - 14);
     if (!free(x, z, r)) continue;
     w.stones.push({ id: id(), x, z, r, h: r * rng.range(0.45, 0.8), yaw: rng.range(0, 6.28), sq: rng.range(0.7, 1.0) }); i++;
   }
   // ---- korhadt fa (rönk) – nedves búvóhely
-  for (let i = 0, tries = 0; i < (tree ? 3 : 2) && tries < 200; tries++) {
+  for (let i = 0, tries = 0; i < (tree ? 3 : desert ? 0 : 2) && tries < 200; tries++) {
     const len = rng.range(24, 40), x = rng.range(-60, 60), z = rng.range(-60, 60);
     if (!free(x, z, len * 0.5, 4)) continue;
     w.logs.push({ id: id(), x, z, len, wid: rng.range(5, 8), yaw: rng.range(0, Math.PI), h: rng.range(3, 5) });
     i++;
   }
   // ---- moha
-  for (let i = 0, tries = 0; i < 9 && tries < 200; tries++) {
+  for (let i = 0, tries = 0; i < (desert ? 0 : 9) && tries < 200; tries++) {
     const r = rng.range(5, 11), x = rng.range(-WORLD_HALF + 10, WORLD_HALF - 10), z = rng.range(-WORLD_HALF + 10, WORLD_HALF - 10);
     if (Math.hypot(x, z) < 12) continue;
     w.moss.push({ id: id(), x, z, r, seed: rng.next() }); i++;
+  }
+  // ---- sivatag: száraz füvek (bokros csomók) – a magok forrása és búvóhely a bogaraknak, skorpiónak
+  if (desert) for (let i = 0, tries = 0; i < 10 && tries < 300; tries++) {
+    const r = rng.range(4.5, 8), x = rng.range(-WORLD_HALF + 12, WORLD_HALF - 12), z = rng.range(-WORLD_HALF + 12, WORLD_HALF - 12);
+    if (!free(x, z, r, 2) || w.tufts.some((t) => dist(x, z, t.x, t.z) < t.r + r + 6)) continue;
+    w.tufts.push({ id: id(), x, z, r, seed: rng.next(), blades: Math.round(26 + r * 5) }); i++;
   }
   // ---- búvóhelyek (az ászkák és pókok ide húzódnak)
   for (const s of w.stones) if (!s.trunk) w.covers.push({ id: s.id, kind: 'stone', x: s.x, z: s.z, r: s.r + 2.5, shelter: 0.95, wet: 0.35 });
   for (const l of w.logs) w.covers.push({ id: l.id, kind: 'log', x: l.x, z: l.z, r: l.len * 0.45, shelter: 0.9, wet: 0.5, log: l });
   for (const m of w.moss) w.covers.push({ id: m.id, kind: 'moss', x: m.x, z: m.z, r: m.r, shelter: 0.6, wet: 0.45 });
+  for (const t of w.tufts) w.covers.push({ id: t.id, kind: 'tuft', x: t.x, z: t.z, r: t.r * 0.9, shelter: 0.75, wet: 0.08 });
   // ---- nedvességtérkép
   for (let j = 0; j < MOIST_N; j++) for (let i = 0; i < MOIST_N; i++) {
     const x = -WORLD_HALF + (i + 0.5) * CELL, z = -WORLD_HALF + (j + 0.5) * CELL;
-    w.moist[j * MOIST_N + i] = clamp(0.18 + fbm(x * 0.03, z * 0.03, seed) * 0.35, 0, 1);
+    w.moist[j * MOIST_N + i] = desert ? clamp(CL.moist + fbm(x * 0.03, z * 0.03, seed) * 0.07, 0, 1) : clamp(0.18 + fbm(x * 0.03, z * 0.03, seed) * 0.35, 0, 1);
   }
   for (const c of w.covers) addMoisture(w, c.x, c.z, c.r * 1.3, c.wet * 0.6);
   // ---- kezdő vízcseppek és élelem
-  for (let i = 0; i < 7; i++) {
+  for (let i = 0; i < (desert ? 0 : 7); i++) {
     const a = rng.range(0, 6.28), d = rng.range(16, 55);
     w.droplets.push({ id: id(), x: Math.cos(a) * d, z: Math.sin(a) * d, vol: rng.range(18, 36), max: 36, dew: true });
   }
-  for (const c of w.covers) if (c.kind !== 'moss' && rng.chance(0.5)) w.droplets.push({ id: id(), x: c.x + rng.range(-1, 1) * c.r, z: c.z + rng.range(-1, 1) * c.r, vol: 20, max: 30, dew: true });
+  for (const c of w.covers) if (!desert && c.kind !== 'moss' && rng.chance(0.5)) w.droplets.push({ id: id(), x: c.x + rng.range(-1, 1) * c.r, z: c.z + rng.range(-1, 1) * c.r, vol: 20, max: 30, dew: true });
   // méz / növényi nedv: csak a Cephalotes fáján, a fa ágain és törzsén
   if (tree) {
     for (let i = 0; i < 6; i++) {
@@ -78,6 +85,11 @@ export function createWorld(seed, speciesId) {
       const L = w.limbs[limb];
       w.foods.push({ id: id(), kind: i % 3 === 2 ? 'dropping' : 'sap', limb, s: rng.range(8, L.len * 0.85), th: rng.range(0, 6.28), amount: rng.range(26, 46), max: 46, regen: 0.03 });
     }
+  }
+  // sivatag: magok – a füvek körül szétszórva (a Messor fő tápláléka)
+  if (desert) {
+    for (const t of w.tufts) for (let k = 0, n = Math.round(rng.range(5, 8)); k < n; k++) { const a = rng.range(0, 6.28), d = rng.range(t.r * 0.5, t.r * 1.9); seedAt(w, id, rng, t.x + Math.cos(a) * d, t.z + Math.sin(a) * d); }
+    for (let k = 0; k < 14; k++) { const x = rng.range(-WORLD_HALF + 8, WORLD_HALF - 8), z = rng.range(-WORLD_HALF + 8, WORLD_HALF - 8); if (free(x, z, 1, 1)) seedAt(w, id, rng, x, z); }
   }
   // ---- pókfészkek (búvóhelyek alatt) – a tényleges betelepülés a szimuláción múlik
   for (const c of w.covers) if (c.kind !== 'moss') w.lairs.push({ id: id(), cover: c.id, x: c.x + rng.range(-0.4, 0.4) * c.r, z: c.z + rng.range(-0.4, 0.4) * c.r, silk: rng.range(0.4, 1), occupied: false, known: false });
@@ -88,6 +100,7 @@ export function createWorld(seed, speciesId) {
   return w;
 }
 
+export function seedAt(w, id, rng, x, z) { w.foods.push({ id: id ? id() : w.nextId++, kind: 'seed', x, z, yaw: rng.range(0, 6.28), amount: 1.6, max: 1.6, regen: 0 }); }
 function norm3(x, y, z) { const l = Math.hypot(x, y, z); return { x: x / l, y: y / l, z: z / l }; }
 
 export function heightAt(w, x, z) {
@@ -123,6 +136,7 @@ export function stepWorld(w, dt, env) {
   }
   w.droplets = w.droplets.filter((d) => d.vol > 0.3);
   for (const f of w.foods) f.amount = Math.min(f.max, f.amount + f.regen * dt);
+  if (env.step % 20 === 0 && w.foods.some((f) => f.kind === 'seed' && f.amount < 0.05)) w.foods = w.foods.filter((f) => f.kind !== 'seed' || f.amount >= 0.05);
 }
 export function newDew(w, rng, count) {
   for (let i = 0; i < count; i++) {

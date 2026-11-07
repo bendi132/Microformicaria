@@ -6,13 +6,13 @@ import { clamp } from '../core/util.js';
 import { placeInNode } from './motion.js';
 
 export function initColony(sim) {
-  sim.colony = { store: { prey: 0, sugar: 0, water: 0 }, dir: { hunt: 1, forage: 1, water: 1, nurse: 1, dig: 1, guard: 1, caution: 0.35 }, born: 0, emerged: 0, eggsLaid: 0, lastLay: -1e9, soldiers: 0, stageMax: 1 };
+  sim.colony = { store: { prey: 0, sugar: 0, water: 0, seed: 0 }, dir: { hunt: 1, forage: 1, water: 1, nurse: 1, dig: 1, guard: 1, caution: 0.35 }, born: 0, emerged: 0, eggsLaid: 0, lastLay: -1e9, soldiers: 0, stageMax: 1 };
 }
 export const workers = (sim) => sim.ants.filter((a) => !a.dead && a.caste !== 'queen');
 export const queen = (sim) => sim.ants.find((a) => a.caste === 'queen' && !a.dead);
 export function storeCap(sim) {
   const n = sim.nest; const nStore = n ? chambers(n, 'store').length : 0;
-  return { prey: 30 + nStore * 50, sugar: 25 + nStore * 40, water: 30 + nStore * 30 };
+  return { prey: 30 + nStore * 50, sugar: 25 + nStore * 40, water: 30 + nStore * 30, seed: 40 + nStore * 70 };
 }
 // A kamra alkalmassága a fiasításnak (0..1): a nedvesség és a hőmérséklet az optimumhoz képest
 export function chamberQuality(sim, nd) {
@@ -39,9 +39,10 @@ export function colonyNeeds(sim) {
   const c = sim.colony, sp = SPECIES[sim.speciesId], cap = storeCap(sim);
   const larvae = sim.brood.filter((b) => b.stage === 'larva').length, eggs = sim.brood.filter((b) => b.stage === 'egg').length, W = workers(sim).length;
   const wantPrey = larvae * sp.brood.larvaNeed * 0.8 + eggs * 2 + 6 + W * 0.8;
-  const protein = clamp(1 - c.store.prey / Math.max(8, wantPrey), 0, 1);
-  const sugar = clamp(1 - c.store.sugar / (W * 3 + 10), 0, 1);
-  const wantWater = sim.brood.length * 0.8 + W * 1.2 + 12;
+  const seedV = c.store.seed || 0;                // a magtár a szénhidrát- és (félig) a fehérjeigényt is fedezi
+  const protein = clamp(1 - (c.store.prey + seedV * 0.6) / Math.max(8, wantPrey), 0, 1);
+  const sugar = clamp(1 - (c.store.sugar + seedV) / (W * 3 + 10), 0, 1);
+  const wantWater = (sim.brood.length * 0.8 + W * 1.2 + 12) * (sp.needs.waterScale || 1);
   let dry = 0; for (const b of sim.brood) { const nd = node(sim.nest, b.node); if (nd && chamberQuality(sim, nd).qh < 0.7) dry = 1; }
   const water = clamp(Math.max(1 - c.store.water / wantWater, dry * 0.9), 0, 1);
   const hungryLarvae = sim.brood.filter((b) => b.stage === 'larva' && b.fed < 0.55).length;
@@ -58,7 +59,7 @@ export function layEgg(sim, q) {
   const sp = SPECIES[sim.speciesId], c = sim.colony;
   const nd = node(sim.nest, q.node); if (!nd || nd.kind !== 'chamber') return false;
   const inChamber = sim.brood.filter((b) => b.node === nd.id).length;
-  const limit = Math.min(nd.cap * 1.5, 3 + Math.floor(c.store.prey / sp.brood.larvaNeed * 1.2) + workers(sim).length * 1.5 + Math.floor(q.energy / 25));
+  const limit = Math.min(nd.cap * 1.5, 3 + Math.floor((c.store.prey + (c.store.seed || 0) * 0.6) / sp.brood.larvaNeed * 1.2) + workers(sim).length * 1.5 + Math.floor(q.energy / 25));
   if (inChamber >= limit || sim.brood.filter((b) => b.stage !== 'pupa').length >= limit) return false;
   if (chamberQuality(sim, nd).q < 0.35) return false;
   q.energy -= sp.brood.eggCost; c.eggsLaid++; c.lastLay = sim.t;

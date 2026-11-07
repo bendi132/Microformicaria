@@ -1,5 +1,5 @@
 // Entitás-gyárak: hangya, ászka, pók, fiasítás. Minden mező egyszerű adat (mentheto JSON).
-import { SPECIES, ISOPOD, SPIDER, SPRINGTAIL, DAY } from './config.js';
+import { SPECIES, ISOPOD, ELEODES, SPIDER, SPRINGTAIL, DAY } from './config.js';
 
 const ANIM = () => ({ phase: 0, mv: 0, act: 0, actT: 0, head: 0, open: 0, curl: 0, alert: 0 });
 
@@ -20,14 +20,14 @@ export function makeAnt(sim, caste, x, z, extra = {}) {
 }
 
 export function makeIsopod(sim, cls, x, z, hidden = true) {
-  const c = ISOPOD.classes[cls];
+  const desert = sim.world.biome === 'desert'; const c = (desert ? ELEODES : ISOPOD).classes[cls];      // sivatagban a sötétbogár (Eleodes) veszi át az ászka szerepét
   const len = sim.rng.range(c.len[0], c.len[1]);
-  const food = Math.pow(len, 3) * ISOPOD.energyPerMm3;
+  const food = Math.pow(len, 3) * ISOPOD.energyPerMm3 * (desert ? 0.4 : 1);
   const hp = c.hp * (len / ((c.len[0] + c.len[1]) / 2));
   return {
     id: sim.nextId++, kind: 'isopod', cls, len, x, y: 0, z, yaw: sim.rng.range(0, 6.28), hp, maxHp: hp, armor: c.armor * sim.rng.range(0.85, 1.15), speed: c.speed * sim.rng.range(0.85, 1.15),
     food, foodLeft: food, state: hidden ? 'hidden' : 'forage', cover: null, tmr: sim.rng.range(2, 12), tx: x, tz: z, alert: 0, dry: 0, dead: false, fresh: 1, held: 0, para: 0,
-    anim: ANIM(), moved: 0, threat: null, wild: sim.rng.range(0.7, 1.3),
+    anim: ANIM(), moved: 0, threat: null, wild: sim.rng.range(0.7, 1.3), sp: desert ? 'eleodes' : 'isopod',
   };
 }
 
@@ -37,7 +37,7 @@ export function makeSpider(sim, cls, lair) {
   return {
     id: sim.nextId++, kind: 'spider', cls, len, x: lair.x, y: 0, z: lair.z, yaw: sim.rng.range(0, 6.28), hp: c.hp, maxHp: c.hp, lair: lair.id, state: 'lair', tmr: sim.rng.range(5, 25),
     target: null, cd: 0, tx: lair.x, tz: lair.z, sat: 0.3, stay: sim.rng.range(0.6, 2.0), spotted: false, carry: null, anim: ANIM(), moved: 0, dead: false, lunge: 0, lungeDir: 0, heard: 0, hunted: 0,
-    pitch: 0, onSurface: true,
+    pitch: 0, onSurface: true, sp: cls === 'scorpion' ? 'scorpion' : 'spider',
   };
 }
 

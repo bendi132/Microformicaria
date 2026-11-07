@@ -6,7 +6,7 @@ import { heightAt, moistureAt, limbPoint, limbBase } from '../sim/world.js';
 import { fbm, clamp, lerp, smooth } from '../core/util.js';
 import { RNG } from '../core/rng.js';
 import { SPECIES } from '../sim/config.js';
-import { soilTextures, stoneTextures, barkTextures, rottenWoodTextures, mossTexture } from './textures.js';
+import { soilTextures, stoneTextures, barkTextures, rottenWoodTextures, mossTexture, sandTextures } from './textures.js';
 
 const Q = { low: { grass: 1800, pebbles: 250, litter: 90, shadow: 1024, seg: 110 }, medium: { grass: 5200, pebbles: 600, litter: 220, shadow: 2048, seg: 160 }, high: { grass: 11000, pebbles: 1100, litter: 380, shadow: 4096, seg: 220 } };
 
@@ -15,7 +15,7 @@ export class WorldView {
     this.scene = scene; this.renderer = renderer; this.qn = quality; this.q = Q[quality] || Q.medium;
     this.group = new THREE.Group(); scene.add(this.group); this.time = 0; this.moistT = 0; this.dynT = 0;
     this.uniforms = { uTime: { value: 0 }, uWet: { value: 0 }, uFocus: { value: new THREE.Vector3(0, 0, 0) } };
-    this.tex = { soil: soilTextures(256), stone: stoneTextures(256), bark: barkTextures(256), rot: rottenWoodTextures(256), moss: mossTexture(128) };
+    this.tex = { soil: soilTextures(256), sand: sandTextures(256), stone: stoneTextures(256), bark: barkTextures(256), rot: rottenWoodTextures(256), moss: mossTexture(128) };
     this.setupLights();
   }
   setupLights() {
@@ -41,19 +41,20 @@ export class WorldView {
 
   build(sim) {
     const w = sim.world, rng = new RNG(w.seed ^ 0x51ed), half = w.half;
-    this.sim = sim; const G = this.group; const tropical = SPECIES[sim.speciesId].climate === 'tropical'; this.tropical = tropical;
+    this.sim = sim; const G = this.group; const climate = SPECIES[sim.speciesId].climate; const tropical = climate === 'tropical'; this.tropical = tropical; const desert = climate === 'desert'; this.desert = desert;
     // ---- terep
     const seg = this.q.seg; const geo = new THREE.PlaneGeometry(half * 2.4, half * 2.4, seg, seg); geo.rotateX(-Math.PI / 2);
     const pos = geo.attributes.position; const col = new Float32Array(pos.count * 3); geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
     for (let i = 0; i < pos.count; i++) { const x = pos.getX(i), z = pos.getZ(i); const edge = Math.max(0, Math.hypot(Math.max(0, Math.abs(x) - half), Math.max(0, Math.abs(z) - half))); pos.setY(i, heightAt(w, clamp(x, -half, half), clamp(z, -half, half)) - edge * 0.05); }
     geo.computeVertexNormals();
     const uv = geo.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * 1.2, uv.getY(i) * 1.2);
-    this.terrainMat = new THREE.MeshStandardMaterial({ map: this.tex.soil.map, normalMap: this.tex.soil.normalMap, normalScale: new THREE.Vector2(1.4, 1.4), vertexColors: true, roughness: 0.96, metalness: 0 });
+    const ground = desert ? this.tex.sand : this.tex.soil;
+    this.terrainMat = new THREE.MeshStandardMaterial({ map: ground.map, normalMap: ground.normalMap, normalScale: new THREE.Vector2(desert ? 0.9 : 1.4, desert ? 0.9 : 1.4), vertexColors: true, roughness: desert ? 0.98 : 0.96, metalness: 0 });
     if (tropical) this.terrainMat.color.set(0xf2c4a8); this.terrain = new THREE.Mesh(geo, this.terrainMat); this.terrain.receiveShadow = true; G.add(this.terrain); this.terrainGeo = geo;
     this.updateMoistureColors();
     // ---- a játéktéren kívüli talaj (a környező növényzet alatt)
     const fg = new THREE.PlaneGeometry(40000, 40000); fg.rotateX(-Math.PI / 2); const ft = this.tex.soil.map.clone(); ft.repeat.set(1800, 1800); ft.needsUpdate = true; const fn = this.tex.soil.normalMap.clone(); fn.repeat.set(1800, 1800); fn.needsUpdate = true;
-    this.farGround = new THREE.Mesh(fg, new THREE.MeshStandardMaterial({ color: tropical ? 0x6e3f2c : 0x5c4a38, roughness: 1 })); this.farGround.position.y = -1.2; this.farGround.receiveShadow = false; G.add(this.farGround);
+    this.farGround = new THREE.Mesh(fg, new THREE.MeshStandardMaterial({ color: tropical ? 0x6e3f2c : desert ? 0xa9895c : 0x5c4a38, roughness: 1 })); this.farGround.position.y = -1.2; this.farGround.receiveShadow = false; G.add(this.farGround);
     // ---- kövek
     const stoneMat = new THREE.MeshStandardMaterial({ map: this.tex.stone.map, normalMap: this.tex.stone.normalMap, roughness: 0.85, color: 0xd0cdc6 });
     this.stones = [];
@@ -77,9 +78,9 @@ export class WorldView {
     }
     // ---- moha
     const mossMat = new THREE.MeshStandardMaterial({ map: this.tex.moss, roughness: 1, color: 0xffffff });
-    const mg = new THREE.IcosahedronGeometry(1, 1); let total = 0; for (const m of w.moss) total += Math.floor(m.r * 95);
+    const mg = new THREE.IcosahedronGeometry(1, 1); const mossList = desert ? [] : w.moss; let total = 0; for (const m of mossList) total += Math.floor(m.r * 95);
     const mossI = new THREE.InstancedMesh(mg, mossMat, total); let mi = 0; const M = new THREE.Matrix4(), Qn = new THREE.Quaternion(), S = new THREE.Vector3(), P = new THREE.Vector3(), mc = new THREE.Color();
-    for (const m of w.moss) for (let k = 0; k < Math.floor(m.r * 95); k++) {
+    for (const m of mossList) for (let k = 0; k < Math.floor(m.r * 95); k++) {
       // lapos, sűrű párnák: a folt közepén magasabb és sötétebb, a szélén világosabb és laposabb; apró ágacskák nélkül, de változatos zöldek
       const a = rng.range(0, 6.28), d = Math.pow(rng.next(), 0.7) * m.r; const x = m.x + Math.cos(a) * d, z = m.z + Math.sin(a) * d; const edge = d / m.r; const r = rng.range(0.16, 0.42) * (1.15 - edge * 0.7);
       P.set(x, heightAt(w, x, z) + r * 0.1, z); S.set(r, r * (0.28 + 0.2 * (1 - edge)), r * rng.range(0.8, 1.2)); Qn.setFromEuler(new THREE.Euler(0, rng.range(0, 6), 0)); M.compose(P, Qn, S); mossI.setMatrixAt(mi, M);
@@ -87,17 +88,17 @@ export class WorldView {
     }
     mossI.count = mi; mossI.receiveShadow = true; G.add(mossI);
     // ---- kavicsok
-    const pebMat = new THREE.MeshStandardMaterial({ map: this.tex.stone.map, roughness: 0.9, color: 0xb9a58f });
+    const pebMat = new THREE.MeshStandardMaterial({ map: desert ? null : this.tex.stone.map, roughness: 0.9, color: desert ? 0xf0dcb0 : 0xb9a58f });
     const pg = new THREE.IcosahedronGeometry(1, 1); const peb = new THREE.InstancedMesh(pg, pebMat, this.q.pebbles); let pc = 0;
     for (let i = 0; i < this.q.pebbles; i++) {
       const x = rng.range(-half, half), z = rng.range(-half, half); if (this.overStone(w, x, z)) continue;
-      const r = rng.range(0.25, 1.1); P.set(x, heightAt(w, x, z) + r * 0.15, z); S.set(r, r * rng.range(0.5, 0.8), r * rng.range(0.7, 1.1)); Qn.setFromEuler(new THREE.Euler(rng.range(0, 1), rng.range(0, 6), rng.range(0, 1))); M.compose(P, Qn, S); peb.setMatrixAt(pc, M); peb.setColorAt(pc, new THREE.Color().setHSL(0.08, 0.2, rng.range(0.28, 0.6))); pc++;
+      const r = rng.range(0.25, 1.1); P.set(x, heightAt(w, x, z) + r * 0.15, z); S.set(r, r * rng.range(0.5, 0.8), r * rng.range(0.7, 1.1)); Qn.setFromEuler(new THREE.Euler(rng.range(0, 1), rng.range(0, 6), rng.range(0, 1))); M.compose(P, Qn, S); peb.setMatrixAt(pc, M); peb.setColorAt(pc, desert ? new THREE.Color().setHSL(0.1, 0.28, rng.range(0.55, 0.78)) : new THREE.Color().setHSL(0.08, 0.2, rng.range(0.28, 0.6))); pc++;
     }
     peb.count = pc; peb.castShadow = true; peb.receiveShadow = true; G.add(peb);
     // ---- avar (száraz levéldarabok)
     const lg = new THREE.PlaneGeometry(1, 0.5, 12, 6); lg.rotateX(-Math.PI / 2); const lp = lg.attributes.position; for (let i = 0; i < lp.count; i++) { const lx = lp.getX(i), lz = lp.getZ(i); lp.setY(i, Math.sin(lx * 3.1 + 0.6) * 0.07 + lz * lz * 1.1 + Math.max(0, lx - 0.25) * 0.28 * Math.sign(lz) * lz); } lg.computeVertexNormals();
-    const litM = new THREE.MeshStandardMaterial({ roughness: 0.9, side: THREE.DoubleSide, color: 0xffffff, map: this.leafTexture(), alphaTest: 0.5 }); const lit = new THREE.InstancedMesh(lg, litM, this.q.litter); let lc = 0;
-    for (let i = 0; i < this.q.litter; i++) {
+    const litM = new THREE.MeshStandardMaterial({ roughness: 0.9, side: THREE.DoubleSide, color: 0xffffff, map: this.leafTexture(), alphaTest: 0.5 }); const litN = desert ? 0 : this.q.litter; const lit = new THREE.InstancedMesh(lg, litM, Math.max(1, litN)); let lc = 0;
+    for (let i = 0; i < litN; i++) {
       const x = rng.range(-half, half), z = rng.range(-half, half); if (this.overStone(w, x, z)) continue; const s = rng.range(4, 10);
       P.set(x, heightAt(w, x, z) + 0.25, z); S.set(s, 1, s); Qn.setFromEuler(new THREE.Euler(rng.range(-0.2, 0.2), rng.range(0, 6.28), rng.range(-0.2, 0.2))); M.compose(P, Qn, S); lit.setMatrixAt(lc, M); lit.setColorAt(lc, new THREE.Color().setHSL(rng.range(0.05, 0.13), rng.range(0.3, 0.6), rng.range(0.3, 0.52))); lc++;
     }
@@ -137,6 +138,7 @@ export class WorldView {
   overStone(w, x, z) { for (const s of w.stones) if (Math.hypot(x - s.x, z - s.z) < s.r * 1.05) return true; for (const l of w.logs) if (Math.hypot(x - l.x, z - l.z) < l.len * 0.5) return true; return false; }
 
   buildGrass(w, rng) {
+    if (this.desert) return this.buildTufts(w, rng);
     const segs = 3; const verts = [], idx = []; // egy szál: 3 szegmens, hegyes
     for (let i = 0; i <= segs; i++) { const t = i / segs; const wd = 0.1 * (1 - t * t * 0.92); verts.push(-wd, t, 0, wd, t, 0); }
     for (let i = 0; i < segs; i++) { const a = i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
@@ -161,6 +163,31 @@ export class WorldView {
       const hgt = rng.range(5, 18) * (0.7 + moist * 0.7) * (this.tropical ? 1.35 : 1); P.set(x, heightAt(w, clamp(x, -w.half, w.half), clamp(z, -w.half, w.half)) - 0.1, z); S.set(rng.range(0.7, 1.4), hgt, 1);
       Qn.setFromEuler(new THREE.Euler(rng.range(-0.18, 0.18), rng.range(0, 6.28), rng.range(-0.18, 0.18))); M.compose(P, Qn, S); gi.setMatrixAt(c, M);
       gi.setColorAt(c, (this.tropical ? new THREE.Color().setHSL(rng.range(0.27, 0.36), rng.range(0.55, 0.8), rng.range(0.14, 0.3)) : new THREE.Color().setHSL(rng.range(0.19, 0.28), rng.range(0.4, 0.6), rng.range(0.2, 0.36)))); c++;
+    }
+    gi.count = c; gi.castShadow = this.qn !== 'low'; gi.receiveShadow = true; gi.frustumCulled = false; this.group.add(gi); this.grass = gi;
+  }
+  // sivatagi száraz fűcsomók: a szimuláció tufts-ai köré, a csomó sűrűségével arányos szálszámmal
+  buildTufts(w, rng) {
+    const segs = 3; const verts = [], idx = [];
+    for (let i = 0; i <= segs; i++) { const t = i / segs; const wd = 0.09 * (1 - t * t * 0.92); verts.push(-wd, t, 0, wd, t, 0); }
+    for (let i = 0; i < segs; i++) { const a = i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3)); g.setIndex(idx); g.computeVertexNormals();
+    let n = 0; for (const t of w.tufts) n += t.blades; n = Math.max(1, n);
+    const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.85, side: THREE.DoubleSide });
+    const uni = this.uniforms; mat.onBeforeCompile = (sh) => {
+      sh.uniforms.uTime = uni.uTime;
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform float uTime;').replace('#include <begin_vertex>', `
+        vec3 transformed = position; float hh = position.y; vec4 ip = instanceMatrix * vec4(0.,0.,0.,1.);
+        float sw = sin(uTime*1.1 + ip.x*0.31 + ip.z*0.23) * 0.6 + 0.4*sin(uTime*2.3 + ip.x*0.6);
+        transformed.x += sw * hh * hh * 0.22;`);
+    };
+    const gi = new THREE.InstancedMesh(g, mat, n); const M = new THREE.Matrix4(), Qn = new THREE.Quaternion(), S = new THREE.Vector3(), P = new THREE.Vector3(); let c = 0;
+    for (const t of w.tufts) for (let k = 0; k < t.blades && c < n; k++) {
+      const a = rng.range(0, 6.28), d = Math.sqrt(rng.next()) * t.r * 0.9; const x = t.x + Math.cos(a) * d, z = t.z + Math.sin(a) * d;
+      const hgt = rng.range(5, 13) * (0.7 + 0.6 * (1 - d / (t.r + 0.01))); const lean = rng.range(-0.35, 0.35) + (d / (t.r + 0.01)) * 0.3 * Math.cos(a);
+      P.set(x, heightAt(w, clamp(x, -w.half, w.half), clamp(z, -w.half, w.half)) - 0.1, z); S.set(rng.range(0.7, 1.3), hgt, 1);
+      Qn.setFromEuler(new THREE.Euler(lean * 0.4, rng.range(0, 6.28), lean)); M.compose(P, Qn, S); gi.setMatrixAt(c, M);
+      gi.setColorAt(c, new THREE.Color().setHSL(rng.range(0.1, 0.14), rng.range(0.35, 0.55), rng.range(0.42, 0.6))); c++;
     }
     gi.count = c; gi.castShadow = this.qn !== 'low'; gi.receiveShadow = true; gi.frustumCulled = false; this.group.add(gi); this.grass = gi;
   }
@@ -228,6 +255,7 @@ export class WorldView {
     for (let i = 0; i < p.count; i++) {
       const x = clamp(p.getX(i), -half, half), z = clamp(p.getZ(i), -half, half); const m = moistureAt(w, x, z);
       const dry = 1 - m; const patch = fbm(x * 0.07, z * 0.07, 99);
+      if (this.desert) { const k = 0.9 + patch * 0.18 - m * 0.22; c.setXYZ(i, 0.93 * k, 0.8 * k, 0.56 * k); continue; }
       c.setXYZ(i, lerp(0.95, 0.52, m) * (0.9 + patch * 0.25) + dry * 0.1, lerp(0.88, 0.5, m) * (0.9 + patch * 0.25) + dry * 0.05, lerp(0.76, 0.46, m) * (0.9 + patch * 0.2));
     }
     c.needsUpdate = true;
@@ -239,7 +267,7 @@ export class WorldView {
     { let k = 0; for (const p of (w.pellets || [])) { if (k >= 260) break; const r = p.s; P.set(p.x, heightAt(w, p.x, p.z) + r * 0.45, p.z); S.set(r * 1.15, r * 0.8, r); M.compose(P, Qn, S); this.pelletMesh.setMatrixAt(k++, M); } this.pelletMesh.count = k; this.pelletMesh.instanceMatrix.needsUpdate = true; }
     i = 0; const colAmber = new THREE.Color(0xd6921c), colDrop = new THREE.Color(0x2a1d12);
     for (const f of w.foods) {
-      if (i >= 64) break; let x = f.x, y, z = f.z;
+      if (f.kind === 'seed') continue; if (i >= 64) break; let x = f.x, y, z = f.z;
       if (f.limb !== undefined) { const pt = limbPoint(w, f.limb, f.s, f.th, {}); x = pt.x + pt.nx * 0.2; y = pt.y + pt.ny * 0.2; z = pt.z + pt.nz * 0.2; } else y = heightAt(w, x, z);
       const r = 0.6 + Math.cbrt(Math.max(0, f.amount)) * 0.34; P.set(x, y + r * 0.35, z); S.set(r, r * 0.6, r); M.compose(P, Qn, S); this.foods.setMatrixAt(i, M); this.foods.setColorAt(i, f.kind === 'dropping' ? colDrop : colAmber); i++;
     }

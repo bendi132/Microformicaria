@@ -12,9 +12,33 @@ CFG = {
   'odonto':     dict(thr=0.04, head_x=0.37, gaster_x=-0.15, ant=lambda c, s, mn: c[0] > 0.5 and 300 < s < 800 and abs(c[2]) > 0.1, leg=lambda c, s, mn: s >= 1000 and c[0] < 0.6, grow=0.06),
   'proceratium': dict(thr=0.12, head_x=0.45, gaster_x=-0.25, ant=lambda c, s, mn: c[0] > 0.7 and s > 300, leg=lambda c, s, mn: s >= 700 and abs(c[2]) > 0.15 and c[1] < 0.1 and c[0] < 0.6, grow=0.15),
   'springtail': dict(thr=0.12, head_x=0.50, gaster_x=-99, ant=lambda c, s, mn: c[0] > 0.7 and s > 300 and c[1] < 0.3, leg=lambda c, s, mn: s >= 300 and abs(c[2]) > 0.15 and c[1] < 0.1 and c[0] < 0.6, grow=0.15),
-}[which if which != 'cephalotes_q' else 'cephalotes']
+  'messor':     dict(thr=0.05, head_x=0.30, gaster_x=-0.17, ant=lambda c, s, mn: c[0] > 0.5 and s > 200 and abs(c[2]) > 0.08, leg=lambda c, s, mn: s >= 900 and abs(c[2]) > 0.1, grow=0.07),
+  'beetle':     dict(thr=1.1, head_x=0.36, gaster_x=-99, ant=lambda c, s, mn: c[0] > 0.42 and s > 25, leg=lambda c, s, mn: s >= 60 and abs(c[2]) > 0.24, grow=0.05),
+}[{'cephalotes_q': 'cephalotes', 'messor_q': 'messor'}.get(which, which)]
 part = np.zeros(n, np.float32); lid = np.zeros(n, np.float32); w = np.zeros(n, np.float32); piv = np.zeros((n, 3), np.float32)
-lab = vertex_components(n, f, th < CFG['thr'])
+if which == 'beetle':   # vékonyságmérés nem működik (a lábak a testhez simulnak): a test-ellipszoidon kívüli csúcsok = láb/csáp
+    core = v[th > 0.3]; cen = core.mean(0); cov = np.cov((core - cen).T); inv = np.linalg.inv(cov)
+    rr = np.sqrt(np.einsum('ij,jk,ik->i', v - cen, inv, v - cen) / 3.0)
+    mask = rr > CFG['thr']
+    print('beetle outside', int(mask.sum()), 'of', n)
+else:
+    mask = th < CFG['thr']
+lab = vertex_components(n, f, mask)
+if which in ('messor', 'messor_q', 'beetle'):   # a láb darabokra esik (comb/sípcsont vastagsága eltér): a közeli darabokat egyesítjük
+    from scipy.spatial import cKDTree
+    cand = np.where(lab >= 0)[0]; sub = cand[::2]; tr = cKDTree(v[sub]); par = {}
+    def fnd(a):
+        while par.setdefault(a, a) != a: par[a] = par[par[a]]; a = par[a]
+        return a
+    for a, b in tr.query_pairs(0.011):
+        la, lb = lab[sub[a]], lab[sub[b]]
+        if la != lb: par[fnd(la)] = fnd(lb)
+    lab = np.array([fnd(l) if l >= 0 else -1 for l in lab])
+    nxt = lab.max() + 1                      # a testen átível (két oldali) darabokat szétvágjuk a szimmetriasík mentén
+    for l in np.unique(lab[lab >= 0]):
+        idx = np.where(lab == l)[0]; z = v[idx, 2]
+        if (z > 0.15).sum() > 60 and (z < -0.15).sum() > 60:
+            lab[idx[z < 0]] = nxt; nxt += 1
 ids, cnt = np.unique(lab[lab >= 0], return_counts=True)
 legs = []; ants = []
 for i, c in zip(ids, cnt):
@@ -81,6 +105,11 @@ if which == 'springtail':     # ugróvilla (furcula): a hasi oldalon, a test ala
 free = part == 0
 head = free & (v[:, 0] > CFG['head_x']); part[head] = 5
 gas = free & (v[:, 0] < CFG['gaster_x']); part[gas] = 4
+if which == 'messor_q':   # királynő: a dolgozó modellből származtatva (kövér, megnyúlt potroh = fiziogasztria, nagyobb mellkas); csak a törzs vertexei
+    gx = CFG['gaster_x']; cx = gx - 0.12
+    v[gas] = np.c_[(v[gas, 0] - cx) * 1.55 + cx, 0.13 + (v[gas, 1] - 0.13) * 1.45, v[gas, 2] * 1.5]
+    mid = free & ~gas & (v[:, 0] < CFG['head_x'] - 0.02)
+    v[mid, 1] = 0.22 + (v[mid, 1] - 0.22) * 1.12; v[mid, 2] *= 1.12
 # testhossz (fej eleje - potroh vége) a nem végtag csúcsokon
 body = (part == 0) | (part == 4) | (part == 5) | (part == 3) | (part == 6)
 bl = v[body, 0].max() - v[body, 0].min()
@@ -90,11 +119,19 @@ off = np.array([cx, feet, 0.0])
 v2 = (v - off) / bl
 piv2 = ((piv - off) / bl) * (part[:, None] >= 1) * ((part[:, None] <= 3) | (part[:, None] == 6))
 head_piv = (np.array([CFG['head_x'], float(np.median(v[head, 1])), 0.0]) - off) / bl
-gas_piv = (np.array([CFG['gaster_x'], float(np.median(v[gas, 1])), 0.0]) - off) / bl
+gas_piv = (np.array([CFG['gaster_x'], (float(np.median(v[gas, 1])) if gas.any() else 0.0), 0.0]) - off) / bl
 m = trimesh.Trimesh(v2, f, process=False); nrm = m.vertex_normals
 attrs = {'_PART': (part, 1), '_LID': (lid, 1), '_W': (w, 1), '_PIVOT': (piv2, 3)}
 mesh = dict(name=which, positions=v2, normals=nrm, indices=f, attrs=attrs, roughness=0.55,
             color=[0.07, 0.06, 0.05, 1] if which in ('ponera', 'proceratium', 'cephalotes_q') else ([0.55, 0.52, 0.48, 1] if which == 'springtail' else None) or ([0.07, 0.065, 0.06, 1] if which == 'cephalotes' else [1, 1, 1, 1]))
+if which == 'beetle':   # fényes fekete páncél (Eleodes), enyhe barnás árnyalattal
+    lum = (col @ np.array([0.3, 0.59, 0.11]))[:, None]; col = np.array([0.025, 0.022, 0.02]) + 0.07 * lum * np.array([1.0, 0.9, 0.8])
+if which in ('messor', 'messor_q'):   # a festett textúra túl színes: valódi Messor barbarus = fényes fekete test, vörösesbarna fej/mellkas-árnyalat
+    lum = (col @ np.array([0.3, 0.59, 0.11]))[:, None]
+    base = np.array([0.03, 0.027, 0.025]) + 0.06 * lum
+    head = np.clip((v[:, 0] - CFG['head_x'] + 0.05) / 0.1, 0, 1)[:, None]
+    rust = np.array([0.22, 0.085, 0.04]) * (0.55 + 0.9 * lum)
+    col = base * (1 - 0.7 * head) + rust * 0.7 * head
 if which == 'cephalotes_q':   # királynő: fekete, a potrohon krémszínű foltok; vörösbarna láb- és fejperem (referenciafotók szerint)
     gv = part == 4; gx0, gx1 = v[gv, 0].min(), v[gv, 0].max(); gy = v[gv, 1].mean(); base = np.tile(np.array([0.045, 0.04, 0.036]), (n, 1))
     u = (v[:, 0] - gx0) / (gx1 - gx0); lat = v[:, 2] / max(1e-6, np.abs(v[gv, 2]).max()); dors = v[:, 1] > gy - 0.02

@@ -34,7 +34,7 @@ export function updateIsopod(sim, p, dt) {
     }
     case 'forage': {
       if (activity < 0.3 && rng.chance(dt * 0.15)) { p.state = 'seek'; break; }
-      const m = moistureAt(w, p.x, p.z);
+      const m = p.sp === 'eleodes' ? 0.6 : moistureAt(w, p.x, p.z);           // a sötétbogár kiszáradás-tűrő
       p.dry = clamp(p.dry + (m < 0.3 ? dt * (0.3 - m) * 4 : -dt * 0.6), 0, 120);
       if (p.dry > 60) p.hp -= dt * 0.18 * (1 - p.armor * 0.3);      // kiszáradás
       if (p.dry > 20 && m < 0.28 && p.tmr > 1) { const c = nearestCover(w, p.x, p.z, 80); if (c) { p.tx = c.cover.x; p.tz = c.cover.z; p.tmr = 1; p.state = 'seek'; break; } }
@@ -42,7 +42,7 @@ export function updateIsopod(sim, p, dt) {
         p.tmr = rng.range(4, 12);
         // nedvesebb hely felé hajlik
         let bx = p.x, bz = p.z, bm = -1;
-        for (let k = 0; k < 4; k++) { const a = rng.range(0, 6.28), r = rng.range(6, 22); const x = clamp(p.x + Math.cos(a) * r, -w.half + 4, w.half - 4), z = clamp(p.z + Math.sin(a) * r, -w.half + 4, w.half - 4); const mm = moistureAt(w, x, z); if (mm > bm) { bm = mm; bx = x; bz = z; } }
+        for (let k = 0; k < 4; k++) { const a = rng.range(0, 6.28), r = rng.range(6, 22); const x = clamp(p.x + Math.cos(a) * r, -w.half + 4, w.half - 4), z = clamp(p.z + Math.sin(a) * r, -w.half + 4, w.half - 4); const mm = p.sp === 'eleodes' ? rng.next() : moistureAt(w, x, z); if (mm > bm) { bm = mm; bx = x; bz = z; } }
         p.tx = bx; p.tz = bz;
       }
       steerGround(sim, p, p.tx, p.tz, p.speed * 0.55 * (p.wild), dt, { turnRate: 3 });

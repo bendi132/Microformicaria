@@ -29,10 +29,10 @@ export function chooseTask(sim, a) {
   const hunter = sp.hunt.live || sp.hunt.eggs || sp.hunt.scavenge;
   const young = a.age < 2.5 ? 1.25 : 0.85;
   const soldier = a.caste === 'soldier';
-  const weatherF = (1 - sim.env.rain * 0.85) * clamp((sim.env.temp - 6) / 10, 0.1, 1);   // esőben és hidegben a hangyák a fészekben maradnak
+  const weatherF = (1 - sim.env.rain * 0.85) * clamp((sim.env.temp - 6) / 10, 0.1, 1) * (sim.env.temp > 37 ? clamp(1 - (sim.env.temp - 37) / 9, 0.12, 1) : 1);   // hőségben a felszíni munka leáll   // esőben és hidegben a hangyák a fészekben maradnak
   const sc = {
     hunt: weatherF * nd.protein * 1.5 * dir.hunt * (hunter ? 1 : 0) * (1 - danger * 0.9) * (soldier ? 0.25 : 1) * (a.age > 0.6 ? 1 : 0.3) * (a.energy > 45 ? 1 : 0.5),
-    forage: weatherF * (sp.nest.type === 'tree' ? 1 : 0) * nd.sugar * 1.1 * dir.forage * (1 - danger * 0.85) * (soldier ? 0.3 : 1) * (a.age > 0.6 ? 1 : 0.3),
+    forage: weatherF * (sp.nest.type === 'tree' || sp.diet?.seeds ? 1 : 0) * (sp.diet?.seeds ? Math.max(nd.sugar, nd.protein) * 1.5 : nd.sugar * 1.1) * dir.forage * (1 - danger * 0.85) * (soldier ? 0.3 : 1) * (a.age > 0.6 ? 1 : 0.3),
     water: nd.water * 1.25 * dir.water * (1 - danger * 0.8) * (soldier ? 0.4 : 1),
     nurse: nd.nurse * 1.7 * dir.nurse * young,
     dig: nd.dig * 1.0 * dir.dig * (sp.nest.type === 'soil' ? 1 : 0),
@@ -51,14 +51,14 @@ function chooseQueen(sim, a) {
   const sp = S(sim), c = sim.colony, n = sim.nest; const nw = workers(sim).length;
   if (!n) { if (a.task !== 'seek_nest') setTask(a, 'seek_nest'); return; }
   if (n.jobs.some((j) => j.active) && nw < 2 && !chambers(n).some((q) => q.ready !== false && !q.building)) { if (a.task !== 'dig') setTask(a, 'dig'); return; }
-  const stores = c.store.prey + c.store.sugar;
+  const stores = c.store.prey + c.store.sugar + (c.store.seed || 0);
   const layDue = sim.t - c.lastLay > sp.brood.layEvery * DAY;
   if (layDue && a.energy > 42 && a.hyd > 38 && broodChamber(sim)) { if (a.task !== 'lay') setTask(a, 'lay'); return; }
   const larvaeHungry = sim.brood.some((b) => b.stage === 'larva' && b.fed < 0.55);
-  if (larvaeHungry && (a.crop > 1.2 || c.store.prey > 1.2 || c.store.sugar > 3) && a.task !== 'nurse') { setTask(a, 'nurse'); return; }
+  if (larvaeHungry && (a.crop > 1.2 || c.store.prey > 1.2 || c.store.sugar > 3 || c.store.seed > 1.5) && a.task !== 'nurse') { setTask(a, 'nurse'); return; }
   if (a.hyd < 50 && c.store.water <= 4 && sim.surfaceDanger < 0.8) { if (a.task !== 'water') setTask(a, 'water'); return; }
   if (a.task === 'water' && a.hyd < 85 && sim.surfaceDanger < 0.8) return;
-  if (nw < 3 && (larvaeHungry || stores < 8 || a.energy < 60) && sim.surfaceDanger < 0.8) { if (a.task !== 'hunt' && a.task !== 'forage') setTask(a, sim.needs.sugar > sim.needs.protein + 0.2 || !(sp.hunt.live || sp.hunt.eggs) ? 'forage' : 'hunt'); return; }
+  if (nw < 3 && (larvaeHungry || stores < 8 || a.energy < 60) && sim.surfaceDanger < 0.8) { if (a.task !== 'hunt' && a.task !== 'forage') setTask(a, sp.diet?.seeds || sim.needs.sugar > sim.needs.protein + 0.2 || !(sp.hunt.live || sp.hunt.eggs) ? 'forage' : 'hunt'); return; }
   if (larvaeHungry && nw < 3) { if (a.task !== 'nurse') setTask(a, 'nurse'); return; }
   if (a.hyd < 60 && c.store.water > 4) { setTask(a, 'drink'); return; }
   if (a.energy < 55 && stores > 4) { setTask(a, 'eat'); return; }
@@ -98,6 +98,7 @@ function goHome(sim, a, dt, targetNodeId) {
 function deposit(sim, a) {
   const c = sim.colony, cap = storeCap(sim), cr = a.carry; if (!cr) return;
   if (cr.kind === 'prey') c.store.prey = Math.min(cap.prey, c.store.prey + cr.amt);
+  else if (cr.kind === 'seed') c.store.seed = Math.min(cap.seed, (c.store.seed || 0) + cr.amt);
   else if (cr.kind === 'sugar') c.store.sugar = Math.min(cap.sugar, c.store.sugar + cr.amt);
   else if (cr.kind === 'water') c.store.water = Math.min(cap.water, c.store.water + cr.amt);
   else if (cr.kind === 'eggs') c.store.prey = Math.min(cap.prey, c.store.prey + cr.amt);
@@ -119,11 +120,13 @@ function rest(sim, a, dt) {
 function eat(sim, a, dt) {
   const c = sim.colony, sp = S(sim);
   if (a.loc !== 'nest') { const r = goHome(sim, a, dt); if (r === 'blocked') { setTask(a, sp.hunt.eggs || sp.hunt.live ? 'hunt' : 'forage'); a.self = true; } return; }
-  if (c.store.prey + c.store.sugar < 0.5) { setTask(a, sp.hunt.live || sp.hunt.eggs ? 'hunt' : 'forage'); a.self = true; return; }
+  if (c.store.prey + c.store.sugar + (c.store.seed || 0) < 0.5) { setTask(a, !sp.diet?.seeds && (sp.hunt.live || sp.hunt.eggs) ? 'hunt' : 'forage'); a.self = true; return; }
   if (a.carry) deposit(sim, a);
   a.anim.mv = 0; a._feed = true; a.anim.open = 0.25 + 0.2 * Math.sin(sim.t * 13);
-  const take = Math.min(2.2 * dt, c.store.sugar > 0.3 ? c.store.sugar : c.store.prey);
-  if (c.store.sugar > 0.3) c.store.sugar -= take; else c.store.prey -= take;
+  const useSeed = (c.store.seed || 0) > 0.3;
+  const take = Math.min(2.2 * dt, useSeed ? c.store.seed : c.store.sugar > 0.3 ? c.store.sugar : c.store.prey);
+  if (useSeed) { c.store.seed -= take; a.hyd = Math.min(100, a.hyd + take * 5); }      // az őrölt mag anyagcsere-vizet is ad
+  else if (c.store.sugar > 0.3) c.store.sugar -= take; else c.store.prey -= take;
   a.energy = Math.min(100, a.energy + take * EN * 1.6);
   if (a.energy > 88) { a.decide = 0; setTask(a, 'idle'); }
 }
@@ -179,7 +182,7 @@ export function findFoodSource(sim, a) {
   const w = sim.world, sp = S(sim); let best = null, bs = 1e9;
   const onTree = sp.nest.type === 'tree';
   for (const f of w.foods) {
-    if (f.amount < 3) continue;
+    if (f.amount < (f.kind === 'seed' ? 0.4 : 3)) continue;
     if (f.limb !== undefined && !onTree) continue;
     let d; if (f.limb !== undefined) { const p = limbPoint(w, f.limb, f.s, f.th, {}); d = dist(a.x, a.z, p.x, p.z) + (p.y) * 0.5; } else d = dist(a.x, a.z, f.x, f.z);
     if (onTree && f.limb === undefined) d *= 1.6;
@@ -209,9 +212,9 @@ function forage(sim, a, dt) {
     const left = t.kind === 'food' ? ref.amount : ref.foodLeft; if (left < 0.2) { a.st = 'go'; a.target = null; return; }
     const full = a.energy > 85 && (a.crop >= sp.crop[a.caste === 'queen' ? 'queen' : 'worker'] * 0.9);
     const eatRate = 1.4 * dt;
-    if (a.energy < 80 || a.self) { const x = Math.min(left, eatRate); if (t.kind === 'food') ref.amount -= x; else ref.foodLeft -= x; a.energy = Math.min(100, a.energy + x * EN * (ref.kind === 'sap' ? 1.5 : 1)); if (a.energy > 88) a.self = false; return; }
+    if ((a.energy < 80 || a.self) && (ref.kind !== 'seed' || a.self)) { const x = Math.min(left, eatRate); if (t.kind === 'food') ref.amount -= x; else ref.foodLeft -= x; a.energy = Math.min(100, a.energy + x * EN * (ref.kind === 'sap' ? 1.5 : 1)); if (a.energy > 88) a.self = false; return; }
     const amt = Math.min(sp.carry, left); if (t.kind === 'food') ref.amount -= amt; else ref.foodLeft -= amt;
-    a.carry = { kind: t.kind === 'food' && ref.kind === 'sap' ? 'sugar' : 'prey', amt }; a.anim.open = 0; a.st = 'back';
+    a.carry = { kind: t.kind === 'food' && ref.kind === 'seed' ? 'seed' : t.kind === 'food' && ref.kind === 'sap' ? 'sugar' : 'prey', amt }; a.anim.open = 0; a.st = 'back';
   } else if (a.st === 'back') {
     const r = goHome(sim, a, dt); if (r === 'arrived' && a.loc === 'nest') { deposit(sim, a); a.target = null; a.st = 'go'; a.decide = 0; setTask(a, 'idle'); }
     else if (r === 'blocked') { a.st = 'wait'; a.tmr = 3; }
@@ -390,7 +393,7 @@ function nurse(sim, a, dt) {
     let bad = null; for (const b of sim.brood) { const nd = node(n, b.node); if (!nd || b.carried) continue; const q = chamberQuality(sim, nd).q; if ((q < 0.45 || nd.flood > 0) && broodChamber(sim, nd.id)) { bad = b; break; } }
     if (bad) { a.target = { kind: 'brood', id: bad.id }; a.st = 'goBrood'; bad.claimed = a.id; return; }
     const hungry = sim.brood.filter((b) => b.stage === 'larva' && b.fed < 0.6 && !b.dead).sort((x, y) => x.fed - y.fed)[0];
-    if (hungry && (c.store.prey + c.store.sugar > 0.5 || a.crop > 1 || a.energy > 60)) { a.target = { kind: 'brood', id: hungry.id }; a.st = 'goFeed'; return; }
+    if (hungry && (c.store.prey + c.store.sugar + (c.store.seed || 0) > 0.5 || a.crop > 1 || a.energy > 60)) { a.target = { kind: 'brood', id: hungry.id }; a.st = 'goFeed'; return; }
     a.tmr -= dt; if (a.tmr <= 0) { a.tmr = 2.5; a.decide = 0; setTask(a, 'idle'); } a.anim.mv = 0; if (a.loc !== 'nest') goHome(sim, a, dt); return;
   }
   const b = sim.brood.find((q) => q.id === (a.target && a.target.id)); if (!b || b.dead) { a.st = ''; return; }
@@ -406,6 +409,7 @@ function nurse(sim, a, dt) {
       if (a.crop > 0.3) { a.crop -= need; b.fed = Math.min(1, b.fed + 0.45); }
       else if (c.store.prey > need) { c.store.prey -= need; b.fed = Math.min(1, b.fed + 0.45); }
       else if (c.store.sugar > need * 0.5) { c.store.sugar -= need * 0.5; b.fed = Math.min(1, b.fed + 0.2); }
+      else if ((c.store.seed || 0) > need * 0.6) { c.store.seed -= need * 0.6; b.fed = Math.min(1, b.fed + 0.4); }          // őrölt mag (magkenyér)
       else if (a.caste === 'queen' && a.energy > 55) { a.energy -= need * EN * 0.8; b.fed = Math.min(1, b.fed + 0.3); }
       else { a.st = ''; return; }
       if (b.fed > 0.9) { a.st = ''; a.anim.open = 0; }

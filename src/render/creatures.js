@@ -29,14 +29,18 @@ export class CreatureLayer {
   constructor(scene) { this.scene = scene; this.group = new THREE.Group(); scene.add(this.group); this.nestSig = ''; this._dc = new THREE.Color(); this._dc2 = new THREE.Color(); this.nestGroup = new THREE.Group(); this.group.add(this.nestGroup); this.loaded = false; }
   async load(speciesId) {
     const sp = SPECIES[speciesId]; this.sp = sp;
-    const names = [sp.model, sp.queenModel || sp.model, sp.soldierModel || sp.model, 'isopod', 'spider', 'springtail']; const uniq = {}; await Promise.all([...new Set(names)].map(async (n) => { uniq[n] = await loadCreatureGeometry(`assets/models/${n}.glb`); }));
-    const [ant, antQ, antS, iso, spi, spr] = names.map((n) => uniq[n]); const gc = (caste) => (sp.gaitCaste && sp.gaitCaste[caste]) || sp.gait;
+    const desert = sp.climate === 'desert'; this.desert = desert; const names = [sp.model, sp.queenModel || sp.model, sp.soldierModel || sp.model, desert ? 'eleodes' : 'isopod', 'spider', 'springtail', 'scorpion']; const uniq = {}; await Promise.all([...new Set(names)].map(async (n) => { uniq[n] = await loadCreatureGeometry(`assets/models/${n}.glb`); }));
+    const [ant, antQ, antS, iso, spi, spr, sco] = names.map((n) => uniq[n]); const gc = (caste) => (sp.gaitCaste && sp.gaitCaste[caste]) || sp.gait;
     this.antB = new CreatureBatch(ant, { kind: 0, capacity: 400, color: sp.tint, swing: gc('worker').swing });
     this.queenB = new CreatureBatch(antQ, { kind: 0, capacity: 8, color: sp.tint, swing: gc('queen').swing }); this.soldB = new CreatureBatch(antS, { kind: 0, capacity: 120, color: sp.tint, swing: gc('soldier').swing });
-    this.isoB = new CreatureBatch(iso, { kind: 1, capacity: 160, color: 0x7a746c });
+    this.isoB = new CreatureBatch(iso, { kind: desert ? 0 : 1, capacity: 160, color: desert ? 0xffffff : 0x7a746c });
+    this.scoB = new CreatureBatch(sco, { kind: 4, capacity: 8, color: 0xffffff });
     this.spiB = new CreatureBatch(spi, { kind: 2, capacity: 24, color: 0xffffff });
     this.sprB = new CreatureBatch(spr, { kind: 3, capacity: 320, color: 0x8d949c });
-    for (const b of [this.antB, this.queenB, this.soldB, this.isoB, this.spiB, this.sprB]) this.group.add(b.mesh);
+    for (const b of [this.antB, this.queenB, this.soldB, this.isoB, this.spiB, this.scoB, this.sprB]) this.group.add(b.mesh);
+    // magvak (Messor táplálék): valódi, fotóból rekonstruált mag-modell, egyetlen példányolt rajz
+    const seedG = await loadCreatureGeometry('assets/models/seed.glb');
+    this.seedMesh = new THREE.InstancedMesh(seedG.geometry, new THREE.MeshStandardMaterial({ color: 0xd9b56e, roughness: 0.55, metalness: 0 }), 420); this.seedMesh.count = 0; this.seedMesh.castShadow = true; this.seedMesh.frustumCulled = false; this.group.add(this.seedMesh);
     // tojások / fiasítás / hordott tárgyak: egyszerű példányolt alakzatok
     const cap = new THREE.CapsuleGeometry(0.5, 1, 4, 10); cap.rotateZ(Math.PI / 2);
     this.eggMesh = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 14, 10), new THREE.MeshStandardMaterial({ roughness: 0.35, color: 0xffffff }), 900); this.eggMesh.count = 0; this.eggMesh.castShadow = true; this.group.add(this.eggMesh);
@@ -69,9 +73,11 @@ export class CreatureLayer {
   update(sim, time, nestView, camPos, controlled) {
     if (!this.loaded) return; const w = sim.world; this.up = this.up || new THREE.Vector3(0, 1, 0);
     const fwd = [0, 0, 1], up = [0, 1, 0], pos = tmpV; this.fpvAnt = controlled || null;
-    const { antB, queenB, soldB, isoB, spiB, sprB } = this; antB.begin(); queenB.begin(); soldB.begin(); isoB.begin(); spiB.begin(); sprB.begin();
+    const { antB, queenB, soldB, isoB, spiB, scoB, sprB } = this; antB.begin(); queenB.begin(); soldB.begin(); isoB.begin(); spiB.begin(); scoB.begin(); sprB.begin();
     let carryN = 0; const cm = this.carryMesh;
     const pushCarry = (x, y, z, r, color, flat) => { if (carryN >= 300) return; this.inst(cm, carryN, x, y, z, r, r * (flat || 1), r, color); carryN++; };
+    // ---- magvak a talajon
+    { const sm = this.seedMesh; let sc = 0; if (sm) for (const f of w.foods) { if (f.kind !== 'seed' || sc >= 420 || f.amount < 0.05) continue; const s = 3.4 * (0.8 + 0.2 * Math.min(1, f.amount / 1.6)); this.inst(sm, sc++, f.x, heightAt(w, f.x, f.z) + 0.05, f.z, s, s, s, undefined, f.yaw); } if (sm) { sm.count = sc; sm.instanceMatrix.needsUpdate = true; } }
     // ---- hangyák
     for (const a of sim.ants) {
       if (a.dead) continue; if (a.loc === 'nest' && !nestView && !(controlled && controlled.id === a.id)) continue;
@@ -83,6 +89,7 @@ export class CreatureLayer {
         const k = a.carry.kind; const hx = a.x + fwd[0] * a.len * 0.52 + up[0] * a.len * 0.2, hy = a.y + fwd[1] * a.len * 0.52 + up[1] * a.len * 0.2 + (a.loc === 'nest' ? 0 : 0), hz = a.z + fwd[2] * a.len * 0.52 + up[2] * a.len * 0.2;
         if (k === 'eggs') { pushCarry(hx, hy + a.len * 0.05, hz, Math.max(0.35, a.len * 0.11), a.carry.owner === 'spider' ? 0xf3efe0 : a.carry.owner === 'isopod' ? 0xe9dcc0 : 0xf5f2d8); }
         else if (k === 'prey') pushCarry(hx, hy + a.len * 0.06, hz, Math.max(0.5, Math.sqrt(a.carry.amt || 1) * 0.5), 0x5b3a2a);
+        else if (k === 'seed') pushCarry(hx, hy + a.len * 0.02, hz, Math.max(0.9, a.len * 0.17), 0xc9a45a, 0.55);
         else if (k === 'sugar') pushCarry(hx, hy + a.len * 0.05, hz, Math.max(0.4, Math.sqrt(a.carry.amt || 1) * 0.35), 0xe8a523, 0.8);
         else if (k === 'water') pushCarry(hx, hy + a.len * 0.05, hz, Math.max(0.4, Math.sqrt(a.carry.amt || 1) * 0.4), 0xbfe0ff, 0.8);
         else if (k === 'soil') pushCarry(hx, hy + a.len * 0.05, hz, a.len * 0.14, 0x7a5c40);
@@ -117,10 +124,11 @@ export class CreatureLayer {
     for (const s of sim.spiders) {
       if (s.state === 'lair' && !s.dead) continue; const y = heightAt(w, s.x, s.z); this.groundUp(w, s.x, s.z, up); fwd[0] = Math.sin(s.yaw); fwd[1] = 0; fwd[2] = Math.cos(s.yaw); const an = s.anim;
       if (s.dead) { up[0] = -up[0]; up[1] = -up[1]; up[2] = -up[2]; }
-      spiB.addBasis(pos.set(s.x, y + (s.dead ? s.len * spiB.height * 0.95 : 0), s.z), fwd, up, s.len, [an.phase, s.dead ? 0 : an.mv, s.dead ? 9 : an.act, an.actT], [an.head, an.open, an.curl, s.dead ? this.dryOf(s) : an.alert + (s.state === 'stalk' ? 0.3 : 0) + (s.state === 'lunge' ? 0.7 : 0)], s.dead ? this.deadColor(s) : undefined);
+      const B = s.cls === 'scorpion' ? scoB : spiB;
+      B.addBasis(pos.set(s.x, y + (s.dead ? s.len * B.height * 0.95 : 0), s.z), fwd, up, s.len, [an.phase, s.dead ? 0 : an.mv, s.dead ? 9 : an.act, an.actT], [an.head, an.open, an.curl, s.dead ? this.dryOf(s) : an.alert + (s.state === 'stalk' ? 0.3 : 0) + (s.state === 'lunge' ? 0.7 : 0)], s.dead ? this.deadColor(s) : undefined);
       if (s.carry) pushCarry(s.x + fwd[0] * s.len * 0.45, y + s.len * 0.15, s.z + fwd[2] * s.len * 0.45, Math.max(0.6, s.len * 0.1), 0x5c4a3a);
     }
-    spiB.end(time);
+    spiB.end(time); scoB.end(time);
     // ---- tojáscsomók és pókzsák
     let en = 0, sn = 0; const eg = this.eggMesh;
     for (const c of sim.clutches) {

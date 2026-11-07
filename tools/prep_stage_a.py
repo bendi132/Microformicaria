@@ -1,5 +1,5 @@
 """A fázis: betöltés, kanonikus tájolás (előre = +X, fel = +Y), tisztítás, egyszerűsítés, vastagságmérés."""
-import sys, glob, numpy as np, trimesh
+import os, sys, glob, numpy as np, trimesh
 from scipy.spatial import cKDTree
 sys.path.insert(0, '.')
 from rig_lib import *
@@ -11,6 +11,8 @@ cfg = {
   'odonto':   dict(face=40000),
   'proceratium': dict(face=40000),
   'springtail': dict(face=30000),
+  'messor':   dict(face=50000),
+  'beetle':   dict(face=45000),
 }[which]
 colors = None
 if which == 'ponera':
@@ -30,6 +32,26 @@ elif which == 'cephalotes':
     g.update_faces(g.area_faces > 1e-12); g.remove_unreferenced_vertices()
     V, F = g.vertices, g.faces
     R = np.eye(3)
+elif which == 'messor':
+    # Messor barbarus dolgozó: 5 darab, textúrával -> csúcsszín; a sceneben a feje -X felé néz -> +X
+    sc = trimesh.load(glob.glob(A + '657cb4d0*.glb')[0]); parts = sc.dump()
+    Vs, Fs, Cs, off = [], [], [], 0
+    for g in parts:
+        cc = g.visual.to_color().vertex_colors[:, :3] / 255.0
+        Vs.append(np.asarray(g.vertices)); Fs.append(np.asarray(g.faces) + off); Cs.append(cc); off += len(g.vertices)
+    V = np.vstack(Vs); F = np.vstack(Fs); C = np.vstack(Cs)
+    key = np.round(V / (np.ptp(V, axis=0).max() * 1e-6)).astype(np.int64)
+    _, uidx, inv = np.unique(key, axis=0, return_index=True, return_inverse=True); inv = inv.reshape(-1)
+    Cn = np.zeros((len(uidx), 3)); cnt = np.zeros(len(uidx)); np.add.at(Cn, inv, C); np.add.at(cnt, inv, 1)
+    V = V[uidx]; C = Cn / cnt[:, None]; F = inv[F]
+    F = F[(F[:, 0] != F[:, 1]) & (F[:, 1] != F[:, 2]) & (F[:, 0] != F[:, 2])]
+    R = np.array([[-1, 0, 0], [0, 1, 0], [0, 0, -1]], float)
+elif which == 'beetle':
+    # Eleodes sötétbogár (meshopt-ból kicsomagolt GLB: decode_meshopt.mjs): a feje -Z felé néz -> +X
+    rm = np.load(os.environ['BEETLE_NPZ']); V = rm['v']; F = rm['f']; C = rm['c']    # remesh_scan.py kimenete (zárt, kifelé néző háló)
+    _m = trimesh.Trimesh(V, F, process=False); trimesh.smoothing.filter_taubin(_m, lamb=0.6, nu=-0.64, iterations=25); V = np.asarray(_m.vertices)   # a voxeles zaj kisimítása
+    V = (V - (V.max(0) + V.min(0)) / 2) / (np.ptp(V, axis=0).max() / 1.35)   # a kvantált egységekből normált méret
+    R = np.array([[0, 0, -1], [0, 1, 0], [1, 0, 0]], float)
 else:
     # Odontomachus davidsoni dolgozó (szárny nélkül): 5 darab, textúrával; a színeket csúcsszínre visszük át
     sc = trimesh.load(glob.glob(A + '924c5a84*.glb')[0]); parts = sc.dump()
@@ -53,8 +75,20 @@ cc = trimesh.graph.connected_components(m.edges, nodes=np.arange(len(m.vertices)
 keepv = np.zeros(len(m.vertices), bool)
 for c in cc: keepv[c] = True
 m.update_vertices(keepv); m.remove_unreferenced_vertices()
-m.fix_normals()
-if which == 'odonto':
+if False and which == 'beetle':   # (a remesh_scan.py már rendbe teszi) a szkennelt háló lapjainak körüljárása vegyes: kifelé fordítjuk (test: ellipszoid, végtagok: a helyi tengelytől távolodva)
+    fc = m.triangles_center; fn = m.face_normals; vv = np.asarray(m.vertices)
+    cen = vv.mean(0); cov = np.cov((vv - cen).T); iv = np.linalg.inv(cov)
+    rr = np.sqrt(np.einsum('ij,jk,ik->i', fc - cen, iv, fc - cen) / 3.0)
+    ref = (fc - cen) @ iv
+    _, nb = cKDTree(fc).query(fc, k=48)
+    loc = fc[nb].mean(1); ref2 = fc - loc
+    ref = np.where((rr > 1.0)[:, None], ref2, ref)
+    flip = (fn * ref).sum(1) < 0
+    ff = m.faces.copy(); ff[flip, 1], ff[flip, 2] = m.faces[flip, 2], m.faces[flip, 1]
+    m = trimesh.Trimesh(m.vertices, ff, process=False); print('flipped faces', int(flip.sum()), 'of', len(ff))
+else:
+    m.fix_normals()
+if which in ('odonto', 'messor', 'beetle'):
     _, ii = cKDTree(V).query(m.vertices); colors = C[ii]
 th = local_thickness(m)
 np.savez(OUT, v=m.vertices, f=m.faces, th=th, colors=colors if colors is not None else np.zeros((0, 3)))

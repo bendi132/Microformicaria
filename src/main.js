@@ -44,7 +44,7 @@ function refreshTitle() { $('bCont').disabled = !hasSave(); }
 
 // ---------------------------------------------------------------- fajok
 let spMode = 'new', spSel = 'ponera';
-const ANTS = ['ponera', 'cephalotes', 'odonto', 'proceratium'], ALL = [...ANTS, 'isopod', 'spider', 'springtail'];
+const ANTS = ['ponera', 'cephalotes', 'odonto', 'proceratium', 'messor'], ALL = [...ANTS, 'isopod', 'spider', 'springtail'];
 function openSpecies(mode) {
   spMode = mode; const list = mode === 'new' ? ANTS : ALL; if (!list.includes(spSel)) spSel = list[0];
   $('spList').innerHTML = ''; for (const id of list) { const t = SPECIES_TEXT[id]; const b = document.createElement('button'); b.dataset.id = id; b.innerHTML = `${t.name}<small>${t.group}</small>`; b.onclick = () => selectSpecies(id); $('spList').appendChild(b); }
