@@ -13,7 +13,8 @@ export function initTouch(ctx) {
   const ptr = new Map(); let joyId = null, joyO = null, lookId = null, lastTap = { t: 0, x: 0, y: 0 }, pinch = null;
   const knob = document.createElement('div'); knob.id = 'joy'; knob.innerHTML = '<i></i>'; document.body.appendChild(knob);
   const R = 56, DEAD = 0.14;
-  const setKnob = (vx, vy, show) => { knob.style.display = show ? 'block' : 'none'; if (!show) return; knob.style.left = joyO.x + 'px'; knob.style.top = joyO.y + 'px'; knob.firstChild.style.transform = `translate(${vx * R}px,${vy * R}px)`; };
+  // a joystick rögzített helyen (bal alul) van, mindig látszik első személyben: a bázis középpontjához viszonyítunk
+  const setKnob = (vx, vy) => { knob.firstChild.style.transform = `translate(${vx * R}px,${vy * R}px)`; };
   const inGame = () => G.mode === 'game' && !G.paused;
   const fpvLike = () => G.fpv;
   canvas.style.touchAction = 'none';
@@ -21,7 +22,7 @@ export function initTouch(ctx) {
     if (e.pointerType !== 'touch' || !inGame()) return; e.preventDefault(); try { canvas.setPointerCapture(e.pointerId); } catch {}
     const p = { id: e.pointerId, x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, t0: performance.now(), moved: 0 }; ptr.set(e.pointerId, p);
     if (fpvLike()) {
-      if (e.clientX < innerWidth * 0.45 && joyId === null) { joyId = e.pointerId; joyO = { x: e.clientX, y: e.clientY }; G.joy.on = true; setKnob(0, 0, true); }
+      if (e.clientX < innerWidth * 0.45 && joyId === null) { joyId = e.pointerId; const r = knob.getBoundingClientRect(); joyO = { x: r.left, y: r.top }; G.joy.on = true; }
       else if (lookId === null) lookId = e.pointerId;
       else if (G.topNest) startPinch();
       return;
@@ -35,7 +36,7 @@ export function initTouch(ctx) {
     const dx = e.clientX - p.x, dy = e.clientY - p.y; p.moved += Math.abs(dx) + Math.abs(dy); p.x = e.clientX; p.y = e.clientY;
     if (fpvLike()) {
       if (e.pointerId === joyId) { const vx = (p.x - joyO.x) / R, vy = (p.y - joyO.y) / R, l = Math.hypot(vx, vy), nx = l ? vx / l : 0, ny = l ? vy / l : 0, m = Math.min(1, l), k = m < DEAD ? 0 : (m - DEAD) / (1 - DEAD);
-        G.joy.x = nx * k; G.joy.y = -ny * k; G.joy.sprint = l > 1.25; setKnob(nx * m, ny * m, true); }
+        G.joy.x = nx * k; G.joy.y = -ny * k; G.joy.sprint = l > 1.25; setKnob(nx * m, ny * m); }
       else if (e.pointerId === lookId && G.sim) { const inp = G.sim.input;
         if (G.topNest) { G.nestCam.yaw -= dx * 0.006; G.nestCam.pitch += dy * 0.005; }
         else { const s = 0.0042 * S.sens; inp.yawD -= dx * s; inp.pitchD += (S.inv ? 1 : -1) * dy * s; } }
@@ -55,7 +56,7 @@ export function initTouch(ctx) {
   }
   const end = (e) => {
     const p = ptr.get(e.pointerId); if (!p || e.pointerType !== 'touch') return; ptr.delete(e.pointerId);
-    if (e.pointerId === joyId) { joyId = null; G.joy.on = false; G.joy.x = G.joy.y = 0; G.joy.sprint = false; setKnob(0, 0, false); }
+    if (e.pointerId === joyId) { joyId = null; G.joy.on = false; G.joy.x = G.joy.y = 0; G.joy.sprint = false; setKnob(0, 0); }
     if (e.pointerId === lookId) lookId = null;
     if (ptr.size < 2) pinch = null;
     if (!fpvLike() && e.type === 'pointerup' && p.moved < 12 && performance.now() - p.t0 < 450 && ptr.size === 0) {
