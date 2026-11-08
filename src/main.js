@@ -12,6 +12,7 @@ import { heightAt } from './sim/world.js';
 import { WorldView } from './render/worldview.js';
 import { CreatureLayer } from './render/creatures.js';
 import { EnvView } from './render/envview.js';
+import * as Prog from './game/progress.js';
 import { MenuScene } from './render/menu3d.js';
 import { SPECIES_TEXT } from './ui/texts.js';
 
@@ -35,35 +36,48 @@ const G = { mode: 'menu', sim: null, speed: 1, paused: false, nestView: false, s
 window.addEventListener('resize', resize);
 
 // ---------------------------------------------------------------- képernyők
-const screens = ['title', 'species', 'settings', 'hud', 'fpv', 'pause'];
+const screens = ['title', 'species', 'settings', 'hud', 'fpv', 'pause', 'help'];
+let prog = Prog.load();   // szint, XP, alapítások és zsákmányok (böngészőben tárolva)
 function show(...names) { for (const s of screens) $(s).classList.toggle('on', names.includes(s)); if (names.includes('title') || names.includes('species') || names.includes('settings')) { if (S.music > 0) musicPlay(); } }
 const menu = new MenuScene(renderer);
 let menuReady = menu.load().then(() => { $('loading').style.display = 'none'; });
 const hasSave = () => { try { return !!localStorage.getItem(SAVE_KEY); } catch { return false; } };
-function refreshTitle() { $('bCont').disabled = !hasSave(); }
+function renderLevel() { const b = Prog.xpBounds(prog.xp); $('lvl').textContent = `Szint ${b.level} · ${b.into}/${b.span} XP · ${prog.foundings} alapítás · ${prog.preyKills} zsákmány`; }
+function refreshTitle() { $('bCont').disabled = !hasSave(); renderLevel(); }
 
 // ---------------------------------------------------------------- fajok
 let spMode = 'new', spSel = 'ponera';
 const ANTS = ['ponera', 'cephalotes', 'odonto', 'proceratium', 'messor'], ALL = [...ANTS, 'isopod', 'spider', 'springtail'];
 function openSpecies(mode) {
   spMode = mode; const list = mode === 'new' ? ANTS : ALL; if (!list.includes(spSel)) spSel = list[0];
-  $('spList').innerHTML = ''; for (const id of list) { const t = SPECIES_TEXT[id]; const b = document.createElement('button'); b.dataset.id = id; b.innerHTML = `${t.name}<small>${t.group}</small>`; b.onclick = () => selectSpecies(id); $('spList').appendChild(b); }
+  $('spList').innerHTML = ''; for (const id of list) { const t = SPECIES_TEXT[id]; const b = document.createElement('button'); b.dataset.id = id; const lk = mode === 'new' && !Prog.isUnlocked(prog, id); b.classList.toggle('locked', lk); b.innerHTML = `${t.name}${lk ? ' <span class="lk">🔒</span>' : ''}<small>${t.group}</small>`; b.onclick = () => selectSpecies(id); $('spList').appendChild(b); }
   $('spStart').style.display = $('diffWrap').style.display = mode === 'new' ? '' : 'none'; show('species'); menu.setMode('stage', spSel); selectSpecies(spSel);
 }
 function selectSpecies(id) {
   spSel = id; const t = SPECIES_TEXT[id]; menu.setMode('stage', id);
   for (const b of $('spList').children) b.classList.toggle('on', b.dataset.id === id);
   const d = t.diff ? `<div class="dots" style="margin:6px 0">${[1, 2, 3].map((i) => `<i class="${i <= t.diff ? 'f' : ''}"></i>`).join('')} <span style="color:var(--dim);margin-left:6px">${t.diffName}</span></div>` : '';
+  const lp = spMode === 'new' ? Prog.unlockProgress(prog, id) : { free: true, done: true };
   $('spInfo').innerHTML = `<h2>${t.name}</h2><div class="lat">${t.latin}</div>${SPECIES[id] ? `<span class="tag">${CLIMATE[SPECIES[id].climate].name} éghajlat</span>` : ''}${d}<p>${t.blurb}</p><p class="bio"><span class="tag">biológia</span>${t.bio}</p><p class="game"><span class="tag">játékbeli egyszerűsítés</span>${t.game}</p>`;
+  if (!lp.done) $('spInfo').insertAdjacentHTML('beforeend', `<div class="lockbox"><b>🔒 Zárolva</b> – feloldás:<ul class="req">${lp.items.map((r) => `<li class="${r.done ? 'ok' : 'no'}">${r.done ? '✓' : '○'} ${r.text} (${r.have}/${r.need})</li>`).join('')}</ul></div>`);
+  $('spStart').disabled = !lp.done;
 }
 setMusicVolume(S.music); setSfxVolume(S.sfx);
 $('bNew').onclick = () => openSpecies('new'); $('bSpecies').onclick = () => openSpecies('all'); $('bSet').onclick = () => { G.back = 'title'; show('settings'); };
 $('spBack').onclick = () => { menu.setMode('title'); show('title'); };
 $('spStart').onclick = async () => {
   const opts = { species: spSel, difficulty: $('diffSel').value };
+  if (!Prog.unlockProgress(prog, spSel).done) return;
   if (S.intro) { $('spStart').disabled = true; try { await playIntro({ sub: (SPECIES_TEXT[spSel] || {}).name || '' }); } catch (e) { console.warn('intro', e); } $('spStart').disabled = false; }
+  if (!prog.seenHelp) { openHelp('species', () => startGame(opts)); return; }
   startGame(opts);
 };
+// Irányítási súgó: az első játék előtt egyszer, később a főmenüből és a szünetmenüből
+let helpBack = 'title', helpAction = null;
+function openHelp(from, action) { helpBack = from; helpAction = action || null; $('helpGo').style.display = action ? '' : 'none'; $('helpBack').style.display = action ? 'none' : ''; show('help'); }
+$('bHelp').onclick = () => openHelp('title'); $('pHelp').onclick = () => openHelp('pause');
+$('helpBack').onclick = () => { helpAction = null; show(helpBack === 'pause' ? 'pause' : helpBack === 'species' ? 'species' : 'title'); };
+$('helpGo').onclick = () => { prog.seenHelp = true; Prog.save(prog); const a = helpAction; helpAction = null; if (a) a(); else show('title'); };
 $('bCont').onclick = () => { try { startGame(null, Sim.deserialize(localStorage.getItem(SAVE_KEY))); } catch (e) { toast('A mentés nem tölthető be.'); } };
 $('setBack').onclick = () => { saveSettings(); show(G.back === 'game' ? 'pause' : 'title'); };
 $('pSet').onclick = () => { G.back = 'game'; show('settings'); };
@@ -98,6 +112,7 @@ async function startGame(opts, loaded) {
   G.layer = new CreatureLayer(G.scene); await G.layer.load(sim.speciesId);
   G.env = new EnvView(G.scene, renderer, SPECIES[sim.speciesId].climate, sim.seed, MOBILE || S.quality === 'low'); G.env.build(null, sim.world).catch((e) => console.warn('env', e));
   const q = sim.queen; G.orbit.x = q ? q.x : 0; G.orbit.z = q ? q.z : 0; G.orbit.y = 0; G.orbit.dist = 55; G.orbit.pitch = 0.95; G.follow = true; setFollowBtn();
+  G.syncKills = sim.stats.kills; G.runFounded = sim.env.day >= Prog.FOUND_DAY;   // előrehaladás: ebben a játékban számolt zsákmány és alapítás
   G.mode = 'game'; G.speed = 1; G.paused = false; G.nestView = false; G.sel = q ? { kind: 'ant', id: q.id } : null; G.fpv = false; G.logIdx = sim.logs.length; G.autoT = 0; G.over = false;
   buildDirs(sim); setSpeed(1); show('hud'); $('loading').style.display = 'none'; $('bNestV').classList.remove('on'); resize();
   sfxStart();
@@ -125,7 +140,7 @@ $('bFollow').onclick = () => { G.follow = !G.follow; setFollowBtn(); };
 function setFollowBtn() { $('bFollow').classList.toggle('on', !!G.follow); }
 $('bNestV').onclick = () => toggleNest();
 function toggleNest() { G.autoNestOn = false; G.nestView = !G.nestView; $('bNestV').classList.toggle('on', G.nestView); const n = G.sim && G.sim.nest; if (G.nestView && n) { const f = G.sel && selEntity(); if (!(f && f.loc === 'nest')) { const e = n.nodes[Math.min(2, n.nodes.length - 1)]; G.orbit.x = e.x; G.orbit.z = e.z; G.follow = false; setFollowBtn(); G.orbit.dist = Math.min(G.orbit.dist, 36); } } }
-$('bDig').onclick = () => { G.dig = !G.dig; $('bDig').classList.toggle('on', G.dig); $('digOpts').style.display = G.dig ? '' : 'none'; if (G.dig && !G.nestView) toggleNest(); };
+$('bDig').onclick = () => { G.dig = !G.dig; $('bDig').classList.toggle('on', G.dig); $('digOpts').style.display = G.dig ? '' : 'none'; if (!G.dig) $('digRing').style.display = 'none'; if (G.dig && !G.nestView) toggleNest(); };
 $('bSave').onclick = () => saveGame(true); $('pSave').onclick = () => saveGame(true);
 $('bMenu').onclick = () => { G.back = 'game'; show('pause'); G.paused = true; }; $('pResume').onclick = () => { show('hud'); G.paused = false; }; $('pQuit').onclick = () => { saveGame(false); quitToMenu(); };
 $('bPoss').onclick = () => enterFpv();
@@ -249,6 +264,7 @@ window.addEventListener('mouseup', (e) => {
   if (!drag) return; const d = drag; drag = null; if (d.b === 0 && d.moved < 5 && G.mode === 'game') click(e.clientX, e.clientY);
 });
 window.addEventListener('mousemove', (e) => {
+  { const rg = $('digRing'); if (G.dig && G.mode === 'game' && !G.fpv) { rg.style.display = 'block'; rg.className = $('digShape').value === 'pocket' ? 'pocket' : ''; rg.style.left = e.clientX + 'px'; rg.style.top = e.clientY + 'px'; } else rg.style.display = 'none'; }
   if (G.fpv && document.pointerLockElement) { const s = 0.0024 * S.sens, inp = G.sim.input; inp.yawD -= e.movementX * s; inp.pitchD += (S.inv ? 1 : -1) * e.movementY * s; return; }
   if (!drag) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.moved += Math.abs(dx) + Math.abs(dy); drag.x = e.clientX; drag.y = e.clientY;
   if (drag.nest) { G.nestCam.yaw -= dx * 0.006; G.nestCam.pitch += dy * 0.005; return; }
@@ -266,7 +282,7 @@ function click(cx, cy) {
   if (G.dig) {
     ray.setFromCamera({ x: (cx / W) * 2 - 1, y: -(cy / H) * 2 + 1 }, G.cam); const hit = ray.intersectObject(G.view.terrain)[0]; if (!hit || !sim.nest) return;
     const depth = parseFloat($('digDepth').value); const from = sim.nest.nodes.filter((n) => n.ready !== false && n.kind !== 'entrance' || n.kind === 'entrance').sort((a, b) => Math.hypot(a.x - hit.point.x, a.z - hit.point.z) - Math.hypot(b.x - hit.point.x, b.z - hit.point.z))[0];
-    const r = sim.addDig(from.id, { x: hit.point.x, y: depth, z: hit.point.z }, $('digRole').value); if (r && r.error) toast(r.error, 3000); else { G.dig = false; $('bDig').classList.remove('on'); $('digOpts').style.display = 'none'; } return;
+    const r = sim.addDig(from.id, { x: hit.point.x, y: depth, z: hit.point.z }, $('digRole').value, $('digShape').value); if (r && r.error) toast(r.error, 3000); else { G.dig = false; $('bDig').classList.remove('on'); $('digOpts').style.display = 'none'; } return;
   }
   let best = null, bd = 28 * 28;
   const test = (kind, e, hgt) => { v3.set(e.x, (e.y || heightAt(sim.world, e.x, e.z)) + hgt, e.z).project(G.cam); if (v3.z > 1) return; const sx = (v3.x * 0.5 + 0.5) * W, sy = (-v3.y * 0.5 + 0.5) * H; const d = (sx - cx) ** 2 + (sy - cy) ** 2; if (d < bd) { bd = d; best = { kind, id: e.id }; } };
@@ -304,6 +320,18 @@ function hpBarEl(key) {
   let b = hpBars.get(key); if (b) return b;
   b = document.createElement('div'); b.style.cssText = 'position:absolute;width:34px;height:5px;margin:-3px 0 0 -17px;border-radius:3px;background:rgba(20,12,8,.72);box-shadow:0 0 0 1px rgba(255,235,200,.35);transition:opacity .35s;opacity:0;will-change:left,top';
   const i = document.createElement('i'); i.style.cssText = 'display:block;height:100%;border-radius:3px;transition:width .35s ease-out,background .35s;width:100%'; b.appendChild(i); b._i = i; hpLayer.appendChild(b); hpBars.set(key, b); return b;
+}
+// Előrehaladás: zsákmány és alapítás a játék közben; szint-lépésnél, új fajnál és alapításnál üzenet
+function progTick() {
+  const sim = G.sim; if (!sim || G.mode !== 'game' || sim.over) return;
+  const before = { ...prog }; let changed = false; const msgs = [];
+  const dk = sim.stats.kills - G.syncKills; if (dk > 0) { G.syncKills = sim.stats.kills; Prog.addPreyKills(prog, dk); changed = true; }
+  if (!G.runFounded && Prog.foundingMet(sim, sim.difficulty)) { G.runFounded = true; Prog.addFounding(prog); changed = true; msgs.push('Sikeres kolóniaalapítás (+30 XP)'); }
+  if (!changed) return;
+  Prog.save(prog);
+  const lvB = Prog.levelOf(before.xp), lvA = Prog.levelOf(prog.xp); if (lvA > lvB) msgs.push(`Új szint: ${lvA}`);
+  for (const id of Prog.newlyUnlocked(before, prog, Object.keys(Prog.UNLOCK))) msgs.push(`Új faj feloldva: ${SPECIES_TEXT[id].name}`);
+  if (msgs.length) toast(msgs.join(' · '), 6000, true);
 }
 function updateHpBars() {
   const sim = G.sim, now = performance.now() / 1000; const live = new Set();
@@ -355,7 +383,7 @@ function frame(now) {
   if (G.fpv && ctl && under) placeNestCam(ctl, dt); else if (G.fpv && ctl) placeFpvCam(ctl, dt); else placeOrbitCam(dt);
   if (G.fpv) updateHome(ctl); else $('home').style.display = 'none';
   // kijelölés-gyűrű
-  hudT += dt; if (hudT > 0.2) { hudT = 0; if (G.fpv) { updateFpvHud(); } else updateHud(); const foc = ctl || sim.queen || null; updateArrows(foc); }
+  hudT += dt; if (hudT > 0.2) { hudT = 0; if (G.fpv) { updateFpvHud(); } else updateHud(); const foc = ctl || sim.queen || null; updateArrows(foc); progTick(); }
   if (G.paused) sfxHush(); else sfxFrame(sim, { cam: G.cam, ctlId: ctl ? ctl.id : 0, underView: G.nestView || under, speed: G.speed });
   sim.fx.length = 0;
   G.autoT += dt; if (S.auto && G.autoT > 60) { G.autoT = 0; saveGame(false); }

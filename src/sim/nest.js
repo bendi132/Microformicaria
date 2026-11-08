@@ -70,13 +70,13 @@ export function chambers(n, role) { return n.nodes.filter((q) => q.kind === 'cha
 
 // ---- ásás
 // Egy ásási feladat egy kamra létrehozása a célpontnál (vagy meglévő tágítása), a járat lépésenként épül fel.
-export function addDigJob(n, sp, world, fromId, target, role) {
+export function addDigJob(n, sp, world, fromId, target, role, shape) {
   if (sp.nest.type !== 'soil') return null;
   const from = node(n, fromId); if (!from) return null;
   const maxCh = sp.nest.maxChambers;
   if (n.nodes.filter((q) => q.kind === 'chamber').length + n.jobs.filter((j) => j.kind === 'chamber').length >= maxCh) return { error: 'Elérted a kamrák maximális számát ennél a fajnál.' };
   const ty = clamp(target.y, -22, -2.5);
-  const job = { id: n.nextJob++, kind: 'chamber', role: role || 'brood', from: fromId, tx: target.x, ty, tz: target.z, progress: 0, cur: fromId, active: true };
+  const job = { id: n.nextJob++, kind: 'chamber', role: role || 'brood', from: fromId, tx: target.x, ty, tz: target.z, progress: 0, cur: fromId, active: true, pocket: shape === 'pocket' };
   n.jobs.push(job); return job;
 }
 export function jobFace(n, job) {
@@ -102,7 +102,8 @@ export function digWork(n, sp, world, job, amount) {
   }
   // kamra kitágítása
   if (face.kind !== 'chamber') { face.kind = 'chamber'; face.r = Math.max(face.r, 1.4); face.role = job.role; face.cap = 1; face.building = true; }
-  const target = sp.nest.chamberR;
+  // kis kör-kamra (zsebkamra): a teljes kamránál kisebb, de jól látható, kerek üreg
+  const target = job.pocket ? Math.max(2.4, sp.nest.chamberR * 0.6) : sp.nest.chamberR;
   face.r += amount * 0.06; face.cap = Math.max(1, Math.floor(face.r * face.r * 0.9));
   if (face.r >= target) { face.r = target; face.building = false; job.active = false; face.ready = true; return true; }
   return true;

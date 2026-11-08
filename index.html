@@ -97,15 +97,52 @@ body.touch #hud .tr button{min-width:40px;padding:6px 10px}
   #fpv .bars{width:min(300px,60vw)}
 }
 }
+.lvl{font-size:13px;color:#d9c9a8;margin:6px 0 2px;letter-spacing:.02em}
+.list button.locked{opacity:.72}
+.list button .lk{margin-left:6px}
+.req{list-style:none;padding:0;margin:8px 0;font-size:13px;line-height:1.6}
+.req li.ok{color:#9fd47a}.req li.no{color:#c9b89a}
+kbd{background:#2a2016;border:1px solid #6b5a3e;border-radius:4px;padding:0 5px;font-size:12px;color:#f1e6cf;white-space:nowrap}
+.helpbox{max-width:min(680px,94vw);padding:18px 20px;display:flex;flex-direction:column;gap:12px;max-height:92vh;overflow:auto}
+.hgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.hgrid b{font-size:14px}
+.hgrid ul{margin:6px 0 0;padding-left:0;list-style:none;font-size:13px;line-height:1.75}
+.htip{font-size:13px;line-height:1.55;color:#e8dcc4;background:rgba(224,180,58,.09);border:1px solid rgba(224,180,58,.25);border-radius:8px;padding:10px 12px}
+.hbtn{display:flex;gap:10px;justify-content:flex-end}
+#digRing{position:fixed;pointer-events:none;width:18px;height:18px;margin:-9px 0 0 -9px;border:2px dashed #e0b43a;border-radius:50%;display:none;z-index:5;box-shadow:0 0 0 1px rgba(20,12,8,.5)}
+#digRing.pocket{width:46px;height:46px;margin:-23px 0 0 -23px;border-style:solid}
+@media (max-width:600px){.hgrid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
 <canvas id="gl"></canvas>
 <div id="vig"></div><div id="ind"></div>
-<section id="title" class="screen on"><div class="box"><h1>MICROFORMICARIA</h1><div class="sub">hangya-kolónia szimulátor</div>
-<div class="menu"><button id="bNew">Új játék</button><button id="bCont">Folytatás</button><button id="bSpecies">Fajok</button><button id="bSet">Beállítások</button><button id="bFull" style="display:none">⛶ Teljes képernyő</button></div></div></section>
+<section id="title" class="screen on"><div class="box"><h1>MICROFORMICARIA</h1><div class="sub">hangya-kolónia szimulátor</div><div class="lvl" id="lvl"></div>
+<div class="menu"><button id="bNew">Új játék</button><button id="bCont">Folytatás</button><button id="bSpecies">Fajok</button><button id="bSet">Beállítások</button><button id="bHelp">Irányítás</button><button id="bFull" style="display:none">⛶ Teljes képernyő</button></div></div></section>
 <section id="species" class="screen"><div class="list" id="spList"></div><div class="info card" id="spInfo"></div>
 <div class="bot card" style="padding:8px 12px"><button id="spBack">← Vissza</button><span id="diffWrap">Nehézség: <select id="diffSel"><option value="easy">Kezdő – kész kolónia</option><option value="normal" selected>Normál</option><option value="hard">Nehéz</option></select></span><button id="spStart" class="on">Indítás</button></div></section>
+<section id="help" class="screen"><div class="box card helpbox">
+<h2>Irányítás</h2>
+<div class="hgrid">
+<div><b>Egérrel</b><ul>
+<li><kbd>bal kattintás</kbd> hangya vagy állat kijelölése</li>
+<li><kbd>kijelölt hangya + kattintás zsákmányra</kbd> vadászat-parancs</li>
+<li><kbd>bal húzás</kbd> a térkép mozgatása</li>
+<li><kbd>jobb húzás</kbd> a kamera forgatása</li>
+<li><kbd>görgő</kbd> közelítés / távolítás</li>
+<li><kbd>dupla kattintás</kbd> a hangya szemszögéből (első személy)</li>
+</ul></div>
+<div><b>Billentyűkkel</b><ul>
+<li><kbd>WASD</kbd> / nyilak: kamera mozgatása (első személyben: a hangya járása)</li>
+<li><kbd>N</kbd> fészek nézet · <kbd>T</kbd> felülnézet</li>
+<li><kbd>F</kbd> első személy · <kbd>C</kbd> követés be/ki</li>
+<li><kbd>P</kbd> feromonnyomok megjelenítése</li>
+<li><kbd>Szóköz</kbd> szünet · <kbd>1–4</kbd> sebesség</li>
+<li><kbd>Esc</kbd> menü</li>
+</ul></div></div>
+<div class="htip"><b>Mit irányíthatsz?</b> Közvetlenül csak a kijelölt hangyát vezetheted első személyben (E: fogás, X: ásás). A kolóniát a fő nézetből irányítod: a dolgozók maguktól gyűjtenek és vadásznak, te jelölsz ki célpontokat, és a <b>⛏</b> gombbal a fészekbe kamrát vagy kis kör-kamrát ásatsz.</div>
+<div class="hbtn"><button id="helpGo">Kezdés</button><button id="helpBack">← Vissza</button></div>
+</div></section>
 <section id="settings" class="screen"><div class="box card"><h2 style="margin:0 0 6px">Beállítások</h2>
 <label>Eszköz<select id="sDevice"><option value="desktop">Számítógép / laptop</option><option value="phone">Telefon / táblagép</option></select></label>
 <label>Hangeffektek<select id="sSfx"><option value="0">Ki</option><option value="0.3">Halk</option><option value="0.6">Közepes</option><option value="0.9">Hangos</option></select></label>
@@ -126,13 +163,13 @@ body.touch #hud .tr button{min-width:40px;padding:6px 10px}
   <div class="row"><span class="ic">🍖</span><div class="bar"><i id="sP" style="background:#c0705a"></i></div><span class="ic">🍯</span><div class="bar"><i id="sS" style="background:#e0a24a"></i></div><span class="ic">💧</span><div class="bar"><i id="sW" style="background:var(--water)"></i></div></div></div>
  <div class="tr card"><button id="bPause">⏸</button><button id="bS1" class="on">1×</button><button id="bS2">2×</button><button id="bS4">4×</button><button id="bS8">8×</button><span style="width:8px"></span><button id="bTop" title="Felülnézet (T)">⬒</button><button id="bFollow" title="Kiválasztott hangya követése (C)">🎯</button><button id="bNestV" title="Fészek-metszet (N)">🕳</button><button id="bSave" title="Mentés">💾</button><button id="bMenu" title="Menü">☰</button></div>
  <div class="bl card" id="dirs"></div>
- <div class="bc card" id="tools"><button id="bDig" title="Új kamra ásása: kattints a talajra">⛏</button><span id="digOpts" style="display:none"><select id="digRole"><option value="brood">Fiasítás</option><option value="store">Raktár</option><option value="rest">Pihenő</option></select> <select id="digDepth"><option value="-5">sekély</option><option value="-10" selected>közepes</option><option value="-16">mély</option></select></span><button id="bPoss" title="Irányítás first personben (F)" disabled>👁</button></div>
+ <div class="bc card" id="tools"><button id="bDig" title="Új kamra ásása: kattints a talajra">⛏</button><span id="digOpts" style="display:none"><select id="digRole"><option value="brood">Fiasítás</option><option value="store">Raktár</option><option value="rest">Pihenő</option></select> <select id="digShape" title="Forma: járat és kamra, vagy csak kis kör-kamra"><option value="tunnel">járat + kamra</option><option value="pocket">kis kör-kamra</option></select> <select id="digDepth"><option value="-5">sekély</option><option value="-10" selected>közepes</option><option value="-16">mély</option></select></span><button id="bPoss" title="Irányítás first personben (F)" disabled>👁</button></div>
  <div class="br card" id="sel"></div></section>
 <section id="fpv" class="screen"><div id="home" style="position:fixed;display:none;color:#ffd27a;font-size:26px;text-shadow:0 0 8px #000;margin:-14px 0 0 -10px;pointer-events:none">⌂</div><div class="cross" id="cross"></div><div class="carry" id="fCarry"></div>
  <div class="bars card"><div class="row"><span class="ic">⚡</span><div class="bar"><i id="fE"></i></div><span class="ic">💧</span><div class="bar"><i id="fH" style="background:var(--water)"></i></div><span class="ic">♥</span><div class="bar"><i id="fL" style="background:var(--bad)"></i></div></div><div class="row" id="fMand" style="display:none"><span class="ic">🦷</span><div class="bar"><i id="fM" style="background:#ddd"></i></div></div></div>
  <div class="keys"><span class="key nt">WASD</span><span class="key nt">⇧</span><span class="key kb" data-k="B" id="kL">LMB</span><span class="key kb" data-k="A" id="kR">RMB</span><span class="key kb" data-k="E" title="evés / ivás / belépés">E</span><span class="key kb" data-k="F" title="mászás (kő, rönk)">F</span><span class="key kb" data-k="X" title="ásás">X</span><span class="key kb" data-k="G" title="letesz">G</span><span class="key kb" id="kJ" data-k="J" style="display:none">␣</span><span class="key kb" data-k="Q" title="kilépés az irányításból">Q ⟲</span></div></div></section>
-<section id="pause" class="screen"><div class="box card"><button id="pResume">Folytatás</button><button id="pSave">Mentés</button><button id="pSet">Beállítások</button><button id="pQuit">Kilépés a főmenübe</button></div></section>
+<section id="pause" class="screen"><div class="box card"><button id="pResume">Folytatás</button><button id="pSave">Mentés</button><button id="pSet">Beállítások</button><button id="pHelp">Irányítás</button><button id="pQuit">Kilépés a főmenübe</button></div></section>
 <section id="device" class="screen"><div class="dv"><h2>Min játszol?</h2><div class="dvrow"><button data-dev="desktop"><span>🖥</span><b>Számítógép / laptop</b><small>billentyűzet + egér</small></button><button data-dev="phone"><span>📱</span><b>Telefon / táblagép</b><small>érintésvezérlés, takarékos grafika</small></button></div><p>Később a Beállításokban módosítható.</p></div></section>
-<div id="toast"></div><div id="click">Kattints a folytatáshoz</div><div id="loading">MICROFORMICARIA</div>
+<div id="digRing"></div><div id="toast"></div><div id="click">Kattints a folytatáshoz</div><div id="loading">MICROFORMICARIA</div>
 <script type="module" src="src/main.js?v=intro1"></script>
 </body></html>

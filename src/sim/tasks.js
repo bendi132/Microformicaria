@@ -276,7 +276,7 @@ function applyStrike0(sim, a, p) {
   let dmg = H.style === 'snap' ? 8 + 10 * a.len / 10 : H.style === 'sting' ? 5 : 2.5;
   if (p.kind === 'springtail') dmg = 99;
   p.hp -= dmg; if (H.style === 'sting' && p.kind === 'isopod') p.para = H.paralyze * (0.6 + big);
-  if (p.hp <= 0) { if (p.kind === 'isopod') killIsopod(sim, p, a); else { p.dead = true; p.state = 'dead'; } a.kills++; sim.event('kill', a); return 'kill'; }
+  if (p.hp <= 0) { if (p.kind === 'isopod') killIsopod(sim, p, a); else { p.dead = true; p.state = 'dead'; } a.kills++; if (sim.stats) sim.stats.kills++; sim.event('kill', a); return 'kill'; }
   p.held = 1.2; if (rng.chance(H.injury + big * 0.04)) damageAnt(sim, a, 2 + big * 3, 'zsákmány'); return 'hit';
 }
 function hunt(sim, a, dt) {

@@ -26,7 +26,7 @@ export class Sim {
     this.diff = DIFFICULTY[this.difficulty]; this.rng = new RNG(this.seed); this.nextId = 1; this.t = 0; this.acc = 0;
     this.world = createWorld(this.seed, this.speciesId); this.nest = null; this.nestSite = null;
     this.ants = []; this.isopods = []; this.springtails = []; this.spiders = []; this.clutches = []; this.brood = [];
-    this.logs = []; this.fx = []; this.queenDead = false; this.over = false; this.preyScarcity = 0; this.surfaceDanger = 0.1; this.threatNearNest = false; this.nestDirty = true;
+    this.logs = []; this.fx = []; this.stats = { kills: 0, founded: false }; this.queenDead = false; this.over = false; this.preyScarcity = 0; this.surfaceDanger = 0.1; this.threatNearNest = false; this.nestDirty = true;
     this.player = { active: false, antId: 0 }; this.input = freshInput();
     this.env = { t: 0, step: 0, hour: GAME_START_HOUR, day: 0, night: false, dusk: false, dawn: false, temp: 18, tempMean: 19, humidity: 0.55, rain: 0, weather: 'clear', wxLeft: DAY * 0.9, forecast: null, light: 1 };
     initColony(this); this.needs = colonyNeeds({ ...this, nest: null, brood: [], ants: [], colony: this.colony, speciesId: this.speciesId });
@@ -64,7 +64,7 @@ export class Sim {
   }
   release() { const a = this.controlTarget(); this.player.active = false; if (a) { a.task = 'idle'; a.decide = 0; a.nseg = null; a.hiding = false; a.slow = false; a.climbing = false; a.cb = 1; a._dig = false; } }
   createNest(site) { this.nest = createNest(this.world, this.speciesId, site); this.nestDirty = true; if (site.kind === 'cavity') { const first = this.nest.nodes.find((q) => q.kind === 'chamber' && q.ready); if (first) first.role = 'brood'; } return this.nest; }
-  addDig(fromId, target, role) { if (!this.nest) return null; return addDigJob(this.nest, SPECIES[this.speciesId], this.world, fromId, target, role); }
+  addDig(fromId, target, role, shape) { if (!this.nest) return null; return addDigJob(this.nest, SPECIES[this.speciesId], this.world, fromId, target, role, shape); }
   setRole(nodeId, role) { const n = node(this.nest, nodeId); if (n && n.kind === 'chamber') n.role = role; }
 
   // ------------------------------------------------------------ környezet
