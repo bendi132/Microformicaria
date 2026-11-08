@@ -7,6 +7,7 @@ import { KTX2Loader } from '../../vendor/three/jsm/loaders/KTX2Loader.js';
 import { MeshoptDecoder } from '../../vendor/three/jsm/libs/meshopt_decoder.module.js';
 import { FBXLoader } from '../../vendor/three/jsm/loaders/FBXLoader.js';
 import { RNG } from '../core/rng.js';
+import { heightAt } from '../sim/world.js';
 
 // Valós méretek (mm). dim: 'h' = magasság, 'm' = a legnagyobb kiterjedés. A modellek saját egysége bizonytalan, ezért a határolódoboz alapján skálázunk.
 // A "becsült" jelű értékek nincsenek a modell leírásában; ésszerű valós méretre vannak állítva (lásd docs/KORNYEZET.md).
@@ -28,6 +29,11 @@ export const ENV_MODELS = {
   ocotillo: { url: 'assets/env/desert/ocotillo.glb',  size: 2600, dim: 'm', note: 'ocotillo, ~2,6 m (becsült)' },
   ocotillo_b:{ url: 'assets/env/desert/ocotillo_b.glb', size: 2200, dim: 'm', note: 'ocotillo, ~2,2 m (becsült)' },
   creosote: { url: 'assets/env/desert/creosote.glb',   size: 1000, dim: 'm', note: 'kreozotbokor, ~1 m (becsült)' },
+  // kisebb változatok: ugyanaz a modell kisebb méretben (a gyűrű közeli, kisebb növényei)
+  agave_s:    { base: 'agave',    size: 240, dim: 'm' }, agave_m:  { base: 'agave',    size: 480, dim: 'm' },
+  cholla_s:   { base: 'cholla',   size: 280, dim: 'm' }, cholla_b_s: { base: 'cholla_b', size: 220, dim: 'm' },
+  yucca_s:    { base: 'yucca',    size: 260, dim: 'm' }, creosote_s: { base: 'creosote', size: 340, dim: 'm' },
+  ocotillo_s: { base: 'ocotillo', size: 600, dim: 'm' },
   bark_log: { url: 'assets/env/desert/bark_log.glb',   size: 1500, dim: 'm', note: 'korhadó fatörzs, ~1,5 m (becsült)' },
   bark_log_b:{ url: 'assets/env/desert/bark_log_b.glb', size: 1200, dim: 'm', note: 'korhadó fatörzs, ~1,2 m (becsült)' },
   branch:   { url: 'assets/env/mossy/branch.fbx',    size: 1200, dim: 'm', note: 'mohás ág, ~1,2 m (becsült)', fbx: true },
@@ -35,7 +41,10 @@ export const ENV_MODELS = {
 // elhelyezés éghajlatonként: [modell, darab, rmin, rmax]
 const PLAN = {
   tropical: [['roots', 3, 600, 1500], ['bromeliad', 6, 150, 800], ['flower', 5, 160, 700], ['trunk', 1, 800, 1000], ['banana', 4, 1700, 3400], ['banana', 3, 4200, 7000]],
-  desert: [['bark_log', 2, 700, 1600], ['bark_log_b', 2, 800, 1800], ['ocotillo', 3, 1500, 3600], ['ocotillo_b', 3, 1400, 3400], ['cholla', 3, 1200, 2600], ['cholla_b', 3, 1300, 2800], ['agave', 4, 900, 2400], ['yucca', 3, 1300, 3000], ['yucca_b', 3, 1100, 2500], ['creosote', 4, 800, 2200]],
+  desert: [   // a gyűrű: sok kisebb növény a játéktér szélén túl, csak néhány óriás távolabb; a tartalmak a szél körül nem nőnek össze
+    ['agave_s', 3, 230, 520], ['cholla_s', 3, 260, 560], ['yucca_s', 3, 250, 560], ['creosote_s', 4, 280, 640], ['cholla_b_s', 2, 230, 480], ['ocotillo_s', 2, 420, 820], ['agave_m', 2, 520, 1000],
+    ['creosote', 1, 1000, 1700], ['yucca', 1, 1200, 2000], ['cholla', 1, 1300, 2200], ['agave', 1, 1000, 1800], ['ocotillo', 1, 2300, 3200], ['ocotillo_b', 1, 2700, 3700],
+    ['bark_log', 1, 800, 1300], ['bark_log_b', 1, 1000, 1600]],
   temperate: [['oak', 4, 600, 1900], ['branch', 3, 220, 900], ['trunk', 1, 800, 1000], ['tree1', 2, 2400, 3600], ['tree2', 2, 2500, 3700], ['tree1', 3, 4200, 8000], ['tree2', 3, 4400, 8200]],
 };
 
@@ -49,6 +58,10 @@ export class EnvView {
   dispose() { this.scene.remove(this.group); this.group.traverse((o) => { if (o.geometry) o.geometry.dispose(); }); this.ktx.dispose(); }
   async loadModel(key) {
     if (this.cache.has(key)) return this.cache.get(key); const def = ENV_MODELS[key];
+    if (def.base) {   // kisebb változat: az alapmodell klónja, arányosan kicsinyítve
+      const p = (async () => { const b = await this.loadModel(def.base); const g = new THREE.Group(); const c = b.clone(true); const k = def.size / ENV_MODELS[def.base].size; c.scale.multiplyScalar(k); g.add(c); g.userData = { size: b.userData.size.clone().multiplyScalar(k), scale: b.userData.scale * k }; return g; })();
+      this.cache.set(key, p); return p;
+    }
     const p = (async () => {
       let root;
       if (def.fbx) {
@@ -68,8 +81,14 @@ export class EnvView {
     })();
     this.cache.set(key, p); return p;
   }
-  async build(onProgress) {
+  async build(onProgress, world) {
     const plan = PLAN[this.climate] || PLAN.temperate; const rng = this.rng; this.placed = [];
+    // a játéktéren belüli kis növények (a szimuláció akadályai): ugyanazok a modellek, fiatal / törpe méretben
+    if (world && world.plants) for (const q of world.plants) {
+      let holder; try { holder = await this.loadModel(q.key); } catch (e) { continue; }
+      const o = holder.clone(true); o.scale.setScalar(q.size / ENV_MODELS[q.key].size); o.position.set(q.x, heightAt(world, q.x, q.z) - 0.2, q.z); o.rotation.y = q.yaw;
+      o.traverse((m) => { if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } }); this.group.add(o); this.placed.push({ key: q.key, r: Math.hypot(q.x, q.z), ang: 0, inside: true });
+    }
     for (const [key, n, r0, r1] of plan) {
       if (this.lite && HEAVY.has(key)) continue;
       let holder; try { holder = await this.loadModel(key); } catch (e) { console.warn('Környezeti modell nem tölthető:', key, e && e.message); continue; }

@@ -19,13 +19,13 @@ export function initEcology(sim) {
     if ((p.cls !== 'small') && rng.chance(ISOPOD.gravidChance)) makeGravid(sim, p);
     sim.isopods.push(p);
   }
-  const desert = w.biome === 'desert'; const nSt = Math.round((desert ? 4 : 30) * D.isopods);
+  const desert = w.biome === 'desert'; const nSt = desert ? 0 : Math.round(30 * D.isopods);   // sivatagban nincs ugróvilla (nedves talajt, humuszt igényel)
   for (let i = 0; i < nSt; i++) {
     let x = 0, z = 0, best = -1;
     for (let k = 0; k < 6; k++) { const xx = rng.range(-w.half + 6, w.half - 6), zz = rng.range(-w.half + 6, w.half - 6); const m = moistureAt(w, xx, zz); if (m > best) { best = m; x = xx; z = zz; } }
     sim.springtails.push(makeSpringtail(sim, x, z, rng.chance(0.2)));
   }
-  for (let i = 0; i < Math.round((desert ? 1 : 5) * D.isopods); i++) {
+  for (let i = 0; i < (desert ? 0 : Math.round(5 * D.isopods)); i++) {
     const s = sim.springtails[i]; if (s) sim.clutches.push(makeClutch(sim, 'springtail', s.x, s.z, rng.int(...SPRINGTAIL.eggs)));
   }
   // kezdeti pókok: a nehézségtől függő számú búvóhelyen
@@ -74,7 +74,7 @@ export function stepEcology(sim, dt) {
     if (isoAlive < ISOPOD.max * D.isopods * 0.8 && rng.chance(0.08 * wet * (env.night ? 1.6 : 0.6) * (1 - sim.preyScarcity))) {
       const c = rng.pick(w.covers.filter((q) => q.kind !== 'moss')); if (c) { const p = makeIsopod(sim, pickClass(sim, isoTable(sim)), c.x, c.z, true); p.cover = c.id; sim.isopods.push(p); }
     }
-    if (stAlive < SPRINGTAIL.max * D.isopods * 0.8 && rng.chance(0.18 * wet * (1 - sim.preyScarcity))) {
+    if (w.biome !== 'desert' && stAlive < SPRINGTAIL.max * D.isopods * 0.8 && rng.chance(0.18 * wet * (1 - sim.preyScarcity))) {
       let x = 0, z = 0, best = -1; for (let k = 0; k < 5; k++) { const xx = rng.range(-w.half + 6, w.half - 6), zz = rng.range(-w.half + 6, w.half - 6); const m = moistureAt(w, xx, zz); if (m > best) { best = m; x = xx; z = zz; } }
       sim.springtails.push(makeSpringtail(sim, x, z, false));
     }

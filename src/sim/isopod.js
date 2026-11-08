@@ -2,7 +2,7 @@
 // bio: ászkák korhadékot esznek, kiszáradásra érzékenyek, fényt és szárazságot kerülnek, többnyire éjszaka aktívak.
 // game: a menekülés / búvóhely-keresés és az aktivitási ciklus egyszerűsített szabályokra épül.
 import { ISOPOD, DAY } from './config.js';
-import { steerGround } from './motion.js';
+import { steerGround, stepGait } from './motion.js';
 import { moistureAt, nearestCover, heightAt } from './world.js';
 import { dist, clamp } from '../core/util.js';
 
@@ -70,7 +70,8 @@ export function updateIsopod(sim, p, dt) {
       break;
     }
   }
-  p.anim.phase += p.moved * 1.9 / Math.max(2, p.len) * 3; p.anim.mv += ((p.moved > 0.001 ? 1 : 0) - p.anim.mv) * Math.min(1, dt * 6);
+  if (p.sp === 'eleodes') stepGait(p, dt, 19, p.moved || 0, 0.22);     // sötétbogár: tripod-járás, lépéshossz ≈0,16 testhossz → a lábütem a sebességhez igazodik
+  else { p.anim.phase += p.moved * 1.9 / Math.max(2, p.len) * 3; p.anim.mv += ((p.moved > 0.001 ? 1 : 0) - p.anim.mv) * Math.min(1, dt * 6); }
   p.y = heightAt(w, p.x, p.z);
 }
 export function killIsopod(sim, p, byAnt) {

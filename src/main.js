@@ -96,7 +96,7 @@ async function startGame(opts, loaded) {
   G.scene = new THREE.Scene(); G.cam = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.05, 16000);
   G.view = new WorldView(G.scene, renderer, S.quality); G.view.sun.castShadow = !!S.shadow; G.view.build(sim);
   G.layer = new CreatureLayer(G.scene); await G.layer.load(sim.speciesId);
-  G.env = new EnvView(G.scene, renderer, SPECIES[sim.speciesId].climate, sim.seed, MOBILE || S.quality === 'low'); G.env.build().catch((e) => console.warn('env', e));
+  G.env = new EnvView(G.scene, renderer, SPECIES[sim.speciesId].climate, sim.seed, MOBILE || S.quality === 'low'); G.env.build(null, sim.world).catch((e) => console.warn('env', e));
   const q = sim.queen; G.orbit.x = q ? q.x : 0; G.orbit.z = q ? q.z : 0; G.orbit.y = 0; G.orbit.dist = 55; G.orbit.pitch = 0.95; G.follow = true; setFollowBtn();
   G.mode = 'game'; G.speed = 1; G.paused = false; G.nestView = false; G.sel = q ? { kind: 'ant', id: q.id } : null; G.fpv = false; G.logIdx = sim.logs.length; G.autoT = 0; G.over = false;
   buildDirs(sim); setSpeed(1); show('hud'); $('loading').style.display = 'none'; $('bNestV').classList.remove('on'); resize();
@@ -297,6 +297,33 @@ function updateArrows(a0) {
   });
 }
 
+// ---------------------------------------------------------------- sérült állatok életerő-csíkja (vadászatkor a célpont fölött)
+const hpLayer = document.createElement('div'); hpLayer.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:6;overflow:hidden'; document.body.appendChild(hpLayer);
+const hpBars = new Map(), hpSeen = new Map();   // kulcs → DOM elem / utolsó életerő + sérülés ideje
+function hpBarEl(key) {
+  let b = hpBars.get(key); if (b) return b;
+  b = document.createElement('div'); b.style.cssText = 'position:absolute;width:34px;height:5px;margin:-3px 0 0 -17px;border-radius:3px;background:rgba(20,12,8,.72);box-shadow:0 0 0 1px rgba(255,235,200,.35);transition:opacity .35s;opacity:0;will-change:left,top';
+  const i = document.createElement('i'); i.style.cssText = 'display:block;height:100%;border-radius:3px;transition:width .35s ease-out,background .35s;width:100%'; b.appendChild(i); b._i = i; hpLayer.appendChild(b); hpBars.set(key, b); return b;
+}
+function updateHpBars() {
+  const sim = G.sim, now = performance.now() / 1000; const live = new Set();
+  if (sim && !G.nestView && !G.topNest) {
+    const each = (kind, list) => { for (const e of list) {
+      if (e.dead || e.hidden || e.state === 'hidden' || e.state === 'lair' || !e.maxHp) continue;
+      const key = kind + e.id, prev = hpSeen.get(key); if (!prev) hpSeen.set(key, { hp: e.hp, t: -99 }); else { if (e.hp < prev.hp - 0.01) prev.t = now; prev.hp = e.hp; }
+      const rec = hpSeen.get(key); if (e.hp >= e.maxHp - 0.01 || now - rec.t > 9) continue;
+      v3.set(e.x, (e.y ?? heightAt(sim.world, e.x, e.z)) + Math.max(2.2, e.len * 0.95) + 2.5, e.z).project(G.cam); if (v3.z > 1 || Math.abs(v3.x) > 1.05 || Math.abs(v3.y) > 1.05) continue;
+      const cp = G.cam.position, d = Math.hypot(cp.x - e.x, cp.y - (e.y ?? 0), cp.z - e.z); if (d > 520) continue;
+      const b = hpBarEl(key), f = Math.max(0, Math.min(1, e.hp / e.maxHp)); live.add(key);
+      b.style.left = ((v3.x * 0.5 + 0.5) * innerWidth) + 'px'; b.style.top = ((-v3.y * 0.5 + 0.5) * innerHeight) + 'px'; b.style.opacity = 1;
+      const sc = Math.max(0.8, Math.min(1.5, 60 / Math.max(20, d) + 0.7)); b.style.transform = `scale(${sc})`;
+      b._i.style.width = (f * 100) + '%'; b._i.style.background = f > 0.55 ? '#7fc65a' : f > 0.28 ? '#e0b43a' : '#d9483b';
+    } };
+    each('i', sim.isopods); each('t', sim.springtails); each('s', sim.spiders);
+  }
+  for (const [k, b] of hpBars) if (!live.has(k)) { b.style.opacity = 0; if (b._gone === undefined) b._gone = now; if (now - b._gone > 20) { b.remove(); hpBars.delete(k); } } else b._gone = undefined;
+}
+
 // ---------------------------------------------------------------- hurok
 let last = performance.now(), hudT = 0;
 let fAcc = 0, fN = 0;
@@ -332,6 +359,7 @@ function frame(now) {
   if (G.paused) sfxHush(); else sfxFrame(sim, { cam: G.cam, ctlId: ctl ? ctl.id : 0, underView: G.nestView || under, speed: G.speed });
   sim.fx.length = 0;
   G.autoT += dt; if (S.auto && G.autoT > 60) { G.autoT = 0; saveGame(false); }
+  updateHpBars();
   renderer.render(G.scene, G.cam);
 }
 resize(); refreshTitle(); requestAnimationFrame(frame);

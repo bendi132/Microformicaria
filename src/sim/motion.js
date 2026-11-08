@@ -39,6 +39,15 @@ export function steerGround(sim, e, tx, tz, speed, dt, opts = {}) {
   e.moved = step; return d - step;
 }
 
+// Lépésütem: a lábciklus fázisa a megtett úthoz kötött (a láb talajon lévő szakasza pontosan a test haladásával egyezik, nincs csúszás).
+// rate = π / (lépéshossz [testhossz]) – a lábtáv és a lengésszög alapján modellenként számolva; helyben fordulásnál a lábak körbelépnek.
+export function stepGait(e, dt, rate, moved, pivotK = 0.2) {
+  const yaw = e.yaw ?? 0; const dy = Math.abs(angDiff(yaw, e.gy ?? yaw)); e.gy = yaw;
+  const eff = moved + dy * (e.len || 3) * pivotK;
+  e.anim.phase += eff * rate / Math.max(1.5, e.len || 3);
+  e.anim.mv += ((eff > 0.0006 ? 1 : 0) - e.anim.mv) * Math.min(1, dt * 6);
+}
+
 // ---- hangya testhelyzete (3D) a helyétől függően
 export function placeAnt(sim, a) {
   const w = sim.world;

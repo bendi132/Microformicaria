@@ -73,3 +73,11 @@ A méz / növényi nedv csak a Cephalotes fáján (törzs, ágak) található; a
 - **Mag:** a magvak (`assets/models/seed.glb`) valódi, fotóból rekonstruált modellel jelennek meg; a hangya a magot a szájában viszi.
 - **Eső:** ritka. Csak akkor esik, ha a tényleges időjárási modell ezt kiszámolja; a kis pocsolyák a homokon kis vízmennyiséget adnak.
 - **Éjszaka:** a skorpió ritka, éjszakai ragadozó (`assets/models/scorpion.glb`, valódi modell, a rig-shader „kind 4” ága).
+
+### Sivatagi növényzet – elrendezés (frissítve)
+
+- **Játéktéren belül** (`w.plants`, a szimuláció akadályai): 11 kis, fiatal / törpe növény (agávé, cholla, jukka, kreozot, ocotillo; 3–7 cm magas), a kövek és fűcsomók között; a hangyák kikerülik őket.
+- **A játéktér körül:** sok kisebb változat (24–60 cm) a szélhez közel, és csak néhány nagy / óriás növény (1–3,7 m) távolabb – a korábbi sok nagy növény helyett.
+- Az ugróvilla a sivatagban nem él (nincs kezdő populáció és utánpótlás).
+- A sérült állatok fölött életerő-csík jelenik meg (a találat után ~9 másodpercig), amely a sérülés mértékével csökken.
+- A sötétbogár és a skorpió lábüteme a megtett úthoz kötött (lépéshossz a modell lábtávjából számolva; helyben fordulásnál is lépked), így a láb nem csúszik a talajon.

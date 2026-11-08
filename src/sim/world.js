@@ -11,7 +11,7 @@ export function createWorld(seed, speciesId) {
   const sp = SPECIES[speciesId];
   const w = {
     seed, speciesId, half: WORLD_HALF, nextId: 1,
-    stones: [], logs: [], moss: [], tufts: [], droplets: [], foods: [], covers: [], lairs: [], limbs: [], cavities: [],
+    stones: [], logs: [], moss: [], tufts: [], plants: [], droplets: [], foods: [], covers: [], lairs: [], limbs: [], cavities: [],
     moist: new Float32Array(MOIST_N * MOIST_N), spawn: { x: 0, z: 0 },
   };
   const id = () => w.nextId++;
@@ -19,6 +19,7 @@ export function createWorld(seed, speciesId) {
     if (Math.hypot(x, z) < 15) return false;
     for (const s of w.stones) if (dist(x, z, s.x, s.z) < s.r + r + pad) return false;
     for (const l of w.logs) if (dist(x, z, l.x, l.z) < l.len * 0.5 + r) return false;
+    for (const q of w.plants) if (dist(x, z, q.x, q.z) < q.r + r + pad) return false;
     return true;
   };
   const tree = sp.nest.type === 'tree'; const desert = sp.climate === 'desert'; const CL = CLIMATE[sp.climate || 'temperate']; w.biome = sp.climate || 'temperate';
@@ -65,6 +66,15 @@ export function createWorld(seed, speciesId) {
   for (const s of w.stones) if (!s.trunk) w.covers.push({ id: s.id, kind: 'stone', x: s.x, z: s.z, r: s.r + 2.5, shelter: 0.95, wet: 0.35 });
   for (const l of w.logs) w.covers.push({ id: l.id, kind: 'log', x: l.x, z: l.z, r: l.len * 0.45, shelter: 0.9, wet: 0.5, log: l });
   for (const m of w.moss) w.covers.push({ id: m.id, kind: 'moss', x: m.x, z: m.z, r: m.r, shelter: 0.6, wet: 0.45 });
+  // kis (fiatal / törpe) sivatagi növények a játéktéren belül: valódi akadályok, a hangyák kikerülik őket (key = envview modell; h = magasság mm; r = törzs/tőlevélrózsa sugara)
+  if (desert) {
+    const KINDS = [['agave', 46, 7.5], ['agave', 30, 5], ['cholla', 40, 4.5], ['cholla_b', 30, 3.6], ['yucca', 44, 6], ['yucca_b', 34, 4.5], ['creosote', 58, 4], ['ocotillo', 74, 2.2]];
+    for (let i = 0, tries = 0; i < 11 && tries < 400; tries++) {
+      const [key, size, r] = KINDS[Math.floor(rng.next() * KINDS.length)]; const x = rng.range(-w.half + 9, w.half - 9), z = rng.range(-w.half + 9, w.half - 9);
+      if (!free(x, z, r, 7) || w.tufts.some((tt) => dist(x, z, tt.x, tt.z) < tt.r + r + 3)) continue;
+      w.plants.push({ id: id(), key, size: size * rng.range(0.85, 1.2), r, x, z, yaw: rng.range(0, 6.28) }); i++;
+    }
+  }
   for (const t of w.tufts) w.covers.push({ id: t.id, kind: 'tuft', x: t.x, z: t.z, r: t.r * 0.9, shelter: 0.75, wet: 0.08 });
   // ---- nedvességtérkép
   for (let j = 0; j < MOIST_N; j++) for (let i = 0; i < MOIST_N; i++) {
@@ -154,6 +164,7 @@ export function nearestCover(w, x, z, maxD = 1e9, filter) {
 export function obstaclesAt(w, x, z, rad) {
   const out = [];
   for (const s of w.stones) if (Math.abs(s.x - x) < s.r + rad + 2 && Math.abs(s.z - z) < s.r + rad + 2) out.push({ x: s.x, z: s.z, r: s.r });
+  for (const q of w.plants) if (Math.abs(q.x - x) < q.r + rad + 2 && Math.abs(q.z - z) < q.r + rad + 2) out.push({ x: q.x, z: q.z, r: q.r });
   return out;
 }
 // Mászható felületek (kövek, rönkök teteje): a felület abszolút magassága az (x, z) pontban, vagy null, ha nincs alatta tárgy.

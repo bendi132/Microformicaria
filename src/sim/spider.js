@@ -3,7 +3,7 @@
 // bio: a talajon vadászó pókok nagy része látás/rezgés alapján, lesből vagy közelítve támad, éjjel aktívabb.
 // game: a méret → sebesség/harapás/hatótáv összefüggés és az észlelési sugarak egyszerűsített értékek.
 import { SPIDER, SPECIES, DAY, DIFFICULTY, SCORPION } from './config.js';
-import { steerGround } from './motion.js';
+import { steerGround, stepGait } from './motion.js';
 import { heightAt } from './world.js';
 import { dist, clamp, angDiff } from '../core/util.js';
 import { killAnt, damageAnt } from './ant.js';
@@ -83,8 +83,8 @@ export function updateSpider(sim, s, dt) {
   }
   // a menekülési küszöb
   if (s.state !== 'flee' && s.state !== 'lair' && s.hp < s.maxHp * 0.38) { s.state = 'flee'; s.target = null; }
-  s.anim.phase += (s.moved * 1.0) / Math.max(1.5, s.len) * (scorp ? 5.5 : 2.4);
-  s.anim.mv += ((s.moved > 0.002 ? clamp(s.moved / (dt * C.speed) , 0.2, 1.4) : 0) - s.anim.mv) * Math.min(1, dt * 7);
+  if (scorp) stepGait(s, dt, 7.2, s.moved || 0, 0.16);       // skorpió: tetrapod-járás, a lépéshossz (≈0,43 testhossz) a lábtávból; helyben fordulva is lépked
+  else { s.anim.phase += (s.moved * 1.0) / Math.max(1.5, s.len) * 2.4; s.anim.mv += ((s.moved > 0.002 ? clamp(s.moved / (dt * C.speed), 0.2, 1.4) : 0) - s.anim.mv) * Math.min(1, dt * 7); }
   s.y = heightAt(w, s.x, s.z);
   s.x = clamp(s.x, -w.half + 2, w.half - 2); s.z = clamp(s.z, -w.half + 2, w.half - 2);
 }
