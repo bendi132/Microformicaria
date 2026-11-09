@@ -12,6 +12,9 @@ const ROLE_COL = { brood: 0xd9b25c, store: 0x7fa65a, rest: 0x7d8fa8, null: 0x8a6
 
 
 // ---- fiasítás-geometriák (hossz = 1 az X tengelyen, talp y=0)
+// találat utáni reakció a préda számára: 0,6 mp alatt megrándul és összegömbölyödik (act 7, progresszió 0..1, görbület)
+const flinchOf = (sim, p) => { const age = sim.t - (p.hitAt ?? -99); return age >= 0 && age < 0.6 ? { t: age / 0.6, curl: Math.sin((age / 0.6) * Math.PI) * 0.9 } : null; };
+
 export function blob(rx, ry, rz, x, y, z, rotZ = 0) { const g = new THREE.SphereGeometry(1, 12, 9); g.scale(rx, ry, rz); if (rotZ) g.rotateZ(rotZ); g.translate(x, y, z); return g; }
 export function larvaGeometry() {      // C alakban görbült, szelvényezett pajor: kis fej, hízó potroh
   const prof = [0.10, 0.15, 0.19, 0.22, 0.24, 0.245, 0.235, 0.21, 0.18, 0.13, 0.08]; const gs = []; const n = prof.length, R = 0.62, a0 = 0.95;
@@ -108,16 +111,17 @@ export class CreatureLayer {
     // ---- ászkák
     for (const p of sim.isopods) {
       if (p.state === 'hidden' && !p.dead) continue; const y = heightAt(w, p.x, p.z); this.groundUp(w, p.x, p.z, up);
-      fwd[0] = Math.sin(p.yaw); fwd[1] = 0; fwd[2] = Math.cos(p.yaw); const an = p.anim;
+      fwd[0] = Math.sin(p.yaw); fwd[1] = 0; fwd[2] = Math.cos(p.yaw); const an = p.anim, fl = flinchOf(sim, p);
       if (p.dead) { up[0] = -up[0]; up[1] = -up[1]; up[2] = -up[2]; fwd[0] = Math.sin(p.yaw); }
-      isoB.addBasis(pos.set(p.x, y + (p.dead ? p.len * isoB.height * 0.95 : 0), p.z), fwd, up, p.len, [an.phase, p.dead ? 0 : an.mv, p.dead ? 9 : an.act, an.actT], [an.head, an.open, an.curl, p.dead ? this.dryOf(p) : an.alert], p.dead ? this.deadColor(p) : undefined);
+      isoB.addBasis(pos.set(p.x, y + (p.dead ? p.len * isoB.height * 0.95 : 0), p.z), fwd, up, p.len, [an.phase, p.dead ? 0 : an.mv, p.dead ? 9 : fl ? 7 : an.act, fl ? fl.t : an.actT], [an.head, an.open, fl ? fl.curl : an.curl, p.dead ? this.dryOf(p) : an.alert], p.dead ? this.deadColor(p) : undefined);
     }
     isoB.end(time);
     // ---- ugróvillások
     for (const p of sim.springtails) {
       const y = heightAt(w, p.x, p.z) + (p.leap || 0); this.groundUp(w, p.x, p.z, up); fwd[0] = Math.sin(p.yaw); fwd[1] = p.leap > 0.6 ? 0.35 : 0; fwd[2] = Math.cos(p.yaw); const an = p.anim;
       if (p.dead) { up[0] = -up[0]; up[1] = -up[1]; up[2] = -up[2]; }
-      sprB.addBasis(pos.set(p.x, y + (p.dead ? p.len * sprB.height * 0.95 : 0), p.z), fwd, up, p.len, [an.phase, p.dead ? 0 : an.mv, p.dead ? 9 : an.act, an.actT], [an.head, an.open, an.curl, p.dead ? this.dryOf(p) : an.alert], p.dead ? this.deadColor(p) : undefined);
+      const fl = flinchOf(sim, p);
+      sprB.addBasis(pos.set(p.x, y + (p.dead ? p.len * sprB.height * 0.95 : 0), p.z), fwd, up, p.len, [an.phase, p.dead ? 0 : an.mv, p.dead ? 9 : fl ? 7 : an.act, fl ? fl.t : an.actT], [an.head, an.open, fl ? fl.curl : an.curl, p.dead ? this.dryOf(p) : an.alert], p.dead ? this.deadColor(p) : undefined);
     }
     sprB.end(time);
     // ---- pókok

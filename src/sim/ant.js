@@ -168,7 +168,10 @@ export function updateAnt(sim, a, dt) {
   if (!paused) runTask(sim, a, dt);
   if (a.loc === 'ground' && a.carry && a.moved > 0 && a.carry.kind !== 'soil' && a.carry.kind !== 'water') deposit(sim, a.x, a.z, 1.6 * trailStrength(sim) * dt);   // a táplálékot hazavivő hangya nyomot hagy
   { const an = a.anim, tgt = a._feed ? 1 : 0; an.feedS = (an.feedS || 0) + (tgt - (an.feedS || 0)) * Math.min(1, dt * 6);   // evési póz: act = 4, a fej fokozatosan lehajlik
-    if (an.feedS > 0.03 && an.act !== 1 && an.act !== 3) { an.act = 4; an.actT = an.feedS; } else if (an.act === 4) { an.act = 0; an.actT = 0; } }
+    if (an.act === 1) { an.actT += dt / 0.4; if (an.actT >= 1) { an.act = 0; an.actT = 0; } }     // támadás-csapás 0,4 mp, utána visszaáll (eddig beragadt, és blokkolta az evési pózt)
+    if (an.feedS > 0.03 && an.act !== 1 && an.act !== 3) { an.act = 4; an.actT = an.feedS; } else if (an.act === 4) { an.act = 0; an.actT = 0; }
+    if (an.feedS > 0.9 && sim.player && sim.player.antId === a.id && !(a.chewT > sim.t)) { a.chewT = sim.t + 0.42; sim.event('chew', a); }   // rágás-ütem a játékos hangyájánál
+  }
   // animációs változók
   const mvNow = clamp(a.moved / Math.max(0.0001, dt * baseSpeed(sim, a) * 0.8), 0, 1.5);
   a.anim.mvS = (a.anim.mvS || 0) + (mvNow - (a.anim.mvS || 0)) * Math.min(1, dt * 8);

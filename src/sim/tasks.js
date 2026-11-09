@@ -271,14 +271,16 @@ export function applyStrike(sim, a, p) {
 }
 function applyStrike0(sim, a, p) {
   const H = S(sim).hunt, rng = sim.rng; a.energy -= H.energyCost; a.cd = H.cooldown * rng.range(0.85, 1.2); a.anim.act = 1; a.anim.actT = 0;
-  const ok = rng.chance(strikeChance(sim, a, p));
+  const ok = rng.chance(strikeChance(sim, a, p)); p.hitAt = sim.t;     // a préda reagál a csapásra (siker vagy kudarc)
   if (H.style === 'snap') { a.anim.open = 0; a.anim.snapT = 0.18; if (p.armor > 0.55 && rng.chance(H.injury + 0.1)) a.mand = Math.max(0.2, a.mand - 0.25); }
   if (!ok) { if (p.kind === 'isopod') { p.alert = 3; p.state = p.state === 'hidden' ? 'flee' : p.state; p.threat = a; } return 'miss'; }
   const big = p.len / a.len;
   let dmg = H.style === 'snap' ? 8 + 10 * a.len / 10 : H.style === 'sting' ? 5 : 2.5;
   if (p.kind === 'springtail') dmg = 99;
   p.hp -= dmg; if (H.style === 'sting' && p.kind === 'isopod') p.para = H.paralyze * (0.6 + big);
+  a.hitFx = sim.t;
   if (p.hp <= 0) { if (p.kind === 'isopod') killIsopod(sim, p, a); else { p.dead = true; p.state = 'dead'; } a.kills++; if (sim.stats) sim.stats.kills++; sim.event('kill', a); return 'kill'; }
+  if (sim.player && sim.player.antId === a.id) sim.event('hit', a);
   p.held = 1.2; if (rng.chance(H.injury + big * 0.04)) damageAnt(sim, a, 2 + big * 3, 'zsákmány'); return 'hit';
 }
 function hunt(sim, a, dt) {

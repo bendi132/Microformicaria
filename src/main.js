@@ -195,7 +195,13 @@ function placeFpvCam(a, dt) {
   if (!G.fpvPos) G.fpvPos = P.clone(); else G.fpvPos.lerp(P, Math.min(1, dt * 18));
   const an = a.anim || {}; const pl = (a.pitchLook || 0) - 0.5 * (an.feedS || 0) - (an.act === 3 && a.loc === 'ground' ? 0.35 : 0), c = Math.cos(pl), s = Math.sin(pl);   // evés / ásás közben a nézet lehajlik
   fv.t.set(G.fpvPos.x + f[0] * c + up[0] * s, G.fpvPos.y + f[1] * c + up[1] * s, G.fpvPos.z + f[2] * c + up[2] * s);
-  G.cam.position.copy(G.fpvPos); G.cam.up.set(up[0], up[1], up[2]); G.cam.lookAt(fv.t);
+  // visszajelzés: találatkor rázkódás, étkezéskor a fej ütemes billegése (a rágás ritmusa)
+  if (G.shakeSeen !== a.hitFx) { G.shakeSeen = a.hitFx; G.shake = 1; }
+  G.shake = Math.max(0, (G.shake || 0) - dt * 3.2);
+  const chew = (an.feedS || 0) > 0.5 ? Math.sin(G.sim.t * 13) * 0.02 * a.len * an.feedS : 0;
+  const jit = G.shake * a.len * 0.12;
+  G.cam.position.copy(G.fpvPos).addScaledVector(up, chew + (Math.random() - 0.5) * jit);
+  G.cam.position.x += (Math.random() - 0.5) * jit; G.cam.up.set(up[0], up[1], up[2]); G.cam.lookAt(fv.t);
 }
 // ---- föld alatti felülnézet: belépéskor a fészekbe automatikusan átvált; a hangya továbbra is a játékos irányítása alatt áll
 G.nestCam = { yaw: 0, pitch: 1.38, dist: 24 }; G.nestT = new THREE.Vector3();

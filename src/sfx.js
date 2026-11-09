@@ -102,6 +102,8 @@ export function sfxFrame(sim, o) {
   for (const f of sim.fx) {
     if (f.type === 'kill' && B.snap) spatial({ x: f.x, y: f.y, z: f.z, loc: f.loc, buf: B.snap }, cam, REF.snap, SNAP_GAIN, 0.94 + Math.random() * 0.12, under);
     else if (f.type === 'lay' && B.lay) spatial({ x: f.x, y: f.y, z: f.z, loc: f.loc, buf: B.lay }, cam, REF.lay, 1, 1, under);
+    else if (f.type === 'hit' && B.snap) spatial({ x: f.x, y: f.y, z: f.z, loc: f.loc, buf: B.snap }, cam, REF.snap, 0.3, 1.12 + Math.random() * 0.08, under);
+    else if (f.type === 'chew' && B.snap) spatial({ x: f.x, y: f.y, z: f.z, loc: f.loc, buf: B.snap }, cam, REF.snap, 0.08, 0.6 + Math.random() * 0.1, under);
   }
 }
 window.__sfx = () => ({ ctx: ctx && ctx.state, running, bufs: buffers && Object.keys(buffers), walk: walk && +walk.g.gain.value.toFixed(3), cr: crickets && +crickets.g.gain.value.toFixed(3), vol });

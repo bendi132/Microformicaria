@@ -41,10 +41,18 @@ if (uKind < 0.5 || (uKind > 2.5 && uKind < 3.5)) {            // ---- hangya / u
     float t = uTime*(2.0+3.0*alertv) + lid*1.7;
     float a = sin(t)*0.30*(0.35+alertv)*(1.0-0.6*feed) + sin(t*2.3+1.0)*0.12;
     float b = sin(t*0.8+2.0)*0.18*(0.4+alertv) - 0.5*feed - 0.35*dead;
+    float whip = (act > 0.5 && act < 1.5) ? sin(clamp(iA.w,0.0,1.0)*3.14159) : 0.0;     // támadás: a csáp előrecsapódik és összecsap
+    a += whip * (lid > 0.5 ? 1.0 : -1.0) * 0.5; b -= whip * 0.85;
     p = rotAbout(rotY(a*wt)*rotZ(b*wt), p, aPivot);
   } else if (part > 2.5 && part < 3.5) {           // rágó (nyitás oldalra)
     float sgn = lid > 0.5 ? 1.0 : -1.0;
-    float a = -sgn * iB.y * 0.75;
+    float jaw = iB.y * 0.75;
+    if (act > 0.5 && act < 1.5) {                  // támadás: a rágó kinyílik, majd csattanva zárul, és visszaáll
+      float s = clamp(iA.w, 0.0, 1.0);
+      float snapOpen = mix(0.95, 0.0, smoothstep(0.12, 0.26, s));
+      jaw = mix(snapOpen, iB.y * 0.75, smoothstep(0.6, 1.0, s));
+    }
+    float a = -sgn * jaw;
     p = rotAbout(rotY(a), p, aPivot);
   }
   if ((part > 3.5 && part < 4.5) || part < 0.5) {   // potroh: lélegzés + szúrás/görbítés; a törzs a nyél körül fokozatosan követi (nincs szakadás)
@@ -62,11 +70,15 @@ if (uKind < 0.5 || (uKind > 2.5 && uKind < 3.5)) {            // ---- hangya / u
   p.y += abs(sin(ph))*0.012*mv*uAmp;               // járás közbeni finom emelkedés
   p.z += sin(ph)*0.006*mv;
 } else if (uKind < 1.5) {     // ---- ászka (metachron lábhullám + test hullámzás)
+  float flinch = (act > 6.5 && act < 7.5) ? sin(clamp(iA.w,0.0,1.0)*3.14159) : 0.0;     // találat: a láb megrándul, a test összegömbölyödik
   if (part > 0.5 && part < 1.5) {
     float f = ph + lid*0.95 + (side < 0.0 ? 3.14159 : 0.0);
     float swing = sin(f)*0.50*mv; float lift = max(0.0, cos(f))*0.45*mv;
     if (dead > 0.5) { swing = 0.15*sin(lid*2.0); lift = 1.0 + 0.15*sin(lid*3.1); }
+    swing += flinch*0.3*sin(lid*2.3); lift += flinch*0.7;
     p = rotAbout(rotY(swing*side*wt)*rotX(-side*lift*wt), p, aPivot);
+  } else if (part < 0.5 && flinch > 0.0) {
+    p = rotAbout(rotX(-flinch*0.9), p, aPivot);
   } else if (part > 1.5 && part < 2.5) {
     float t = uTime*3.0; p = rotAbout(rotY(sin(t)*0.35*wt*(1.0-dead))*rotZ(-0.5*dead*wt), p, aPivot);
   }
