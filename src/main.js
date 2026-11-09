@@ -200,8 +200,9 @@ function placeFpvCam(a, dt) {
   G.shake = Math.max(0, (G.shake || 0) - dt * 3.2);
   const chew = (an.feedS || 0) > 0.5 ? Math.sin(G.sim.t * 13) * 0.02 * a.len * an.feedS : 0;
   const jit = G.shake * a.len * 0.12;
-  G.cam.position.copy(G.fpvPos).addScaledVector(up, chew + (Math.random() - 0.5) * jit);
-  G.cam.position.x += (Math.random() - 0.5) * jit; G.cam.up.set(up[0], up[1], up[2]); G.cam.lookAt(fv.t);
+  const off = chew + (Math.random() - 0.5) * jit;                      // az up egy sima tömb (nem Vector3), ezért komponensenként számolunk
+  G.cam.position.set(G.fpvPos.x + up[0] * off + (Math.random() - 0.5) * jit, G.fpvPos.y + up[1] * off, G.fpvPos.z + up[2] * off);
+  G.cam.up.set(up[0], up[1], up[2]); G.cam.lookAt(fv.t);
 }
 // ---- föld alatti felülnézet: belépéskor a fészekbe automatikusan átvált; a hangya továbbra is a játékos irányítása alatt áll
 G.nestCam = { yaw: 0, pitch: 1.38, dist: 24 }; G.nestT = new THREE.Vector3();
