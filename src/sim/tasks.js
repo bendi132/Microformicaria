@@ -9,6 +9,7 @@ import { colonyNeeds, workers, queen, layEgg, broodChamber, restChamber, storeCa
 import { killIsopod } from './isopod.js';
 import { dist, clamp, angDiff, turnToward } from '../core/util.js';
 import { followDir, trailStrength } from './phero.js';
+import { effDir } from './manage.js';
 
 const S = (sim) => SPECIES[sim.speciesId];
 const EN = 10;                                    // 1 táplálékegység = ennyi energiapont
@@ -24,7 +25,7 @@ export function chooseTask(sim, a) {
   if (a.hyd < 34) { if (a.task !== 'drink') setTask(a, 'drink'); return; }
   if (a.energy < 32) { if (a.task !== 'eat') setTask(a, 'eat'); return; }
   if (a.caste === 'queen') return chooseQueen(sim, a);
-  const nd = sim.needs; const dir = c.dir;
+  const nd = sim.needs; const dir = effDir(sim);                    // a játékos csúszkái × az aktív vezetői intézkedések
   const danger = sim.surfaceDanger * dir.caution;                  // 0..1: mennyire veszélyes a felszín
   const hunter = sp.hunt.live || sp.hunt.eggs || sp.hunt.scavenge;
   const young = a.age < 2.5 ? 1.25 : 0.85;
@@ -36,7 +37,7 @@ export function chooseTask(sim, a) {
     water: nd.water * 1.25 * dir.water * (1 - danger * 0.8) * (soldier ? 0.4 : 1),
     nurse: nd.nurse * 1.7 * dir.nurse * young,
     dig: nd.dig * 1.0 * dir.dig * (sp.nest.type === 'soil' ? 1 : 0),
-    repair: nd.repair * 1.6,
+    repair: nd.repair * 1.6 * dir.repair,
     guard: nd.guard * dir.guard * (soldier ? 1.6 : 0.5),
     rest: a.rest < 15 ? 0.9 : 0.12,
   };
@@ -97,6 +98,7 @@ function goHome(sim, a, dt, targetNodeId) {
 }
 function deposit(sim, a) {
   const c = sim.colony, cap = storeCap(sim), cr = a.carry; if (!cr) return;
+  if (c.mg) { const k = cr.kind === 'eggs' ? 'prey' : cr.kind; if (cap[k] !== undefined) { const room = Math.max(0, cap[k] - (c.store[k] || 0)); c.mg.cnt.inc[k] += Math.min(cr.amt, room); if (k !== 'water') c.mg.cnt.wasted += Math.max(0, cr.amt - room); } }   // vezetés: beszerzés és kárba veszett mennyiség
   if (cr.kind === 'prey') c.store.prey = Math.min(cap.prey, c.store.prey + cr.amt);
   else if (cr.kind === 'seed') c.store.seed = Math.min(cap.seed, (c.store.seed || 0) + cr.amt);
   else if (cr.kind === 'sugar') c.store.sugar = Math.min(cap.sugar, c.store.sugar + cr.amt);

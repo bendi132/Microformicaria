@@ -27,4 +27,6 @@ assert.equal(P.foundingMet(sim, 'normal'), workers >= P.FOUND_WORKERS);
 // több dolgozó: teljesül
 while (sim.ants.filter((a) => a.caste !== 'queen' && !a.dead).length < P.FOUND_WORKERS) sim.ants.push({ ...sim.ants.find((a) => a.caste !== 'queen'), id: 99999 + sim.ants.length, dead: false });
 assert.equal(P.foundingMet(sim, 'normal'), true);
+// vezetői döntések XP-je
+const xs = P.defaultState(); P.addXp(xs, 6); P.addXp(xs, -3); P.addXp(xs, 0); assert.equal(xs.xp, 6);
 console.log('progress.test.mjs: OK');

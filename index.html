@@ -115,6 +115,65 @@ kbd{background:#2a2016;border:1px solid #6b5a3e;border-radius:4px;padding:0 5px;
 #digRing.pocket{width:46px;height:46px;margin:-23px 0 0 -23px;border-style:solid}
 @media (max-width:600px){.hgrid{grid-template-columns:1fr}}
 </style>
+<style>
+/* ---- kolónia-vezetés ---- */
+#bMgmt{position:relative}
+#bMgmt.alert{background:rgba(190,110,30,.95);border-color:#ffd27a;animation:mgp 1.1s ease-in-out infinite}
+#bMgmt.alert::after,#bMgmt.note::after{content:"";position:absolute;right:3px;top:3px;width:8px;height:8px;border-radius:50%;background:#ff6a3a;box-shadow:0 0 0 2px rgba(20,12,8,.85)}
+@keyframes mgp{50%{box-shadow:0 0 0 5px rgba(255,200,90,.28)}}
+.mg{position:absolute;right:12px;top:64px;bottom:12px;width:392px;display:none;flex-direction:column;padding:0;overflow:hidden;z-index:4;box-shadow:0 14px 44px rgba(0,0,0,.45)}
+.mg.on{display:flex}.mg section[hidden]{display:none}
+body.mgopen #hud .br{display:none!important}
+.mg-h{display:flex;justify-content:space-between;align-items:center;padding:12px 14px 8px}
+.mg-h b{font:700 18px Georgia,serif;letter-spacing:.04em}.mg-h small{color:var(--dim);margin-left:8px;font-size:12px}.mg-h button{padding:2px 10px}
+.mg-tabs{display:flex;gap:4px;padding:0 10px 8px;border-bottom:1px solid var(--line)}
+.mg-tabs button{flex:1;padding:6px 4px;font-size:13px}.mg-tabs .dot{display:none;width:7px;height:7px;border-radius:50%;background:#ff6a3a;margin-left:5px;vertical-align:middle}
+.mg-body{flex:1;overflow:auto;padding:2px 14px 14px;scrollbar-width:thin;scrollbar-color:#6b5a3e transparent}
+.mg-lbl{display:flex;justify-content:space-between;align-items:baseline;margin:15px 0 7px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+.mg-sm{text-transform:none;letter-spacing:0;font-size:11px;opacity:.85}
+.mg-desc{font-size:12.5px;color:#d9ccb2;margin-top:8px;min-height:2.6em}.mg-empty{font-size:12.5px;color:var(--dim);padding:6px 0}
+.lbar{display:flex;gap:2px;height:14px;border-radius:7px;overflow:hidden;background:#2c2218}.lbar i{display:block;border-radius:3px;min-width:4px;transition:flex .4s}
+.lleg{display:flex;flex-wrap:wrap;gap:4px 13px;margin-top:8px;font-size:12px;color:#d9ccb2}.lleg span{display:inline-flex;align-items:center;gap:5px}.lleg i{width:8px;height:8px;border-radius:2px;display:inline-block}.lleg b{color:var(--fg)}
+.pols{display:flex;flex-wrap:wrap;gap:6px}.pols button{padding:5px 10px;font-size:12.5px;border-radius:15px;display:inline-flex;gap:5px;align-items:center}
+.prow{display:grid;grid-template-columns:24px 1fr 38px;gap:9px;align-items:center;margin:8px 0;padding-left:9px;border-left:3px solid var(--c)}
+.pi{font-size:18px;text-align:center}.pt{display:flex;justify-content:space-between;font-size:13px}.pv{color:var(--fg);font-weight:600;min-width:34px;text-align:right;display:inline-block}
+.pmod{font-style:normal;font-size:11px;padding:0 6px;border-radius:9px;margin-right:6px}.pmod:empty{display:none}
+.up{color:var(--good)}.dn{color:var(--bad)}.pmod.up{background:rgba(143,191,90,.16)}.pmod.dn{background:rgba(217,87,63,.18)}
+.prow input{width:100%;padding:0;margin:3px 0 0;background:transparent;border:0;accent-color:var(--c);height:18px}
+.pc b{display:inline-block;min-width:30px;text-align:center;padding:2px 0;border-radius:10px;background:rgba(255,255,255,.07);font-size:12.5px}
+.mod{display:flex;justify-content:space-between;align-items:center;padding:5px 10px;border-radius:7px;background:rgba(255,255,255,.04);margin:4px 0;font-size:13px}.mod small{color:var(--dim)}
+.srow{display:grid;grid-template-columns:24px 1fr 16px 74px;align-items:center;gap:8px;margin:10px 0}
+.si{font-size:18px;text-align:center}.sn{display:flex;justify-content:space-between;gap:8px;font-size:13px}.sn b{white-space:nowrap}.sn small{color:var(--dim)}
+.sbar{height:7px;background:#2c2218;border-radius:4px;overflow:hidden;margin-top:5px}.sbar i{display:block;height:100%;border-radius:4px;transition:width .4s}
+.trd{font-size:11px;text-align:center;color:var(--dim)}.trd.up{color:var(--good)}.trd.dn{color:var(--bad)}.spk{display:block}
+.short{font-style:normal;font-size:10.5px;padding:0 6px;border-radius:8px;background:rgba(217,87,63,.22);color:#f0a08e;margin-left:4px}
+.mg-note{font-size:12.5px;color:var(--dim);margin-top:6px}
+.repbox{background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:10px;padding:11px 12px;margin-top:6px}
+.rep-h{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:9px}.rep-h b{font:700 15px Georgia,serif}.rep-h small{color:var(--dim)}
+.chips{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.chip{background:rgba(0,0,0,.24);border-radius:8px;padding:6px 8px;display:flex;flex-direction:column}.chip span{font-size:14px}.chip b{font-size:17px}.chip small{color:var(--dim);font-size:11px;line-height:1.25}
+.tips{list-style:none;padding:0;margin:11px 0 0}.tips li{display:flex;gap:8px;font-size:13px;margin:6px 0;color:#e8dcc4}
+.dec{display:flex;gap:10px;margin:9px 0}.dk{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;flex:none;font-weight:700}
+.dk.ok{background:rgba(143,191,90,.25);color:#a9d97a}.dk.no{background:rgba(217,87,63,.25);color:#f08a74}.dk.mid{background:rgba(224,162,74,.22);color:#e8be72}
+.dec b{font-size:13px}.dec small{display:block;color:var(--dim)}.dec p{margin:2px 0 0;font-size:13px;color:#d9ccb2}
+.oldr{display:flex;gap:14px;font-size:12.5px;color:var(--dim);padding:5px 0;border-bottom:1px solid rgba(220,180,120,.1)}.oldr b{color:var(--fg);min-width:52px}
+.evcard{position:absolute;left:50%;top:64px;transform:translateX(-50%);width:min(500px,calc(100vw - 24px));max-height:calc(100vh - 76px);overflow:auto;padding:14px 16px;z-index:6;border-color:rgba(255,210,122,.55);box-shadow:0 12px 44px rgba(0,0,0,.55);animation:evin .28s ease-out}
+@keyframes evin{from{opacity:0;transform:translate(-50%,-10px)}}
+.ev-h{display:flex;gap:12px;align-items:center}.ev-ic{font-size:32px}.ev-h b{font:700 18px Georgia,serif}.ev-h small{display:block;color:var(--acc);font-size:12px}
+.ev-t{margin:9px 0 11px;color:#e8dcc4;font-size:13.5px}.ev-o{display:flex;flex-direction:column;gap:7px}
+.ev-o button{text-align:left;display:flex;flex-direction:column;gap:2px;padding:9px 12px;border-radius:8px}.ev-o button b{font-size:14px}.ev-o button span{color:#cdbf9f;font-size:12.5px}.ev-o button em{font-style:normal;font-size:11.5px;color:var(--acc)}.ev-o button.def{border-style:dashed}
+.ev-bar{height:4px;background:#2c2218;border-radius:2px;margin-top:12px;overflow:hidden}.ev-bar i{display:block;height:100%;background:var(--acc);transition:width .25s linear}.ev-f{font-size:11.5px;color:var(--dim);margin-top:5px}
+.repcard{position:absolute;left:12px;bottom:12px;width:272px;padding:10px 12px;animation:evin2 .3s ease-out}
+@keyframes evin2{from{opacity:0;transform:translateY(8px)}}
+.rc-h{display:flex;justify-content:space-between;align-items:center}.rc-x{padding:0 8px}.rc-s{display:flex;gap:11px;font-size:13px;margin:6px 0;color:#e8dcc4}.rc-t{font-size:12.5px;color:var(--dim)}.rc-o{margin-top:8px;padding:4px 11px;font-size:12.5px}
+@media (max-width:820px),(max-height:520px){
+  .mg{left:6px;right:6px;top:46px;bottom:6px;width:auto}.mg-body{padding:2px 10px 10px}.chips{grid-template-columns:repeat(3,1fr)}
+  .evcard{top:48px;padding:10px 12px}.ev-t{margin:5px 0 7px;font-size:12.5px}.ev-o{display:grid;grid-template-columns:1fr 1fr}.ev-o button{padding:7px 9px}.ev-o button span{font-size:11.5px}
+  .repcard{left:6px;bottom:52px;width:min(262px,70vw)}
+}
+@media (max-width:560px) and (orientation:portrait){.mg{top:150px}.ev-o{display:flex}.evcard{top:150px}}
+body.touch .mg-tabs button,body.touch .mg-h button{min-height:34px}
+@media (max-height:520px) and (orientation:landscape){.mg{left:auto;width:min(430px,64vw)}.mg-h{padding:8px 12px 5px}.mg-h b{font-size:16px}.mg-tabs{padding:0 8px 6px}.mg-tabs button{padding:3px 4px}.mg-lbl{margin:9px 0 5px}.prow{margin:5px 0}.mg-desc{margin-top:5px;min-height:0}.srow{margin:7px 0}}
+</style>
 </head>
 <body>
 <canvas id="gl"></canvas>
@@ -140,9 +199,11 @@ kbd{background:#2a2016;border:1px solid #6b5a3e;border-radius:4px;padding:0 5px;
 <li><kbd>F</kbd> első személy · <kbd>C</kbd> követés be/ki</li>
 <li><kbd>P</kbd> feromonnyomok megjelenítése</li>
 <li><kbd>Szóköz</kbd> szünet · <kbd>1–4</kbd> sebesség</li>
+<li><kbd>M</kbd> kolónia-vezetés (munkaerő, készlet, jelentés)</li>
 <li><kbd>Esc</kbd> menü</li>
 </ul></div></div>
 <div class="htip"><b>Mit irányíthatsz?</b> Közvetlenül csak a kijelölt hangyát vezetheted első személyben (E: fogás, X: ásás). A kolóniát a fő nézetből irányítod: a dolgozók maguktól gyűjtenek és vadásznak, te jelölsz ki célpontokat, és a <b>⛏</b> gombbal a fészekbe kamrát vagy kis kör-kamrát ásatsz.</div>
+<div class="htip"><b>Kolónia-vezetés (📋 / M).</b> Nagyobb kolóniánál te vagy a vezető: a <b>Munkaerő</b> fülön látod, ki mit csinál, és irányelvet vagy prioritásokat állítasz; a <b>Készlet</b> fülön a trendeket; a <b>Jelentés</b> fülön a napi összegzést tanácsokkal. Időnként döntési kártya érkezik (pók, hőség, eső, éhező lárvák…): minden választásnak ára van, az eredményt utólag kiértékeljük, és a jó döntés XP-t ad.</div>
 <div class="hbtn"><button id="helpGo">Kezdés</button><button id="helpBack">← Vissza</button></div>
 </div></section>
 <section id="settings" class="screen"><div class="box card"><h2 style="margin:0 0 6px">Beállítások</h2>
@@ -163,8 +224,7 @@ kbd{background:#2a2016;border:1px solid #6b5a3e;border-radius:4px;padding:0 5px;
   <div class="row"><span class="ic">👑</span><span style="width:22px;color:var(--dim)">⚡</span><div class="bar"><i id="qE"></i></div><span style="width:22px;color:var(--dim)">💧</span><div class="bar"><i id="qH" style="background:var(--water)"></i></div><span style="width:22px;color:var(--dim)">♥</span><div class="bar"><i id="qL" style="background:var(--bad)"></i></div></div>
   <div class="row" style="justify-content:space-between"><span id="hWork">🐜 0</span><span id="hBrood">🥚0 🐛0 🫘0</span><span id="hClim">🌡 – 💧 –</span></div>
   <div class="row"><span class="ic">🍖</span><div class="bar"><i id="sP" style="background:#c0705a"></i></div><span class="ic">🍯</span><div class="bar"><i id="sS" style="background:#e0a24a"></i></div><span class="ic">💧</span><div class="bar"><i id="sW" style="background:var(--water)"></i></div></div></div>
- <div class="tr card"><button id="bPause">⏸</button><button id="bS1" class="on">1×</button><button id="bS2">2×</button><button id="bS4">4×</button><button id="bS8">8×</button><span style="width:8px"></span><button id="bTop" title="Felülnézet (T)">⬒</button><button id="bFollow" title="Kiválasztott hangya követése (C)">🎯</button><button id="bNestV" title="Fészek-metszet (N)">🕳</button><button id="bSave" title="Mentés">💾</button><button id="bMenu" title="Menü">☰</button></div>
- <div class="bl card" id="dirs"></div>
+ <div class="tr card"><button id="bPause">⏸</button><button id="bS1" class="on">1×</button><button id="bS2">2×</button><button id="bS4">4×</button><button id="bS8">8×</button><span style="width:8px"></span><button id="bTop" title="Felülnézet (T)">⬒</button><button id="bFollow" title="Kiválasztott hangya követése (C)">🎯</button><button id="bNestV" title="Fészek-metszet (N)">🕳</button><button id="bMgmt" title="Kolónia-vezetés (M)">📋</button><button id="bSave" title="Mentés">💾</button><button id="bMenu" title="Menü">☰</button></div>
  <div class="bc card" id="tools"><button id="bDig" title="Új kamra ásása: kattints a talajra">⛏</button><span id="digOpts" style="display:none"><select id="digRole"><option value="brood">Fiasítás</option><option value="store">Raktár</option><option value="rest">Pihenő</option></select> <select id="digShape" title="Forma: járat és kamra, vagy csak kis kör-kamra"><option value="tunnel">járat + kamra</option><option value="pocket">kis kör-kamra</option></select> <select id="digDepth"><option value="-5">sekély</option><option value="-10" selected>közepes</option><option value="-16">mély</option></select></span><button id="bPoss" title="Irányítás first personben (F)" disabled>👁</button></div>
  <div class="br card" id="sel"></div></section>
 <section id="fpv" class="screen"><div id="home" style="position:fixed;display:none;color:#ffd27a;font-size:26px;text-shadow:0 0 8px #000;margin:-14px 0 0 -10px;pointer-events:none">⌂</div><div class="cross" id="cross"></div><div class="carry" id="fCarry"></div>

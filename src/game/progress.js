@@ -46,6 +46,8 @@ export function newlyUnlocked(before, after, ids) { return ids.filter((id) => !i
 
 export function addPreyKills(state, n) { if (n > 0) { state.preyKills += n; state.xp += 2 * n; } return state; }
 export function addFounding(state) { state.foundings += 1; state.xp += 30; return state; }
+// Kolónia-vezetés: a döntések kiértékelése XP-t ad (a szimuláció gyűjti: sim.colony.mg.xp)
+export function addXp(state, n) { if (n > 0) state.xp += n; return state; }
 
 // Igaz, ha az aktuális játék most teljesít egy sikeres alapítást (a hívó egyszer ellenőrzi futásonként).
 export function foundingMet(sim, difficulty) {

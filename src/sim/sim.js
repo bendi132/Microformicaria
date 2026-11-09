@@ -15,6 +15,7 @@ import { updateSpringtail } from './springtail.js';
 import { updateSpider } from './spider.js';
 import { initEcology, stepEcology } from './ecology.js';
 import { placeAnt, placeInNode } from './motion.js';
+import { ensureMgmt, stepManage, onNewDay as mgNewDay, modMul } from './manage.js';
 
 export const SAVE_VERSION = 3;
 const H = 0.1;                                   // fix szimulációs lépés (mp)
@@ -29,7 +30,7 @@ export class Sim {
     this.logs = []; this.fx = []; this.stats = { kills: 0, founded: false }; this.queenDead = false; this.over = false; this.preyScarcity = 0; this.surfaceDanger = 0.1; this.threatNearNest = false; this.nestDirty = true;
     this.player = { active: false, antId: 0 }; this.input = freshInput();
     this.env = { t: 0, step: 0, hour: GAME_START_HOUR, day: 0, night: false, dusk: false, dawn: false, temp: 18, tempMean: 19, humidity: 0.55, rain: 0, weather: 'clear', wxLeft: DAY * 0.9, forecast: null, light: 1 };
-    initColony(this); this.needs = colonyNeeds({ ...this, nest: null, brood: [], ants: [], colony: this.colony, speciesId: this.speciesId });
+    initColony(this); ensureMgmt(this); this.needs = colonyNeeds({ ...this, nest: null, brood: [], ants: [], colony: this.colony, speciesId: this.speciesId });
     const q = makeAnt(this, 'queen', this.world.spawn.x, this.world.spawn.z); q.energy = 82; q.hyd = 72; q.loc = 'ground'; this.ants.push(q); placeAnt(this, q);
     this.updateEnv(0); initEcology(this);
     if (this.difficulty === 'easy') seedStarterColony(this);          // Kezdő: kész kis kolónia
@@ -45,7 +46,7 @@ export class Sim {
   groupSize(a, r, prey) { let n = 0; for (const o of this.ants) { if (o === a || o.dead || o.loc !== 'ground' || o.caste === 'queen') continue; if (o.task === 'hunt' && (o.st === 'attack' || o.st === 'approach') && dist(o.x, o.z, a.x, a.z) < r) n++; } return n; }
   // veszély egy helyen (0..1): ébren lévő pókok és ismert pókfészkek
   dangerAt(x, z, a) {
-    let d = 0; const caution = this.colony.dir.caution;
+    let d = 0; const caution = this.colony.dir.caution * modMul(this, 'caution');
     for (const s of this.spiders) {
       if (s.dead) continue; const C = SPIDER.classes[s.cls]; const dd = dist(x, z, s.x, s.z);
       if (s.state !== 'lair') d = Math.max(d, clamp(1 - dd / (C.detect * 1.3), 0, 1)); else if (dd < (s.sac ? 16 : 9)) { const l = this.world.lairs.find((q) => q.id === s.lair); if (l && (l.known || a && a.caste === 'queen' && this.world.lairs.some((q) => q.known))) d = Math.max(d, clamp(0.9 - dd / 18, 0, 0.9) * (0.5 + caution)); }
@@ -101,18 +102,19 @@ export class Sim {
     } else newDew(this.world, this.rng, 4 + this.rng.int(0, 3));
     const lowPrey = this.rng.chance(0.12 * (this.difficulty === 'hard' ? 1.5 : 1));
     this.preyScarcity = lowPrey ? 0.7 : Math.max(0, this.preyScarcity - 0.25);
+    mgNewDay(this);                                  // napi jelentés a vezetői felülethez
   }
   // heves esőben: a mély járatok elöntése és beomlás
   rainDamage(dt) {
     const n = this.nest, e = this.env; if (!n || e.rain < 0.6) return;
     this.rainT = (this.rainT || 0) + dt;
     if (this.rainT > 25) {
-      this.rainT = 0; const rng = this.rng;
+      this.rainT = 0; const rng = this.rng, fm = modMul(this, 'flood');
       if (SPECIES[this.speciesId].nest.type === 'soil') {
         const low = n.nodes.filter((q) => q.kind !== 'entrance' && q.y < -9 && q.flood <= 0);
-        if (low.length && rng.chance(0.25 * (this.difficulty === 'hard' ? 1.4 : 1))) { const q = rng.pick(low); q.flood = 1; this.nestDirty = true; }
+        if (low.length && rng.chance(0.25 * (this.difficulty === 'hard' ? 1.4 : 1) * fm)) { const q = rng.pick(low); q.flood = 1; this.nestDirty = true; this.colony.mg.cnt.floods++; }
         const shallow = n.edges.filter((q) => !q.collapsed && node(n, q.a).y > -6 && node(n, q.b).y > -6 && q.w > 2.4);
-        if (shallow.length && rng.chance(0.18)) { const q = rng.pick(shallow); q.collapsed = true; this.nestDirty = true; this.log('Egy járat beomlott.', 'info'); }
+        if (shallow.length && rng.chance(0.18 * fm)) { const q = rng.pick(shallow); q.collapsed = true; this.nestDirty = true; this.colony.mg.cnt.collapses++; this.log('Egy járat beomlott.', 'info'); }
       }
     }
   }
@@ -131,7 +133,7 @@ export class Sim {
     for (const p of this.isopods) updateIsopod(this, p, dt);
     for (const p of this.springtails) updateSpringtail(this, p, dt);
     for (const s of this.spiders) if (!s.dead) updateSpider(this, s, dt);
-    if (this.env.step % 10 === 0) { this.needs = this.nest ? colonyNeeds(this) : this.needs; this.updateDanger(); }
+    if (this.env.step % 10 === 0) { this.needs = this.nest ? colonyNeeds(this) : this.needs; this.updateDanger(); stepManage(this, dt * 10); }
     for (const a of this.ants) if (!a.dead) updateAnt(this, a, dt);
     if (this.nest) { stepBrood(this, dt); this.rainDamage(dt); this.updateNestEffects(dt); }
     this.colony.store.prey = Math.max(0, this.colony.store.prey - this.colony.store.prey * dt * 0.00008);
@@ -173,7 +175,7 @@ export class Sim {
     const w = this.world; const W = { ...w, moist: Array.from(w.moist) };
     return JSON.stringify({ v: SAVE_VERSION, seed: this.seed, speciesId: this.speciesId, difficulty: this.difficulty, t: this.t, rng: this.rng.getState(), nextId: this.nextId, world: W, nest: this.nest, nestSite: this.nestSite,
       ants: this.ants, isopods: this.isopods, springtails: this.springtails, spiders: this.spiders, clutches: this.clutches, brood: this.brood, colony: this.colony, env: this.env,
-      queenDead: this.queenDead, over: this.over, preyScarcity: this.preyScarcity, logs: this.logs.slice(-40), ecoT: this.ecoT, spiderCheck: this.spiderCheck },
+      queenDead: this.queenDead, over: this.over, preyScarcity: this.preyScarcity, logs: this.logs.slice(-40), ecoT: this.ecoT, spiderCheck: this.spiderCheck, stats: this.stats },
       (k, v) => ((k === 'threat' || k === 'target') && v && typeof v === 'object' && v.kind && v.x !== undefined ? undefined : v));   // élő hivatkozások (zsákmány ↔ ragadozó) körkörösek: betöltéskor úgyis törlődnek
   }
   static deserialize(json) {
@@ -181,7 +183,8 @@ export class Sim {
     const s = new Sim({ _empty: true });
     Object.assign(s, { seed: d.seed, speciesId: d.speciesId, difficulty: d.difficulty, diff: DIFFICULTY[d.difficulty], rng: new RNG(1), nextId: d.nextId, t: d.t, acc: 0, nest: d.nest, nestSite: d.nestSite,
       ants: d.ants, isopods: d.isopods, springtails: d.springtails, spiders: d.spiders, clutches: d.clutches, brood: d.brood, colony: d.colony, env: d.env, queenDead: d.queenDead, over: d.over, preyScarcity: d.preyScarcity,
-      logs: d.logs || [], fx: [], surfaceDanger: 0.1, threatNearNest: false, nestDirty: true, player: { active: false, antId: 0 }, input: freshInput(), ecoT: d.ecoT, spiderCheck: d.spiderCheck });
+      logs: d.logs || [], fx: [], surfaceDanger: 0.1, threatNearNest: false, nestDirty: true, player: { active: false, antId: 0 }, input: freshInput(), ecoT: d.ecoT, spiderCheck: d.spiderCheck, stats: d.stats || { kills: 0, founded: false } });
+    ensureMgmt(s);                                   // régebbi mentés: a vezetői állapot hiányozhat
     s.rng.setState(d.rng); const w = d.world; w.moist = Float32Array.from(w.moist); s.world = w;
     // a hivatkozott entitások (célpontok) azonosító alapján újra feloldódnak
     for (const a of s.ants) { if (a.target && typeof a.target === 'object' && a.target.kind === 'spider') a.target = null; if (a.target && a.target.ref) a.target = null; a.threat = null; }

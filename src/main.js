@@ -15,6 +15,7 @@ import { EnvView } from './render/envview.js';
 import * as Prog from './game/progress.js';
 import { MenuScene } from './render/menu3d.js';
 import { SPECIES_TEXT } from './ui/texts.js';
+import { initMgmt } from './ui/mgmt.js';
 
 const $ = (id) => document.getElementById(id);
 const SAVE_KEY = 'mf.save1', SET_KEY = 'mf.settings';
@@ -114,7 +115,7 @@ async function startGame(opts, loaded) {
   const q = sim.queen; G.orbit.x = q ? q.x : 0; G.orbit.z = q ? q.z : 0; G.orbit.y = 0; G.orbit.dist = 55; G.orbit.pitch = 0.95; G.follow = true; setFollowBtn();
   G.syncKills = sim.stats.kills; G.runFounded = sim.env.day >= Prog.FOUND_DAY;   // előrehaladás: ebben a játékban számolt zsákmány és alapítás
   G.mode = 'game'; G.speed = 1; G.paused = false; G.nestView = false; G.sel = q ? { kind: 'ant', id: q.id } : null; G.fpv = false; G.logIdx = sim.logs.length; G.autoT = 0; G.over = false;
-  buildDirs(sim); setSpeed(1); show('hud'); $('loading').style.display = 'none'; $('bNestV').classList.remove('on'); resize();
+  Mg.attach(sim); G.syncMg = (sim.colony.mg && sim.colony.mg.xp) || 0; setSpeed(1); show('hud'); $('loading').style.display = 'none'; $('bNestV').classList.remove('on'); resize();
   sfxStart();
   G.intro = null;
   if (sim.nest && sim.difficulty === 'easy' && !loaded) {            // Kezdő: a kész fészek egészét mutatjuk először
@@ -123,15 +124,11 @@ async function startGame(opts, loaded) {
     G.intro = { x: sx, z: sz, dist: Math.max(30, rad * 3.0) };
   }
 }
-function disposeGame() { if (G.env) { G.env.dispose(); G.env = null; } if (G.view) { G.view.dispose(); } if (G.layer) G.scene.remove(G.layer.group); G.view = G.layer = G.scene = null; }
+function disposeGame() { Mg.detach(); if (G.env) { G.env.dispose(); G.env = null; } if (G.view) { G.view.dispose(); } if (G.layer) G.scene.remove(G.layer.group); G.view = G.layer = G.scene = null; }
 function quitToMenu() { if (G.fpv) exitFpv(); sfxStop(); disposeGame(); G.mode = 'menu'; G.sim = null; menu.setMode('title'); refreshTitle(); show('title'); }
 
 // ---------------------------------------------------------------- HUD
-function buildDirs(sim) {
-  const sp = SPECIES[sim.speciesId]; const defs = [['hunt', sp.hunt.eggs ? '🥚' : '🎯', 2], ['forage', '🍯', 2], ['water', '💧', 2], ['nurse', '🐛', 2], ['dig', '⛏', 2], ['guard', '🛡', 2], ['caution', '⚠', 1]];
-  $('dirs').innerHTML = defs.map(([k, ic, mx]) => `<div class="dirrow"><span class="ic">${ic}</span><input type="range" min="0" max="${mx}" step="0.05" value="${sim.colony.dir[k]}" data-k="${k}"></div>`).join('');
-  for (const el of $('dirs').querySelectorAll('input')) el.oninput = () => { sim.colony.dir[el.dataset.k] = parseFloat(el.value); };
-}
+// a prioritás-csúszkák és a vezetői felület a src/ui/mgmt.js-ben vannak (📋 gomb / M billentyű)
 function setSpeed(k) { G.speed = k; G.paused = false; for (const [id, v] of [['bS1', 1], ['bS2', 2], ['bS4', 4], ['bS8', 8]]) $(id).classList.toggle('on', v === k); $('bPause').classList.remove('on'); }
 $('bS1').onclick = () => setSpeed(1); $('bS2').onclick = () => setSpeed(2); $('bS4').onclick = () => setSpeed(4); $('bS8').onclick = () => setSpeed(8);
 $('bPause').onclick = () => { G.paused = !G.paused; $('bPause').classList.toggle('on', G.paused); };
@@ -145,12 +142,14 @@ $('bSave').onclick = () => saveGame(true); $('pSave').onclick = () => saveGame(t
 $('bMenu').onclick = () => { G.back = 'game'; show('pause'); G.paused = true; }; $('pResume').onclick = () => { show('hud'); G.paused = false; }; $('pQuit').onclick = () => { saveGame(false); quitToMenu(); };
 $('bPoss').onclick = () => enterFpv();
 function saveGame(msg) { if (!G.sim || G.sim.over) return; try { localStorage.setItem(SAVE_KEY, G.sim.serialize()); if (msg) toast('Mentve', 1200, true); } catch (e) { toast('A mentés nem sikerült.'); } }
-let toastT = 0; function toast(t, ms = 6000, soft) { const el = $('toast'); el.textContent = t; el.style.display = 'block'; el.style.background = soft ? 'rgba(40,70,30,.9)' : 'rgba(120,20,10,.92)'; clearTimeout(toastT); toastT = setTimeout(() => { el.style.display = 'none'; }, ms); }
+let toastT = 0; function toast(t, ms = 6000, soft) { const el = $('toast'); el.textContent = t; el.style.display = 'block'; el.style.background = soft === 'warn' ? 'rgba(112,78,14,.93)' : soft ? 'rgba(40,70,30,.9)' : 'rgba(120,20,10,.92)'; clearTimeout(toastT); toastT = setTimeout(() => { el.style.display = 'none'; }, ms); }
+const Mg = initMgmt({ $, G, toast, setSpeed });
+$('bMgmt').onclick = () => Mg.toggle();
 const pct = (v) => Math.max(0, Math.min(100, v)) + '%';
 const WX = { clear: '☀', cloud: '☁', rain: '🌧', heat: '🔥', cold: '❄' };
 function selEntity() { const s = G.sel; if (!s || !G.sim) return null; const sim = G.sim; const L = { ant: sim.ants, spider: sim.spiders, isopod: sim.isopods, springtail: sim.springtails }[s.kind]; return L && L.find((e) => e.id === s.id && !e.dead) || null; }
 function updateHud() {
-  const sim = G.sim, e = sim.env; const hh = Math.floor(e.hour), mm = Math.floor((e.hour % 1) * 60);
+  const sim = G.sim, e = sim.env; Mg.update(sim); const hh = Math.floor(e.hour), mm = Math.floor((e.hour % 1) * 60);
   const fc = e.forecast ? ` → ${WX[e.forecast.type] || ''}` : '';
   $('hClock').textContent = `Nap ${e.day + 1} · ${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`; $('hWx').textContent = (e.night ? '🌙' : WX[e.weather] || '☀') + fc + ` ${Math.round(e.temp)}°`;
   const q = sim.queen; if (q) { $('qE').style.width = pct(q.energy); $('qH').style.width = pct(q.hyd); $('qL').style.width = pct(q.hp / q.maxHp * 100); } else { $('qE').style.width = $('qH').style.width = $('qL').style.width = '0%'; }
@@ -171,7 +170,7 @@ function updateHud() {
   if (sim.over && !G.over) { G.over = true; G.paused = true; show('pause'); }
 }
 function updateFpvHud() {
-  const sim = G.sim, a = sim.controlTarget(); if (!a) return; $('fE').style.width = pct(a.energy); $('fH').style.width = pct(a.hyd); $('fL').style.width = pct(a.hp / a.maxHp * 100);
+  const sim = G.sim, a = sim.controlTarget(); if (!a) return; Mg.update(sim); $('fE').style.width = pct(a.energy); $('fH').style.width = pct(a.hyd); $('fL').style.width = pct(a.hp / a.maxHp * 100);
   const od = SPECIES[sim.speciesId].id === 'odonto'; $('fMand').style.display = od ? '' : 'none'; $('fM').style.width = pct(a.mand * 100); $('kJ').style.display = od ? '' : 'none'; $('kR').textContent = TOUCH ? (od ? '⌃' : '⌄') : (od ? 'RMB ⌃' : 'RMB ⌄');
   $('fCarry').textContent = a.carry ? { prey: '🍖', sugar: '🍯', water: '💧', eggs: '🥚', soil: '🟤', brood: '🥚' }[a.carry.kind] || '' : '';
   let cls = ''; const tg = a.loc !== 'nest' ? manualTargets(sim, a, Math.max(SPECIES[sim.speciesId].hunt.reach * a.len * 1.4, 3.2)) : [];
@@ -240,7 +239,7 @@ window.addEventListener('keydown', (e) => {
   if ((e.code === 'KeyE' || e.code === 'KeyX') && G.sel && G.sel.kind === 'ant' && !G.dig) { enterFpv(); if (G.fpv) { const inp = G.sim.input; if (e.code === 'KeyE') { inp.use = true; inp.useHold = true; } else inp.digSurf = true; } e.preventDefault(); return; }
   if (e.code === 'KeyP' && G.view) { G.view.pheroOn = !G.view.pheroOn; e.preventDefault(); return; }
   if (e.code === 'KeyT') $('bTop').click(); else if (e.code === 'KeyN') toggleNest(); else if (e.code === 'KeyF') enterFpv(); else if (e.code === 'Space') { $('bPause').click(); e.preventDefault(); }
-  else if (e.code === 'Escape') { if (G.dig) $('bDig').click(); else { show('pause'); G.paused = true; } } else if (e.code === 'KeyC') { G.follow = !G.follow; setFollowBtn(); }
+  else if (e.code === 'KeyM') Mg.toggle(); else if (e.code === 'Escape') { if (Mg.isOpen()) Mg.close(); else if (G.dig) $('bDig').click(); else { show('pause'); G.paused = true; } } else if (e.code === 'KeyC') { G.follow = !G.follow; setFollowBtn(); }
   else if (e.code.startsWith('Digit')) { const v = { 1: 1, 2: 2, 3: 4, 4: 8 }[e.code.slice(5)]; if (v) setSpeed(v); }
 });
 window.addEventListener('keyup', (e) => { const k = KEYMAP[e.code]; if (k) G.keys[k] = false; if (G.fpv && e.code === 'KeyE') G.sim.input.useHold = false; if (G.fpv && e.code === 'KeyX') { G.sim.input.digSurf = false; if (G.topNest) G.sim.input.dig = false; } });
@@ -326,6 +325,7 @@ function progTick() {
   const sim = G.sim; if (!sim || G.mode !== 'game' || sim.over) return;
   const before = { ...prog }; let changed = false; const msgs = [];
   const dk = sim.stats.kills - G.syncKills; if (dk > 0) { G.syncKills = sim.stats.kills; Prog.addPreyKills(prog, dk); changed = true; }
+  { const mx = (sim.colony.mg && sim.colony.mg.xp) || 0; if (mx > G.syncMg) { Prog.addXp(prog, mx - G.syncMg); G.syncMg = mx; changed = true; } }
   if (!G.runFounded && Prog.foundingMet(sim, sim.difficulty)) { G.runFounded = true; Prog.addFounding(prog); changed = true; msgs.push('Sikeres kolóniaalapítás (+30 XP)'); }
   if (!changed) return;
   Prog.save(prog);

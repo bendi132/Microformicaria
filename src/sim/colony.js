@@ -91,10 +91,11 @@ export function stepBrood(sim, dt) {
       if (b.prog >= 1) { b.dead = true; emerge(sim, b, nd); }
     }
   }
+  if (c.mg) { let lost = 0; for (const b of sim.brood) if (b.dead && !b.emerged && !b.cull) lost++; c.mg.cnt.lost += lost; }      // vezetés: elpusztult fióka (nem kikelés, nem áldozat)
   sim.brood = sim.brood.filter((b) => !b.dead);
 }
 function emerge(sim, b, nd) {
-  const sp = SPECIES[sim.speciesId], c = sim.colony;
+  const sp = SPECIES[sim.speciesId], c = sim.colony; b.emerged = true;
   let caste = 'worker';
   if (sp.defend.escape === 'plug') { const sol = sim.ants.filter((a) => !a.dead && a.caste === 'soldier').length, wk = sim.ants.filter((a) => !a.dead && a.caste === 'worker').length; if (sol === 0 || sol < wk / 4) caste = 'soldier'; }
   const a = makeAnt(sim, caste, nd.x, nd.z); a.loc = 'nest'; a.node = nd.id; a.energy = 70; a.hyd = 75; placeInNode(sim, a); a.task = 'idle'; a.age = 0;

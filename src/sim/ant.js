@@ -21,7 +21,7 @@ export function damageAnt(sim, a, dmg, by) {
 export function killAnt(sim, a, by) {
   if (a.dead) return; a.dead = true; a.task = 'dead';
   if (a.caste === 'queen') { sim.log(`A KIRÁLYNŐ elpusztult (${by || 'ismeretlen ok'}). A kolónia nem szaporodhat tovább.`, 'critical'); sim.queenDead = true; }
-  else sim.log(`Egy ${a.caste === 'soldier' ? 'katona' : 'dolgozó'} elpusztult (${by || '–'}).`, 'bad', a.id);
+  else { sim.log(`Egy ${a.caste === 'soldier' ? 'katona' : 'dolgozó'} elpusztult (${by || '–'}).`, 'bad', a.id); if (sim.colony.mg) sim.colony.mg.cnt.died++; }
   if (a.carry) a.carry = null;
   if (sim.nest && sim.nest.plug.by === a.id) { sim.nest.plug.active = false; sim.nest.plug.by = null; }
 }
