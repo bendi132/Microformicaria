@@ -2,11 +2,11 @@
 //  • járás  – folyamatos, vágatlan hurok: a kamera közelében mozgó hangyák száma és távolsága szabja a hangerejét
 //  • peterakás – a királynő petézésekor (térbeli: távolodva halkul, a képernyő szélén oldalra tolódik)
 //  • állkapocs-csattanás – amikor egy hangya elejti (megöli) a zsákmányt; a felvétel kicsit lehalkítva
-//  • tücsökciripelés – általános háttér; este/éjjel hangosabb, esőben halkabb, föld alatt tompább
+//  • madár- és tücsökzaj – általános természeti háttér (assets/sfx/ambient.mp3); este/éjjel hangosabb, esőben halkabb, föld alatt tompább
 // A fájlok: assets/sfx/*.wav  (a járás és a peterakás kódból generált: tools/gen_sfx.py)
 import * as THREE from 'three';
 
-const FILES = { walk: 'assets/sfx/walk.wav', lay: 'assets/sfx/lay.wav', snap: 'assets/sfx/snap.wav', crickets: 'assets/sfx/crickets.wav' };
+const FILES = { walk: 'assets/sfx/walk.wav', lay: 'assets/sfx/lay.wav', snap: 'assets/sfx/snap.wav', crickets: 'assets/sfx/ambient.mp3' };
 const WALK_LOOP = [0.55, 6.45];            // a hurok az elejének és végének csendje nélkül (lásd gen_sfx.py)
 const SNAP_GAIN = 0.5;                      // "egy kicsit lehalkítva"
 const REF = { walk: 30, lay: 22, snap: 30 };   // mm: ennél közelebb teljes hangerő

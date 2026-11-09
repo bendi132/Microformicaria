@@ -61,7 +61,7 @@ A méz / növényi nedv csak a Cephalotes fáján (törzs, ágak) található; a
 
 ## Hangeffektek
 
-- `assets/sfx/walk.wav`, `lay.wav`: kódból generált (`tools/gen_sfx.py`), 48 kHz / 24 bit / mono, előtte-utána csenddel. `crickets.wav`: a mellékelt felvétel utolsó 2 mp-e levágva, varratmentes hurokká alakítva. `snap.wav`: a mellékelt állkapocs-csattanás, kicsit lehalkítva (0,5×).
+- `assets/sfx/walk.wav`, `lay.wav`: kódból generált (`tools/gen_sfx.py`), 48 kHz / 24 bit / mono, előtte-utána csenddel. `ambient.mp3`: a mellékelt madár- és tücskökfelvétel (39 mp), a végének és elejének 2 mp-es átkeverésével varratmentes, 36,95 mp-es hurokká alakítva (160 kbps MP3). `snap.wav`: a mellékelt állkapocs-csattanás, kicsit lehalkítva (0,5×).
 - A járás folyamatos hurok; a kamera közelében mozgó hangyák száma/távolsága szabja a hangerőt, az irányított hangya sprintelve gyorsabb. A peterakás és a csattanás térbeli (távolság, oldalirány). A tücsök a játék alatt szól: este erősebb, esőben halkabb, föld alatt tompább.
 - Beállítások: "Hangeffektek" és "Háttérzene" (Ki / Halk / Közepes / Hangos).
 

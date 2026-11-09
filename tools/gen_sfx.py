@@ -142,7 +142,6 @@ def gen_cricket(src, cut_end=2.0, sr=24000):
     f = np.linspace(0, 1, c)
     y[-c:] = x[-c:] * np.cos(f * np.pi / 2) + x[:c] * np.sin(f * np.pi / 2)
     y *= 0.8 / np.max(np.abs(y))
-    write_wav(os.path.join(OUT, 'crickets.wav'), y, sr, 16)
     return len(y) / sr
 
 
