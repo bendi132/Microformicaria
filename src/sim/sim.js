@@ -31,7 +31,7 @@ export class Sim {
     this.player = { active: false, antId: 0 }; this.input = freshInput();
     this.env = { t: 0, step: 0, hour: GAME_START_HOUR, day: 0, night: false, dusk: false, dawn: false, temp: 18, tempMean: 19, humidity: 0.55, rain: 0, weather: 'clear', wxLeft: DAY * 0.9, forecast: null, light: 1 };
     initColony(this); ensureMgmt(this); this.needs = colonyNeeds({ ...this, nest: null, brood: [], ants: [], colony: this.colony, speciesId: this.speciesId });
-    const q = makeAnt(this, 'queen', this.world.spawn.x, this.world.spawn.z); q.energy = 82; q.hyd = 72; q.loc = 'ground'; this.ants.push(q); placeAnt(this, q);
+    const q = makeAnt(this, 'queen', this.world.spawn.x, this.world.spawn.z); q.energy = 100; q.hyd = 90; q.loc = 'ground'; this.ants.push(q); placeAnt(this, q);
     this.updateEnv(0); initEcology(this);
     if (this.difficulty === 'easy') seedStarterColony(this);          // Kezdő: kész kis kolónia
     this.needs = this.nest ? colonyNeeds(this) : { protein: 0.6, sugar: 0.5, water: 0.6, nurse: 0, dig: 0, repair: 0, guard: 0.1 };

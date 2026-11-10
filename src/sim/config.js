@@ -24,7 +24,7 @@ export const SPECIES = {
     hunt: { live: true, scavenge: true, style: 'sting', reach: 0.55, base: 0.62, maxRatio: 1.25, group: 0.9, cooldown: 2.4, energyCost: 0.9, injury: 0.05, crevice: 1.0, armorPierce: 0.45, paralyze: 3.0 },
     defend: { armor: 1.0, dodge: 0.10, stealth: 0.55, fight: { dmg: 1.3, rate: 0.42, range: 0.7 }, group: 4, escape: 'hide', flee: 1.35 },
     nest: { type: 'soil', tunnelW: 1.5, chamberR: 3.2, maxChambers: 7, digRate: 0.55, entranceW: 1.4 },
-    brood: { egg: 2.0, larva: 4.5, pupa: 3.5, layEvery: 0.55, eggCost: 4, larvaNeed: 7, firstWorkers: 2 },
+    brood: { egg: 1.1, larva: 2.5, pupa: 1.9, layEvery: 0.33, eggCost: 2, larvaNeed: 3, firstWorkers: 4 },
     needs: { energyDrain: 30, waterDrain: 26, humOpt: [0.45, 0.8], tempOpt: [18, 27] },
     capacity: 36, health: { queen: 100, worker: 70 }, carry: 5, crop: { queen: 30, worker: 9 },
     colorWorker: 0x1a1512,
@@ -38,7 +38,7 @@ export const SPECIES = {
     hunt: { live: false, scavenge: false, style: 'bite', reach: 0.5, base: 0.22, maxRatio: 0.5, group: 0.5, cooldown: 3.4, energyCost: 0.8, injury: 0.02, crevice: 0.5, armorPierce: 0.2, paralyze: 0 },
     defend: { armor: 0.55, dodge: 0.12, stealth: 0.8, fight: { dmg: 0.7, rate: 0.3, range: 0.6 }, group: 3, escape: 'plug', flee: 1.2 },
     nest: { type: 'tree', tunnelW: 3.2, chamberR: 4.5, maxChambers: 5, digRate: 0.0, entranceW: 3.6 },
-    brood: { egg: 3.0, larva: 6.0, pupa: 5.0, layEvery: 0.7, eggCost: 6, larvaNeed: 10, firstWorkers: 2 },
+    brood: { egg: 1.7, larva: 3.3, pupa: 2.8, layEvery: 0.42, eggCost: 2, larvaNeed: 4, firstWorkers: 4 },
     needs: { energyDrain: 26, waterDrain: 22, humOpt: [0.35, 0.7], tempOpt: [22, 32] },
     capacity: 28, health: { queen: 110, worker: 90, soldier: 130 }, carry: 7, crop: { queen: 32, worker: 12 },
     colorWorker: 0x7a5636,
@@ -52,7 +52,7 @@ export const SPECIES = {
     hunt: { live: true, scavenge: true, style: 'snap', reach: 0.42, base: 0.80, maxRatio: 1.05, group: 1.1, cooldown: 4.2, energyCost: 1.6, injury: 0.07, crevice: 0.3, armorPierce: 0.8, paralyze: 0 },
     defend: { armor: 0.85, dodge: 0.30, stealth: 0.2, fight: { dmg: 3.4, rate: 0.5, range: 0.5 }, group: 3, escape: 'jump', flee: 1.7 },
     nest: { type: 'soil', tunnelW: 3.6, chamberR: 4.8, maxChambers: 8, digRate: 0.5, entranceW: 3.4 },
-    brood: { egg: 2.5, larva: 5.0, pupa: 4.0, layEvery: 0.6, eggCost: 6, larvaNeed: 12, firstWorkers: 2 },
+    brood: { egg: 1.4, larva: 2.8, pupa: 2.2, layEvery: 0.36, eggCost: 2, larvaNeed: 5, firstWorkers: 4 },
     needs: { energyDrain: 32, waterDrain: 28, humOpt: [0.4, 0.75], tempOpt: [20, 30] },
     capacity: 40, health: { queen: 100, worker: 80 }, carry: 9, crop: { queen: 36, worker: 14 },
     colorWorker: 0xffffff,
@@ -66,7 +66,7 @@ export const SPECIES = {
     hunt: { live: false, eggs: true, scavenge: false, style: 'egg', reach: 0.5, base: 0.0, maxRatio: 0.0, group: 0, cooldown: 2.2, energyCost: 0.7, injury: 0.0, crevice: 1.0, armorPierce: 0.3, paralyze: 0 },
     defend: { armor: 1.0, dodge: 0.12, stealth: 0.7, fight: { dmg: 1.0, rate: 0.35, range: 0.6 }, group: 5, escape: 'hide', flee: 1.3 },
     nest: { type: 'soil', tunnelW: 1.6, chamberR: 3.2, maxChambers: 6, digRate: 0.5, entranceW: 1.5 },
-    brood: { egg: 2.2, larva: 5.0, pupa: 3.8, layEvery: 0.65, eggCost: 4, larvaNeed: 8, firstWorkers: 2 },
+    brood: { egg: 1.2, larva: 2.8, pupa: 2.1, layEvery: 0.39, eggCost: 2, larvaNeed: 3, firstWorkers: 4 },
     needs: { energyDrain: 28, waterDrain: 26, humOpt: [0.5, 0.85], tempOpt: [17, 26] },
     capacity: 24, health: { queen: 100, worker: 65 }, carry: 6, crop: { queen: 28, worker: 8 },
     colorWorker: 0x120f0d,
@@ -80,7 +80,7 @@ export const SPECIES = {
     hunt: { live: true, scavenge: true, style: 'bite', reach: 0.5, base: 0.35, maxRatio: 0.9, group: 0.9, cooldown: 3.0, energyCost: 1.0, injury: 0.05, crevice: 0.4, armorPierce: 0.45, paralyze: 0 },
     defend: { armor: 0.9, dodge: 0.22, stealth: 0.25, fight: { dmg: 1.8, rate: 0.45, range: 0.55 }, group: 4, escape: 'hide', flee: 1.6 },
     nest: { type: 'soil', tunnelW: 2.6, chamberR: 4.6, maxChambers: 8, digRate: 0.55, entranceW: 2.6 },
-    brood: { egg: 2.4, larva: 5.5, pupa: 4.0, layEvery: 0.6, eggCost: 5, larvaNeed: 9, firstWorkers: 2 },
+    brood: { egg: 1.3, larva: 3.0, pupa: 2.2, layEvery: 0.36, eggCost: 2, larvaNeed: 4, firstWorkers: 4 },
     needs: { energyDrain: 24, waterDrain: 5, waterScale: 0.22, humOpt: [0.06, 0.75], tempOpt: [20, 36] },
     diet: { seeds: true },
     capacity: 40, health: { queen: 110, worker: 75 }, carry: 1.6, crop: { queen: 30, worker: 10 },
@@ -129,9 +129,9 @@ export const SPIDER = {
 export const SCORPION = { max: { easy: 1, normal: 1, hard: 2 }, startChance: { easy: 0.35, normal: 0.55, hard: 0.8 }, moveSpell: [1.2, 3.0], pauseSpell: [1.5, 5.0], nightOnly: 0.92 };
 
 export const DIFFICULTY = {
-  easy:   { name: 'Kezdő',  lairs: 1, spiderMax: 1, sizeBias: -0.3, isopods: 1.25, drain: 0.8, spawnPerDay: 0.35 },
-  normal: { name: 'Normál',  lairs: 2, spiderMax: 2, sizeBias: 0.0,  isopods: 1.0,  drain: 1.0, spawnPerDay: 0.6 },
-  hard:   { name: 'Nehéz',   lairs: 3, spiderMax: 3, sizeBias: 0.25, isopods: 0.8,  drain: 1.2, spawnPerDay: 0.9 },
+  easy:   { name: 'Kezdő',  lairs: 1, spiderMax: 1, sizeBias: -0.3, isopods: 1.25, drain: 0.5, spawnPerDay: 0.35 },
+  normal: { name: 'Normál',  lairs: 1, spiderMax: 1, sizeBias: 0.0,  isopods: 1.0,  drain: 0.6, spawnPerDay: 0.6 },
+  hard:   { name: 'Nehéz',   lairs: 3, spiderMax: 3, sizeBias: 0.25, isopods: 0.8,  drain: 0.85, spawnPerDay: 0.9 },
 };
 
 export const TASKS = ['hunt', 'forage', 'water', 'nurse', 'dig', 'repair', 'guard'];
