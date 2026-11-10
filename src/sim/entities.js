@@ -1,5 +1,5 @@
 // Entitás-gyárak: hangya, ászka, pók, fiasítás. Minden mező egyszerű adat (mentheto JSON).
-import { SPECIES, ISOPOD, ELEODES, SPIDER, SPRINGTAIL, DAY } from './config.js';
+import { SPECIES, ISOPOD, ELEODES, SPIDER, SPRINGTAIL, MEALWORM, DAY } from './config.js';
 
 const ANIM = () => ({ phase: 0, mv: 0, act: 0, actT: 0, head: 0, open: 0, curl: 0, alert: 0 });
 
@@ -28,6 +28,17 @@ export function makeIsopod(sim, cls, x, z, hidden = true) {
     id: sim.nextId++, kind: 'isopod', cls, len, x, y: 0, z, yaw: sim.rng.range(0, 6.28), hp, maxHp: hp, armor: c.armor * sim.rng.range(0.85, 1.15), speed: c.speed * sim.rng.range(0.85, 1.15),
     food, foodLeft: food, state: hidden ? 'hidden' : 'forage', cover: null, tmr: sim.rng.range(2, 12), tx: x, tz: z, alert: 0, dry: 0, dead: false, fresh: 1, held: 0, para: 0,
     anim: ANIM(), moved: 0, threat: null, wild: sim.rng.range(0.7, 1.3), sp: desert ? 'eleodes' : 'isopod',
+  };
+}
+
+// lisztkukac: az ászka-rendszer egyik változata (sp = 'mealworm'): ártalmatlan, lassú, nagy és puha, ezért nagy táplálékérték, de csak csoportban könnyű legyőzni
+export function makeMealworm(sim, x, z, hidden = false) {
+  const len = sim.rng.range(MEALWORM.len[0], MEALWORM.len[1]); const food = Math.pow(len, 3) * MEALWORM.energyPerMm3;
+  const hp = MEALWORM.hp * (len / 21);
+  return {
+    id: sim.nextId++, kind: 'isopod', cls: 'worm', len, x, y: 0, z, yaw: sim.rng.range(0, 6.28), hp, maxHp: hp, armor: MEALWORM.armor, speed: MEALWORM.speed * sim.rng.range(0.85, 1.15),
+    food, foodLeft: food, state: hidden ? 'hidden' : 'forage', cover: null, tmr: sim.rng.range(2, 12), tx: x, tz: z, alert: 0, dry: 0, dead: false, fresh: 1, held: 0, para: 0,
+    anim: ANIM(), moved: 0, threat: null, wild: sim.rng.range(0.7, 1.3), sp: 'mealworm',
   };
 }
 

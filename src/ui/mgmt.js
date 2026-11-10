@@ -115,6 +115,7 @@ export function initMgmt({ $, G, toast, setSpeed }) {
       <div class="srow"><span class="si">🐜</span><div class="sm"><div class="sn"><span>Dolgozók${soldiers ? ` <small>(ebből ${soldiers} katona)</small>` : ''}</span><b>${L.total}</b></div></div><span></span>${spark(mg.samples.map((s) => s.w), '#e0c890')}</div>
       <div class="srow"><span class="si">🥚</span><div class="sm"><div class="sn"><span>Fiasítás <small>🥚${c('egg')} 🐛${c('larva')} 🫘${c('pupa')}</small></span><b>${sim.brood.length}</b></div></div><span></span>${spark(mg.samples.map((s) => s.b), '#bf9ad6')}</div>
       <div class="srow"><span class="si">🏠</span><div class="sm"><div class="sn"><span>Kamrák kihasználtsága</span><b>${cap.brood.used} / ${cap.brood.cap}</b></div><div class="sbar"><i style="width:${bp}%;background:${bp > 85 ? '#d9573f' : '#8fbf5a'}"></i></div></div><span></span><span style="width:74px"></span></div>
+      ${(() => { const m = M.moldOf(sim).max; return m > 0.04 ? `<div class="srow"><span class="si">🍄</span><div class="sm"><div class="sn"><span>Penész${m > 0.28 ? ' <em class="short">veszély</em>' : ''}</span><b>${Math.round(m * 100)}%</b></div><div class="sbar"><i style="width:${Math.min(100, m * 100)}%;background:${m > 0.45 ? '#c0503a' : m > 0.28 ? '#d6b23a' : '#8fbf5a'}"></i></div></div><span></span><span style="width:74px"></span></div>` : ''; })()}
       <div class="mg-note">Kamrák: <b>${cap.chambers}</b> / ${cap.maxChambers}${cap.building ? ` · ${cap.building} épül` : ''}. Új kamra: ⛏ eszköz.</div>`);
   }
   function repHtml(r) {

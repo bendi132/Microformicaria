@@ -1,7 +1,7 @@
 // Ászkák: önálló, nedvességkedvelő, főleg éjszaka aktív talajlakók. Kövek, rönkök és moha alatt keresnek menedéket.
 // bio: ászkák korhadékot esznek, kiszáradásra érzékenyek, fényt és szárazságot kerülnek, többnyire éjszaka aktívak.
 // game: a menekülés / búvóhely-keresés és az aktivitási ciklus egyszerűsített szabályokra épül.
-import { ISOPOD, DAY } from './config.js';
+import { ISOPOD, MEALWORM, DAY } from './config.js';
 import { steerGround, stepGait } from './motion.js';
 import { moistureAt, nearestCover, heightAt } from './world.js';
 import { dist, clamp } from '../core/util.js';
@@ -14,12 +14,13 @@ export function updateIsopod(sim, p, dt) {
   p.tmr -= dt; p.alert = Math.max(0, p.alert - dt);
   if (p.held > 0) { p.held -= dt; return; }                         // ragadozó szorítja
   if (p.para > 0) { p.para -= dt; if (p.para <= 0 && p.hp > 0) p.state = 'forage'; return; }   // a fullánk bénítása
-  const activity = env.night ? 1 : env.dusk ? 0.65 : 0.18;           // aktivitás (game: éjszakai mintázat)
+  const worm = p.sp === 'mealworm';
+  const activity = worm ? 0.55 : env.night ? 1 : env.dusk ? 0.65 : 0.18;           // aktivitás (game: éjszakai mintázat; a lisztkukac napszaktól függetlenül kóborol)
   // ---- fenyegetés érzékelése (0.35 mp-enként)
   p.sense = (p.sense || 0) - dt;
   if (p.sense <= 0) {
     p.sense = 0.35; let thr = null, td = 1e9;
-    const R = ISOPOD.senses * (p.state === 'hidden' ? 0.5 : 1);
+    const R = (worm ? MEALWORM.senses : ISOPOD.senses) * (p.state === 'hidden' ? 0.5 : 1);
     for (const s of sim.spiders) { if (s.dead || s.state === 'lair') continue; const d = dist(p.x, p.z, s.x, s.z); if (d < R * 1.8 && d < td) { td = d; thr = s; } }
     for (const a of sim.ants) { if (a.dead || a.loc !== 'ground') continue; const hunting = a.task === 'hunt' && (a.st === 'approach' || a.st === 'attack'); const d = dist(p.x, p.z, a.x, a.z); if (hunting && d < R && d < td) { td = d; thr = a; } }
     p.threat = thr;
@@ -34,7 +35,7 @@ export function updateIsopod(sim, p, dt) {
     }
     case 'forage': {
       if (activity < 0.3 && rng.chance(dt * 0.15)) { p.state = 'seek'; break; }
-      const m = p.sp === 'eleodes' ? 0.6 : moistureAt(w, p.x, p.z);           // a sötétbogár kiszáradás-tűrő
+      const m = p.sp === 'eleodes' || worm ? 0.6 : moistureAt(w, p.x, p.z);           // a sötétbogár és a lisztkukac kiszáradás-tűrő
       p.dry = clamp(p.dry + (m < 0.3 ? dt * (0.3 - m) * 4 : -dt * 0.6), 0, 120);
       if (p.dry > 60) p.hp -= dt * 0.18 * (1 - p.armor * 0.3);      // kiszáradás
       if (p.dry > 20 && m < 0.28 && p.tmr > 1) { const c = nearestCover(w, p.x, p.z, 80); if (c) { p.tx = c.cover.x; p.tz = c.cover.z; p.tmr = 1; p.state = 'seek'; break; } }
@@ -42,7 +43,7 @@ export function updateIsopod(sim, p, dt) {
         p.tmr = rng.range(4, 12);
         // nedvesebb hely felé hajlik
         let bx = p.x, bz = p.z, bm = -1;
-        for (let k = 0; k < 4; k++) { const a = rng.range(0, 6.28), r = rng.range(6, 22); const x = clamp(p.x + Math.cos(a) * r, -w.half + 4, w.half - 4), z = clamp(p.z + Math.sin(a) * r, -w.half + 4, w.half - 4); const mm = p.sp === 'eleodes' ? rng.next() : moistureAt(w, x, z); if (mm > bm) { bm = mm; bx = x; bz = z; } }
+        for (let k = 0; k < 4; k++) { const a = rng.range(0, 6.28), r = worm ? rng.range(2, 8) : rng.range(6, 22); const x = clamp(p.x + Math.cos(a) * r, -w.half + 4, w.half - 4), z = clamp(p.z + Math.sin(a) * r, -w.half + 4, w.half - 4); const mm = p.sp === 'eleodes' || worm ? rng.next() : moistureAt(w, x, z); if (mm > bm) { bm = mm; bx = x; bz = z; } }
         p.tx = bx; p.tz = bz;
       }
       steerGround(sim, p, p.tx, p.tz, p.speed * 0.55 * (p.wild), dt, { turnRate: 3 });
@@ -63,7 +64,7 @@ export function updateIsopod(sim, p, dt) {
         if (c) { tx = c.cover.x; tz = c.cover.z; }
         else { const a = Math.atan2(p.x - thr.x, p.z - thr.z); tx = p.x + Math.sin(a) * 20; tz = p.z + Math.cos(a) * 20; }
       } else { tx = p.tx; tz = p.tz; }
-      steerGround(sim, p, tx, tz, p.speed * ISOPOD.flee, dt, { turnRate: 7, ignoreObstacles: false }); p.anim.mv = 1;
+      steerGround(sim, p, tx, tz, p.speed * (worm ? MEALWORM.flee : ISOPOD.flee), dt, { turnRate: worm ? 3 : 7, ignoreObstacles: false }); p.anim.mv = 1;
       const hid = nearestCover(w, p.x, p.z, 3);
       if (hid && dist(p.x, p.z, hid.cover.x, hid.cover.z) < hid.cover.r * 0.6) { p.state = 'hidden'; p.cover = hid.cover.id; p.tmr = rng.range(10, 30); p.anim.mv = 0; }
       else if (p.tmr <= 0 && !(thr && dist(p.x, p.z, thr.x, thr.z) < ISOPOD.senses)) { p.state = 'forage'; p.tmr = 3; }
@@ -71,6 +72,7 @@ export function updateIsopod(sim, p, dt) {
     }
   }
   if (p.sp === 'eleodes') stepGait(p, dt, 19, p.moved || 0, 0.22);     // sötétbogár: tripod-járás, lépéshossz ≈0,16 testhossz → a lábütem a sebességhez igazodik
+  else if (worm) { p.anim.phase += p.moved * 0.9 / Math.max(2, p.len) * 6 + dt * 0.4 * (p.anim.mv > 0.1 ? 1 : 0); p.anim.mv += ((p.moved > 0.001 ? 1 : 0) - p.anim.mv) * Math.min(1, dt * 4); }
   else { p.anim.phase += p.moved * 1.9 / Math.max(2, p.len) * 3; p.anim.mv += ((p.moved > 0.001 ? 1 : 0) - p.anim.mv) * Math.min(1, dt * 6); }
   p.y = heightAt(w, p.x, p.z);
 }

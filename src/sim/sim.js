@@ -4,9 +4,9 @@ import { RNG } from '../core/rng.js';
 import { decay as pheroDecay } from './phero.js';
 import { clamp, dist } from '../core/util.js';
 import { SPECIES, DIFFICULTY, DAY, GAME_START_HOUR, SPIDER, ISOPOD, CLIMATE } from './config.js';
-import { createWorld, stepWorld, newDew, moistureAt, heightAt, limbPoint, seedAt } from './world.js';
+import { createWorld, stepWorld, newDew, moistureAt, heightAt, limbPoint, seedAt, upgradeWorld, territoryFor } from './world.js';
 import { seedStarterColony } from './starter.js';
-import { createNest, addDigJob, updateClimate, node, chambers } from './nest.js';
+import { createNest, addDigJob, updateClimate, moldStep, node, chambers } from './nest.js';
 import { makeAnt } from './entities.js';
 import { initColony, colonyNeeds, stepBrood, queen, workers, storeCap } from './colony.js';
 import { updateAnt, entrancePos } from './ant.js';
@@ -128,16 +128,30 @@ export class Sim {
   step(dt) {
     this.t += dt; this.updateEnv(dt);
     stepWorld(this.world, dt, this.env); this.desertRain(dt); if (this.env.step % 10 === 0) pheroDecay(this, dt * 10);
-    if (this.nest && this.env.step % 10 === 0) updateClimate(this.nest, this.world, this.env, dt * 10, SPECIES[this.speciesId]);
+    if (this.nest && this.env.step % 10 === 0) { updateClimate(this.nest, this.world, this.env, dt * 10, SPECIES[this.speciesId]); this.stepMold(dt * 10); }
     stepEcology(this, dt);
     for (const p of this.isopods) updateIsopod(this, p, dt);
     for (const p of this.springtails) updateSpringtail(this, p, dt);
     for (const s of this.spiders) if (!s.dead) updateSpider(this, s, dt);
-    if (this.env.step % 10 === 0) { this.needs = this.nest ? colonyNeeds(this) : this.needs; this.updateDanger(); stepManage(this, dt * 10); }
+    if (this.env.step % 10 === 0) { this.needs = this.nest ? colonyNeeds(this) : this.needs; this.updateDanger(); this.growTerritory(); stepManage(this, dt * 10); }
     for (const a of this.ants) if (!a.dead) updateAnt(this, a, dt);
     if (this.nest) { stepBrood(this, dt); this.rainDamage(dt); this.updateNestEffects(dt); }
     this.colony.store.prey = Math.max(0, this.colony.store.prey - this.colony.store.prey * dt * 0.00008);
     this.cleanup(); this.checkEnd();
+  }
+  // penész: a takarítás a dolgozók számával és a vezetői 'hygiene' módosítóval nő; az erősen penészes raktár a készletet is rontja
+  stepMold(dt) {
+    const n = this.nest, c = this.colony; if (!n) return; const W = workers(this).length; const cap = storeCap(this);
+    const clean = (0.0003 + 0.00004 * Math.min(40, W)) * modMul(this, 'hygiene');
+    this.full = c.store.prey > cap.prey * 0.8 || c.store.sugar > cap.sugar * 0.8;
+    moldStep(n, this, dt, clean);
+    let m = 0; for (const nd of n.nodes) if (nd.kind === 'chamber' && nd.role === 'store') m = Math.max(m, nd.mold || 0);
+    if (m > 0.4 && c.mg) { const k = dt * 0.0007 * (m - 0.3); for (const key of ['prey', 'sugar', 'seed']) { const lost = (c.store[key] || 0) * k; c.store[key] = (c.store[key] || 0) - lost; c.mg.cnt.spoiled = (c.mg.cnt.spoiled || 0) + lost; } }
+  }
+  // a játszható terület a kolónia méretével nő (a világ már megvan, csak megnyílik); soha nem csökken
+  growTerritory() {
+    const w = this.world; const h = territoryFor(workers(this).length);
+    if (h > w.half) { w.half = h; this.log(`🗺 A kolónia területe megnőtt: ${(h * 2 / 10).toFixed(0)}×${(h * 2 / 10).toFixed(0)} cm lett a bejárható rész.`, 'territory'); this.event('expand', { half: h }); }
   }
   // sivatagi eső: csak ilyenkor keletkeznek (kevés, gyorsan párolgó) tócsák
   desertRain(dt) {
@@ -185,7 +199,7 @@ export class Sim {
       ants: d.ants, isopods: d.isopods, springtails: d.springtails, spiders: d.spiders, clutches: d.clutches, brood: d.brood, colony: d.colony, env: d.env, queenDead: d.queenDead, over: d.over, preyScarcity: d.preyScarcity,
       logs: d.logs || [], fx: [], surfaceDanger: 0.1, threatNearNest: false, nestDirty: true, player: { active: false, antId: 0 }, input: freshInput(), ecoT: d.ecoT, spiderCheck: d.spiderCheck, stats: d.stats || { kills: 0, founded: false } });
     ensureMgmt(s);                                   // régebbi mentés: a vezetői állapot hiányozhat
-    s.rng.setState(d.rng); const w = d.world; w.moist = Float32Array.from(w.moist); s.world = w;
+    s.rng.setState(d.rng); const w = d.world; w.moist = Float32Array.from(w.moist); upgradeWorld(w, d.seed); s.world = w;      // régebbi mentés: nedvességrács és külső gyűrű pótlása
     // a hivatkozott entitások (célpontok) azonosító alapján újra feloldódnak
     for (const a of s.ants) { if (a.target && typeof a.target === 'object' && a.target.kind === 'spider') a.target = null; if (a.target && a.target.ref) a.target = null; a.threat = null; }
     for (const p of s.isopods) p.threat = null; for (const p of s.springtails) p.threat = null;

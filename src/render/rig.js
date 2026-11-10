@@ -107,6 +107,36 @@ if (uKind < 0.5 || (uKind > 2.5 && uKind < 3.5)) {            // ---- hangya / u
   }
   p.y += abs(sin(ph))*0.01*mv;
 }
+else if (uKind > 4.5) {      // ---- lisztkukac (lárva): a test hullámzik (perisztaltika), a rövid lábak lépnek, a csáp tapogat, a rágó rág
+  float flinch = (act > 6.5 && act < 7.5) ? sin(clamp(iA.w,0.0,1.0)*3.14159) : 0.0;
+  float crawl = smoothstep(0.03, 0.25, mv);
+  if (part > 0.5 && part < 1.5) {                  // három pár láb: váltakozó lépés
+    float f = ph*2.0 + lid*2.1 + (side < 0.0 ? 3.14159 : 0.0);
+    float swing = sin(f)*0.55*crawl; float lift = max(0.0, cos(f))*0.5*crawl;
+    if (dead > 0.5) { swing = 0.1*sin(lid*2.0); lift = 0.9 + 0.2*sin(lid*3.1); }
+    swing += flinch*0.35*sin(lid*2.3); lift += flinch*0.8;
+    p = rotAbout(rotY(swing*side*wt)*rotX(-side*lift*wt), p, aPivot);
+  } else if (part > 1.5 && part < 2.5) {           // csáp
+    float t = uTime*(3.0+4.0*alertv) + lid*1.9; float a = sin(t)*0.35*wt*(1.0-dead); float b = sin(t*1.3+1.0)*0.2*wt - 0.5*dead*wt;
+    p = rotAbout(rotY(a)*rotZ(b), p, aPivot);
+  } else if (part > 2.5 && part < 3.5) {           // rágó
+    float sgn = lid > 0.5 ? 1.0 : -1.0; float jaw = 0.12 + 0.2*sin(uTime*2.0 + lid) * (1.0 - feed) + feed*(0.25 + 0.25*sin(uTime*14.0));
+    if (act > 0.5 && act < 1.5) jaw = 0.5;
+    p = rotAbout(rotY(-sgn*jaw), p, aPivot);
+  }
+  if (part < 0.5 || part > 3.5) {                  // test: hullám hátulról előre (menet közben erős, állva finom légzés), ívelt összegömbölyödés találatkor
+    float amp = 0.020*crawl + 0.004;
+    p.z += sin(p.x*11.0 - ph*3.0 + uTime*0.0) * amp * (0.35 + 0.65*clamp(0.5 - p.x, 0.0, 1.0));
+    p.y += (0.5 + 0.5*sin(p.x*9.0 - ph*3.0)) * 0.010*crawl;
+    float ex = clamp(0.5 - p.x, 0.0, 1.0);          // a farok felé növekvő csavarodás
+    p.z += sin(uTime*0.9 + 1.7) * 0.006 * ex * (1.0 - crawl);
+    p.y += flinch * 1.1 * p.x * p.x;                // találat: a két vég felkunkorodik (C alak)
+    p.x *= 1.0 - 0.07*flinch;
+  }
+  if (part < 0.5 && position.x > uNeck.x - 0.03) {   // fej: forgás
+    p = rotAbout(rotY(iB.x*0.6 + sin(uTime*1.4+lid)*0.05*(1.0-crawl)*(1.0-dead) + feed*0.05*sin(uTime*11.0))*rotZ(-0.25*feed*(0.8+0.2*sin(uTime*9.0))), p, uNeck);
+  }
+}
 else {                       // ---- skorpió: 8 láb (tetrapod, megáll-és-indul), ollós tapogatók, hajlékony farok
   if (part > 0.5 && part < 1.5) {
     float k = floor(lid*0.5); float sd = mod(lid,2.0);

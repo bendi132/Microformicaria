@@ -45,9 +45,22 @@ Cél: a nagyobb kolónia ne „menjen magától”, hanem a játékos a vezetőj
 
 **Döntési események**
 - A kolónia 6 dolgozótól (és a 2. naptól) kezdve időnként döntési kártyát kap; kb. 2–3 naponként (Kezdő: ritkábban, Nehéz: gyakrabban). Egyszerre egy lehet; érkezéskor a sebesség 1×-ra áll.
-- Események: **pók a fészek közelében**, **hőhullám**, **heves eső / elöntés** (talajfészeknél), **szűk a fészek** (új fiasítás- vagy raktárkamra ásatása), **éheznek a lárvák**, **bőséges zsákmány** (vadászó / magevő fajoknál).
+- Események (18 típus, kb. 0,5–1 naponként egy): **pók a fészek közelében**, **hőhullám**, **heves eső / elöntés** (talajfészeknél), **szűk a fészek**, **éheznek a lárvák**, **bőséges zsákmány**, és újabban: **penész a fészekben**, **lisztkukacok a közelben**, **elhullott bogár** (dögevő fajoknál), **levéltetvek** (faüregi fajoknál), **hangyaleső-tölcsér**, **madár**, **közelgő óriás léptek**, **kerti locsoló**, **idegen hangyák a határon**, **hideg éjszaka**, **szárazság**, **atkák a fiasításon**.
+- A veszélyes eseményeknél az opcióknak **kockázata** van (a kártyán „⚠ kis / közepes / nagy kockázat”): futás közben másodpercenként esély van egy felszíni dolgozó (vagy atkáknál egy fióka) elvesztésére; a jó döntés ezt lecsökkenti.
 - Minden opció *időszakos módosítókat* ad (pl. őrség ×2,2, vadászat ×0,7 egy napra), néha azonnali hatást (kamra-ásatás, gyenge lárvák feláldozása, zsákmány megjelenése). A kártyán látszik, mit változtat és mibe kerül; mindig van „Nem avatkozunk be” opció, ez lép életbe, ha a döntési idő (0,7 nap) lejár.
 - Az opció idejének lejártakor az eredmény *kiértékelődik* a mért adatokból (elesett hangyák, elveszett fiókák, beszerzés, elöntés, elkészült kamra): sikeres / vegyes / sikertelen, üzenettel. Aki döntött, XP-t kap (sikeres: 4–5, vegyes: 2–3, sikertelen: 1); az automatikus (időtúllépéses) döntés nem ad XP-t.
 - Az események a szimuláció RNG-jét használják, ezért azonos magnál és azonos döntéseknél azonos az eredmény (`test/manage.test.mjs`).
 
 **Mentés:** a vezetői állapot a kolóniával együtt mentődik; régi mentés (vezetői adat nélkül) is betölthető. A játék statisztikái (`sim.stats`) is mentődnek.
+
+## Lisztkukac (`src/render/…`, `assets/models/mealworm.glb`, `tools/prep_mealworm.py`)
+
+Új zsákmányállat (a lisztbogár lárvája): 16–26 mm, lassú, ártalmatlan, puha testű, nagy tápértékű. Az ászka-rendszer egyik változata (`sp: 'mealworm'`), ezért a vadászat, a tetem, a menekülés és a kiválasztás ugyanúgy működik. Egy hangyához képest óriás, ezért **egyedül nehéz legyőzni, csoportban könnyű**: aki túl nagy, de legyőzhető zsákmányt lát, *riasztja* a többieket (`p.calls`, legfeljebb 6), és a csoport ereje növeli a méretkorlátot (`tasks.js`). A modell procedurális (13 szelvény, szelvényhatáron barnás sáv, sötét fej, három pár láb, csáp, rágó, farok-tüskék); a shaderben hullámzó (perisztaltikus) mozgás, lépő lábak, tapogató csáp, rágó és találatkor C alakba görbülés van (`rig.js`, kind 5). Természetes állomány a rönkök, kövek és moha alatt; a „Lisztkukacok a közelben” esemény csoportot hoz.
+
+## Növekvő játszható terület
+
+A világ kezdettől 360×360 mm (`WORLD_MAX = 180`), de csak a közepe játszható: 180×180 mm-ről indul, és a dolgozók számával nyílik meg (14 dolgozó → 240 mm, 32 → 300 mm, 60 → 360 mm; `TERRITORY` a `config.js`-ben). A kezdeti rész tartalma változatlan; a külső gyűrű (kövek, rönkök, moha, fűcsomók, növények, búvóhelyek, pókfészkek) külön RNG-vel készül (`extendWorld`), ezért a régi mentések is bővíthetők (`upgradeWorld`). A határt halvány fal jelzi, a még nem megnyílt talaj sötétebb. Az állatállomány és a pókok maximális száma a terület nagyságával nő. A terület soha nem zsugorodik.
+
+## Penész
+
+Kamránként `nd.mold` (0–1). Nő, ha a kamra nedves (>0,72) és meleg (10–34 °C); a raktárkamrában (főleg ha tele van) és elöntés után gyorsabban; az erős penész a szomszéd kamrákat is fertőzi. Csökkenti: a dolgozók folyamatos takarítása (több dolgozó = gyorsabb), a vezetői `hygiene` módosító és a szellőzőjárat (`nd.vent`). Hatása: a raktár készlete romlik, a fiasítás lassabban fejlődik és 45% fölött elpusztulhat. A fészeknézetben a kamra zöldes-szürkére színeződik; a Készlet fülön és a napi tanácsok között is megjelenik. A „Penész a fészekben” esemény opciói: nagytakarítás, szellőzőjárat ásása, a penészes készlet kidobása, vagy nem avatkozunk be.

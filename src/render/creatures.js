@@ -32,15 +32,16 @@ export class CreatureLayer {
   constructor(scene) { this.scene = scene; this.group = new THREE.Group(); scene.add(this.group); this.nestSig = ''; this._dc = new THREE.Color(); this._dc2 = new THREE.Color(); this.nestGroup = new THREE.Group(); this.group.add(this.nestGroup); this.loaded = false; }
   async load(speciesId) {
     const sp = SPECIES[speciesId]; this.sp = sp;
-    const desert = sp.climate === 'desert'; this.desert = desert; const names = [sp.model, sp.queenModel || sp.model, sp.soldierModel || sp.model, desert ? 'eleodes' : 'isopod', 'spider', 'springtail', 'scorpion']; const uniq = {}; await Promise.all([...new Set(names)].map(async (n) => { uniq[n] = await loadCreatureGeometry(`assets/models/${n}.glb`); }));
-    const [ant, antQ, antS, iso, spi, spr, sco] = names.map((n) => uniq[n]); const gc = (caste) => (sp.gaitCaste && sp.gaitCaste[caste]) || sp.gait;
+    const desert = sp.climate === 'desert'; this.desert = desert; const names = [sp.model, sp.queenModel || sp.model, sp.soldierModel || sp.model, desert ? 'eleodes' : 'isopod', 'spider', 'springtail', 'scorpion', 'mealworm']; const uniq = {}; await Promise.all([...new Set(names)].map(async (n) => { uniq[n] = await loadCreatureGeometry(`assets/models/${n}.glb`); }));
+    const [ant, antQ, antS, iso, spi, spr, sco, mw] = names.map((n) => uniq[n]); const gc = (caste) => (sp.gaitCaste && sp.gaitCaste[caste]) || sp.gait;
     this.antB = new CreatureBatch(ant, { kind: 0, capacity: 400, color: sp.tint, swing: gc('worker').swing });
     this.queenB = new CreatureBatch(antQ, { kind: 0, capacity: 8, color: sp.tint, swing: gc('queen').swing }); this.soldB = new CreatureBatch(antS, { kind: 0, capacity: 120, color: sp.tint, swing: gc('soldier').swing });
     this.isoB = new CreatureBatch(iso, { kind: desert ? 0 : 1, capacity: 160, color: desert ? 0xffffff : 0x7a746c });
     this.scoB = new CreatureBatch(sco, { kind: 4, capacity: 8, color: 0xffffff });
+    this.mwB = new CreatureBatch(mw, { kind: 5, capacity: 48, color: 0xf2c47a });       // lisztkukac
     this.spiB = new CreatureBatch(spi, { kind: 2, capacity: 24, color: 0xffffff });
     this.sprB = new CreatureBatch(spr, { kind: 3, capacity: 320, color: 0x8d949c });
-    for (const b of [this.antB, this.queenB, this.soldB, this.isoB, this.spiB, this.scoB, this.sprB]) this.group.add(b.mesh);
+    for (const b of [this.antB, this.queenB, this.soldB, this.isoB, this.spiB, this.scoB, this.sprB, this.mwB]) this.group.add(b.mesh);
     // magvak (Messor táplálék): valódi, fotóból rekonstruált mag-modell, egyetlen példányolt rajz
     const seedG = await loadCreatureGeometry('assets/models/seed.glb');
     this.seedMesh = new THREE.InstancedMesh(seedG.geometry, new THREE.MeshStandardMaterial({ color: 0xd9b56e, roughness: 0.55, metalness: 0 }), 420); this.seedMesh.count = 0; this.seedMesh.castShadow = true; this.seedMesh.frustumCulled = false; this.group.add(this.seedMesh);
@@ -76,7 +77,7 @@ export class CreatureLayer {
   update(sim, time, nestView, camPos, controlled) {
     if (!this.loaded) return; const w = sim.world; this.up = this.up || new THREE.Vector3(0, 1, 0);
     const fwd = [0, 0, 1], up = [0, 1, 0], pos = tmpV; this.fpvAnt = controlled || null;
-    const { antB, queenB, soldB, isoB, spiB, scoB, sprB } = this; antB.begin(); queenB.begin(); soldB.begin(); isoB.begin(); spiB.begin(); scoB.begin(); sprB.begin();
+    const { antB, queenB, soldB, isoB, spiB, scoB, sprB, mwB } = this; antB.begin(); queenB.begin(); soldB.begin(); isoB.begin(); spiB.begin(); scoB.begin(); sprB.begin(); mwB.begin();
     let carryN = 0; const cm = this.carryMesh;
     const pushCarry = (x, y, z, r, color, flat) => { if (carryN >= 300) return; this.inst(cm, carryN, x, y, z, r, r * (flat || 1), r, color); carryN++; };
     // ---- magvak a talajon
@@ -113,9 +114,10 @@ export class CreatureLayer {
       if (p.state === 'hidden' && !p.dead) continue; const y = heightAt(w, p.x, p.z); this.groundUp(w, p.x, p.z, up);
       fwd[0] = Math.sin(p.yaw); fwd[1] = 0; fwd[2] = Math.cos(p.yaw); const an = p.anim, fl = flinchOf(sim, p);
       if (p.dead) { up[0] = -up[0]; up[1] = -up[1]; up[2] = -up[2]; fwd[0] = Math.sin(p.yaw); }
-      isoB.addBasis(pos.set(p.x, y + (p.dead ? p.len * isoB.height * 0.95 : 0), p.z), fwd, up, p.len, [an.phase, p.dead ? 0 : an.mv, p.dead ? 9 : fl ? 7 : an.act, fl ? fl.t : an.actT], [an.head, an.open, fl ? fl.curl : an.curl, p.dead ? this.dryOf(p) : an.alert], p.dead ? this.deadColor(p) : undefined);
+      const B = p.sp === 'mealworm' ? mwB : isoB;
+      B.addBasis(pos.set(p.x, y + (p.dead ? p.len * B.height * 0.95 : 0), p.z), fwd, up, p.len, [an.phase, p.dead ? 0 : an.mv, p.dead ? 9 : fl ? 7 : an.act, fl ? fl.t : an.actT], [an.head, an.open, fl ? fl.curl : an.curl, p.dead ? this.dryOf(p) : an.alert], p.dead ? (p.sp === 'mealworm' ? this._dc.setHex(0xe8d6b0).lerp(this._dc2.setHex(0x9c8a64), this.dryOf(p)).getHex() : this.deadColor(p)) : undefined);
     }
-    isoB.end(time);
+    isoB.end(time); mwB.end(time);
     // ---- ugróvillások
     for (const p of sim.springtails) {
       const y = heightAt(w, p.x, p.z) + (p.leap || 0); this.groundUp(w, p.x, p.z, up); fwd[0] = Math.sin(p.yaw); fwd[1] = p.leap > 0.6 ? 0.35 : 0; fwd[2] = Math.cos(p.yaw); const an = p.anim;
@@ -163,13 +165,14 @@ export class CreatureLayer {
   // a pereme felé sötétedő csúcsszínnel (olcsó környezeti takarás), hogy tiszta, hibátlan, "hangyafarm" jellegű kép legyen.
   updateNest(sim, visible) {
     const n = sim.nest; this.nestGroup.visible = !!(visible && n); if (!n) return;
-    let sig = n.nodes.length + '/' + n.edges.length; for (const nd of n.nodes) sig += (nd.kind === 'chamber' ? Math.round(nd.r * 4) : '') + (nd.role || '') + (nd.ready === false ? 'x' : '') + (nd.flood > 0 ? 'f' : '');
+    let sig = n.nodes.length + '/' + n.edges.length; for (const nd of n.nodes) sig += (nd.kind === 'chamber' ? Math.round(nd.r * 4) : '') + (nd.role || '') + (nd.ready === false ? 'x' : '') + (nd.flood > 0 ? 'f' : '') + (nd.mold > 0.08 ? 'm' + Math.round(nd.mold * 6) : '');
     for (const e of n.edges) if (e.collapsed) sig += 'c';
     if (sig === this.nestSig) return; this.nestSig = sig;
     while (this.nestGroup.children.length) { const o = this.nestGroup.children.pop(); o.geometry && o.geometry.dispose(); }
     const wood = n.site.kind === 'cavity'; const P = [], C = [], UV = [], IDX = [];
     const vn = (x, y, z) => Math.sin(x * 1.9 + Math.sin(y * 2.3 + z * 1.1)) * 0.5 + Math.sin(y * 2.7 + Math.sin(z * 1.7 + x * 2.1)) * 0.3 + Math.sin(z * 2.1 + x * 1.3 + y * 0.7) * 0.2;   // -1..1
-    const floorCol = (nd) => new THREE.Color(nd.flood > 0 ? 0x6aa0d0 : wood ? (nd.kind === 'chamber' ? 0xc9a070 : 0xb08a58) : (ROLE_COL[nd.role] ?? (nd.kind === 'chamber' ? ROLE_COL.null : 0x9a7a54)));
+    const MOLD = new THREE.Color(0x6f8f5c), MOLD2 = new THREE.Color(0xa9b59a);       // penész: zöldes-szürke, szőrös foltok
+    const floorCol = (nd) => { const c = new THREE.Color(nd.flood > 0 ? 0x6aa0d0 : wood ? (nd.kind === 'chamber' ? 0xc9a070 : 0xb08a58) : (ROLE_COL[nd.role] ?? (nd.kind === 'chamber' ? ROLE_COL.null : 0x9a7a54))); if (nd.mold > 0.08) c.lerp(MOLD, Math.min(0.8, nd.mold * 1.05)).lerp(MOLD2, Math.max(0, nd.mold - 0.5) * 0.5); return c; };
     const rimCol = new THREE.Color(wood ? 0x3a2412 : 0x2b1c10); const tmpC = new THREE.Color();
     const push = (x, y, z, k, base) => { P.push(x, y, z); UV.push(x * 0.5, z * 0.5); tmpC.copy(rimCol).lerp(base, Math.min(1, Math.max(0, k))); const sp = 0.78 + 0.22 * (0.5 + 0.5 * vn(x * 2.6, y * 1.7, z * 2.6)) + 0.1 * Math.sin(x * 9 + z * 7 + y * 5); tmpC.multiplyScalar(sp * 0.92); C.push(tmpC.r, tmpC.g, tmpC.b); return P.length / 3 - 1; };
     const grid = (rows, cols, vtx, wrap) => { const b = P.length / 3; for (let i = 0; i < rows; i++) for (let j = 0; j < cols; j++) vtx(i, j); for (let i = 0; i < rows - 1; i++) for (let j = 0; j < cols - 1 + (wrap ? 1 : 0); j++) { const j2 = (j + 1) % cols; const a0 = b + i * cols + j, a1 = b + i * cols + j2, a2 = b + (i + 1) * cols + j, a3 = b + (i + 1) * cols + j2; IDX.push(a0, a2, a1, a1, a2, a3); } };

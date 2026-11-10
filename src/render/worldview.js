@@ -40,10 +40,10 @@ export class WorldView {
   dispose() { this.scene.remove(this.group, this.sun, this.sun.target, this.hemi, this.fill); this.group.traverse((o) => { if (o.geometry) o.geometry.dispose(); }); }
 
   build(sim) {
-    const w = sim.world, rng = new RNG(w.seed ^ 0x51ed), half = w.half;
+    const w = sim.world, rng = new RNG(w.seed ^ 0x51ed), half = w.max || w.half; const AF = Math.min(2.4, Math.pow(half / 90, 2) * 0.6); this.AF = AF;       // a teljes világ (a játszható rész ennek csak egy darabja nő)
     this.sim = sim; const G = this.group; const climate = SPECIES[sim.speciesId].climate; const tropical = climate === 'tropical'; this.tropical = tropical; const desert = climate === 'desert'; this.desert = desert;
     // ---- terep
-    const seg = this.q.seg; const geo = new THREE.PlaneGeometry(half * 2.4, half * 2.4, seg, seg); geo.rotateX(-Math.PI / 2);
+    const seg = Math.round(this.q.seg * Math.min(1.7, half / 90 * 0.85)); const geo = new THREE.PlaneGeometry(half * 2.4, half * 2.4, seg, seg); geo.rotateX(-Math.PI / 2);
     const pos = geo.attributes.position; const col = new Float32Array(pos.count * 3); geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
     for (let i = 0; i < pos.count; i++) { const x = pos.getX(i), z = pos.getZ(i); const edge = Math.max(0, Math.hypot(Math.max(0, Math.abs(x) - half), Math.max(0, Math.abs(z) - half))); pos.setY(i, heightAt(w, clamp(x, -half, half), clamp(z, -half, half)) - edge * 0.05); }
     geo.computeVertexNormals();
@@ -52,6 +52,11 @@ export class WorldView {
     this.terrainMat = new THREE.MeshStandardMaterial({ map: ground.map, normalMap: ground.normalMap, normalScale: new THREE.Vector2(desert ? 0.9 : 1.4, desert ? 0.9 : 1.4), vertexColors: true, roughness: desert ? 0.98 : 0.96, metalness: 0 });
     if (tropical) this.terrainMat.color.set(0xf2c4a8); this.terrain = new THREE.Mesh(geo, this.terrainMat); this.terrain.receiveShadow = true; G.add(this.terrain); this.terrainGeo = geo;
     this.updateMoistureColors();
+    // ---- a játszható terület határa: halvány, áttetsző fal (a terület növekedésével kifelé tolódik)
+    { const wm = new THREE.MeshBasicMaterial({ color: 0xffe9a8, transparent: true, opacity: 0.0, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending });
+      const wg = new THREE.PlaneGeometry(2, 1, 1, 1); const cols = new Float32Array(4 * 3); const wcol = [1, 1, 0.0, 0.0]; for (let i = 0; i < 4; i++) { const k = i < 2 ? 0.0 : 0.55; cols[i * 3] = cols[i * 3 + 1] = cols[i * 3 + 2] = k; } wg.setAttribute('color', new THREE.BufferAttribute(cols, 3)); wm.vertexColors = true; wm.opacity = 0.32;
+      this.bound = new THREE.Group(); for (let k = 0; k < 4; k++) { const m = new THREE.Mesh(wg, wm); m.position.y = 3.0; m.scale.y = 6; m.rotation.y = k * Math.PI / 2; m.position.set(Math.sin(k * Math.PI / 2), 3, Math.cos(k * Math.PI / 2)); m.renderOrder = 4; this.bound.add(m); }
+      this.boundMat = wm; this._playHalf = -1; G.add(this.bound); }
     // ---- a játéktéren kívüli talaj (a környező növényzet alatt)
     const fg = new THREE.PlaneGeometry(40000, 40000); fg.rotateX(-Math.PI / 2); const ft = this.tex.soil.map.clone(); ft.repeat.set(1800, 1800); ft.needsUpdate = true; const fn = this.tex.soil.normalMap.clone(); fn.repeat.set(1800, 1800); fn.needsUpdate = true;
     this.farGround = new THREE.Mesh(fg, new THREE.MeshStandardMaterial({ color: tropical ? 0x6e3f2c : desert ? 0xa9895c : 0x5c4a38, roughness: 1 })); this.farGround.position.y = -1.2; this.farGround.receiveShadow = false; G.add(this.farGround);
@@ -89,15 +94,15 @@ export class WorldView {
     mossI.count = mi; mossI.receiveShadow = true; G.add(mossI);
     // ---- kavicsok
     const pebMat = new THREE.MeshStandardMaterial({ map: desert ? null : this.tex.stone.map, roughness: 0.9, color: desert ? 0xf0dcb0 : 0xb9a58f });
-    const pg = new THREE.IcosahedronGeometry(1, 1); const peb = new THREE.InstancedMesh(pg, pebMat, this.q.pebbles); let pc = 0;
-    for (let i = 0; i < this.q.pebbles; i++) {
+    const pg = new THREE.IcosahedronGeometry(1, 1); const peb = new THREE.InstancedMesh(pg, pebMat, Math.round(this.q.pebbles * AF)); let pc = 0;
+    for (let i = 0; i < Math.round(this.q.pebbles * AF); i++) {
       const x = rng.range(-half, half), z = rng.range(-half, half); if (this.overStone(w, x, z)) continue;
       const r = rng.range(0.25, 1.1); P.set(x, heightAt(w, x, z) + r * 0.15, z); S.set(r, r * rng.range(0.5, 0.8), r * rng.range(0.7, 1.1)); Qn.setFromEuler(new THREE.Euler(rng.range(0, 1), rng.range(0, 6), rng.range(0, 1))); M.compose(P, Qn, S); peb.setMatrixAt(pc, M); peb.setColorAt(pc, desert ? new THREE.Color().setHSL(0.1, 0.28, rng.range(0.55, 0.78)) : new THREE.Color().setHSL(0.08, 0.2, rng.range(0.28, 0.6))); pc++;
     }
     peb.count = pc; peb.castShadow = true; peb.receiveShadow = true; G.add(peb);
     // ---- avar (száraz levéldarabok)
     const lg = new THREE.PlaneGeometry(1, 0.5, 12, 6); lg.rotateX(-Math.PI / 2); const lp = lg.attributes.position; for (let i = 0; i < lp.count; i++) { const lx = lp.getX(i), lz = lp.getZ(i); lp.setY(i, Math.sin(lx * 3.1 + 0.6) * 0.07 + lz * lz * 1.1 + Math.max(0, lx - 0.25) * 0.28 * Math.sign(lz) * lz); } lg.computeVertexNormals();
-    const litM = new THREE.MeshStandardMaterial({ roughness: 0.9, side: THREE.DoubleSide, color: 0xffffff, map: this.leafTexture(), alphaTest: 0.5 }); const litN = desert ? 0 : this.q.litter; const lit = new THREE.InstancedMesh(lg, litM, Math.max(1, litN)); let lc = 0;
+    const litM = new THREE.MeshStandardMaterial({ roughness: 0.9, side: THREE.DoubleSide, color: 0xffffff, map: this.leafTexture(), alphaTest: 0.5 }); const litN = desert ? 0 : Math.round(this.q.litter * AF); const lit = new THREE.InstancedMesh(lg, litM, Math.max(1, litN)); let lc = 0;
     for (let i = 0; i < litN; i++) {
       const x = rng.range(-half, half), z = rng.range(-half, half); if (this.overStone(w, x, z)) continue; const s = rng.range(4, 10);
       P.set(x, heightAt(w, x, z) + 0.25, z); S.set(s, 1, s); Qn.setFromEuler(new THREE.Euler(rng.range(-0.2, 0.2), rng.range(0, 6.28), rng.range(-0.2, 0.2))); M.compose(P, Qn, S); lit.setMatrixAt(lc, M); lit.setColorAt(lc, new THREE.Color().setHSL(rng.range(0.05, 0.13), rng.range(0.3, 0.6), rng.range(0.3, 0.52))); lc++;
@@ -143,7 +148,7 @@ export class WorldView {
     for (let i = 0; i <= segs; i++) { const t = i / segs; const wd = 0.1 * (1 - t * t * 0.92); verts.push(-wd, t, 0, wd, t, 0); }
     for (let i = 0; i < segs; i++) { const a = i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3)); g.setIndex(idx); g.computeVertexNormals();
-    const n = Math.floor(this.q.grass * (this.tropical ? 1.3 : 1)); const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8, side: THREE.DoubleSide });
+    const n = Math.floor(this.q.grass * this.AF * (this.tropical ? 1.3 : 1)); const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8, side: THREE.DoubleSide });
     const uni = this.uniforms;
     mat.onBeforeCompile = (sh) => {
       sh.uniforms.uTime = uni.uTime; sh.uniforms.uWet = uni.uWet; sh.uniforms.uFocus = uni.uFocus;
@@ -157,10 +162,10 @@ export class WorldView {
     };
     const gi = new THREE.InstancedMesh(g, mat, n); const M = new THREE.Matrix4(), Qn = new THREE.Quaternion(), S = new THREE.Vector3(), P = new THREE.Vector3(); let c = 0;
     for (let i = 0; i < n; i++) {
-      const x = rng.range(-w.half - 6, w.half + 6), z = rng.range(-w.half - 6, w.half + 6); if (this.overStone(w, x, z)) continue;
+      const x = rng.range(-w.max - 6, w.max + 6), z = rng.range(-w.max - 6, w.max + 6); if (this.overStone(w, x, z)) continue;
       if (Math.hypot(x - w.spawn.x, z - w.spawn.z) < 5) continue;
-      const moist = moistureAt(w, clamp(x, -w.half, w.half), clamp(z, -w.half, w.half)); if (rng.next() > 0.35 + moist * 0.9) continue;
-      const hgt = rng.range(5, 18) * (0.7 + moist * 0.7) * (this.tropical ? 1.35 : 1); P.set(x, heightAt(w, clamp(x, -w.half, w.half), clamp(z, -w.half, w.half)) - 0.1, z); S.set(rng.range(0.7, 1.4), hgt, 1);
+      const moist = moistureAt(w, clamp(x, -w.max, w.max), clamp(z, -w.max, w.max)); if (rng.next() > 0.35 + moist * 0.9) continue;
+      const hgt = rng.range(5, 18) * (0.7 + moist * 0.7) * (this.tropical ? 1.35 : 1); P.set(x, heightAt(w, clamp(x, -w.max, w.max), clamp(z, -w.max, w.max)) - 0.1, z); S.set(rng.range(0.7, 1.4), hgt, 1);
       Qn.setFromEuler(new THREE.Euler(rng.range(-0.18, 0.18), rng.range(0, 6.28), rng.range(-0.18, 0.18))); M.compose(P, Qn, S); gi.setMatrixAt(c, M);
       gi.setColorAt(c, (this.tropical ? new THREE.Color().setHSL(rng.range(0.27, 0.36), rng.range(0.55, 0.8), rng.range(0.14, 0.3)) : new THREE.Color().setHSL(rng.range(0.19, 0.28), rng.range(0.4, 0.6), rng.range(0.2, 0.36)))); c++;
     }
@@ -185,7 +190,7 @@ export class WorldView {
     for (const t of w.tufts) for (let k = 0; k < t.blades && c < n; k++) {
       const a = rng.range(0, 6.28), d = Math.sqrt(rng.next()) * t.r * 0.9; const x = t.x + Math.cos(a) * d, z = t.z + Math.sin(a) * d;
       const hgt = rng.range(5, 13) * (0.7 + 0.6 * (1 - d / (t.r + 0.01))); const lean = rng.range(-0.35, 0.35) + (d / (t.r + 0.01)) * 0.3 * Math.cos(a);
-      P.set(x, heightAt(w, clamp(x, -w.half, w.half), clamp(z, -w.half, w.half)) - 0.1, z); S.set(rng.range(0.7, 1.3), hgt, 1);
+      P.set(x, heightAt(w, clamp(x, -w.max, w.max), clamp(z, -w.max, w.max)) - 0.1, z); S.set(rng.range(0.7, 1.3), hgt, 1);
       Qn.setFromEuler(new THREE.Euler(lean * 0.4, rng.range(0, 6.28), lean)); M.compose(P, Qn, S); gi.setMatrixAt(c, M);
       gi.setColorAt(c, new THREE.Color().setHSL(rng.range(0.1, 0.14), rng.range(0.35, 0.55), rng.range(0.42, 0.6))); c++;
     }
@@ -251,12 +256,13 @@ export class WorldView {
     for (const [id, g] of this.exitGroups) if (!live.has(id)) { this.group.remove(g); this.exitGroups.delete(id); }
   }
   updateMoistureColors() {
-    const w = this.sim.world; const p = this.terrainGeo.attributes.position, c = this.terrainGeo.attributes.color; const half = w.half;
+    const w = this.sim.world; const p = this.terrainGeo.attributes.position, c = this.terrainGeo.attributes.color; const half = w.max || w.half, play = w.half;
     for (let i = 0; i < p.count; i++) {
-      const x = clamp(p.getX(i), -half, half), z = clamp(p.getZ(i), -half, half); const m = moistureAt(w, x, z);
+      const px = p.getX(i), pz = p.getZ(i); const x = clamp(px, -half, half), z = clamp(pz, -half, half); const m = moistureAt(w, x, z);
+      const out = Math.max(Math.abs(px), Math.abs(pz)) - play, dim = out <= 0 ? 1 : 1 - 0.34 * Math.min(1, out / 6);       // a még nem megnyílt terület sötétebb
       const dry = 1 - m; const patch = fbm(x * 0.07, z * 0.07, 99);
-      if (this.desert) { const k = 0.9 + patch * 0.18 - m * 0.22; c.setXYZ(i, 0.93 * k, 0.8 * k, 0.56 * k); continue; }
-      c.setXYZ(i, lerp(0.95, 0.52, m) * (0.9 + patch * 0.25) + dry * 0.1, lerp(0.88, 0.5, m) * (0.9 + patch * 0.25) + dry * 0.05, lerp(0.76, 0.46, m) * (0.9 + patch * 0.2));
+      if (this.desert) { const k = 0.9 + patch * 0.18 - m * 0.22; c.setXYZ(i, 0.93 * k * dim, 0.8 * k * dim, 0.56 * k * dim); continue; }
+      c.setXYZ(i, (lerp(0.95, 0.52, m) * (0.9 + patch * 0.25) + dry * 0.1) * dim, (lerp(0.88, 0.5, m) * (0.9 + patch * 0.25) + dry * 0.05) * dim, (lerp(0.76, 0.46, m) * (0.9 + patch * 0.2)) * dim);
     }
     c.needsUpdate = true;
   }
@@ -314,13 +320,16 @@ export class WorldView {
     if (!this.pheroMesh) { const g = new THREE.CircleGeometry(1, 10); g.rotateX(-Math.PI / 2); this.pheroMesh = new THREE.InstancedMesh(g, new THREE.MeshBasicMaterial({ color: 0xffe36a, transparent: true, opacity: 0.55, depthWrite: false }), PN * PN); this.pheroMesh.frustumCulled = false; this.pheroMesh.renderOrder = 3; this.group.add(this.pheroMesh); this._pT = 0; }
     this.pheroMesh.visible = true; this._pT -= dt; if (this._pT > 0) return; this._pT = 0.5;
     const f = sim.phero, w = sim.world; if (!f) { this.pheroMesh.count = 0; return; } const M = new THREE.Matrix4(), P = new THREE.Vector3(), Q = new THREE.Quaternion(), S = new THREE.Vector3(); let c = 0;
-    for (let j = 0; j < PN; j++) for (let i = 0; i < PN; i++) { const v = f[j * PN + i]; if (v < 0.12) continue; const x = -w.half + (i + 0.5) * PC, z = -w.half + (j + 0.5) * PC; const r = PC * 0.55 * Math.min(1, 0.4 + v * 0.6); P.set(x, heightAt(w, x, z) + 0.12, z); S.set(r, 1, r); M.compose(P, Q, S); this.pheroMesh.setMatrixAt(c++, M); }
+    for (let j = 0; j < PN; j++) for (let i = 0; i < PN; i++) { const v = f[j * PN + i]; if (v < 0.12) continue; const x = -w.max + (i + 0.5) * PC, z = -w.max + (j + 0.5) * PC; const r = PC * 0.55 * Math.min(1, 0.4 + v * 0.6); P.set(x, heightAt(w, x, z) + 0.12, z); S.set(r, 1, r); M.compose(P, Q, S); this.pheroMesh.setMatrixAt(c++, M); }
     this.pheroMesh.count = c; this.pheroMesh.instanceMatrix.needsUpdate = true;
   }
   update(dt, sim, nestView) {
     this.updatePhero(sim, dt);
     this.time += dt; this.uniforms.uTime.value = this.time;
-    this.moistT += dt; if (this.moistT > 4) { this.moistT = 0; this.updateMoistureColors(); }
+    if (this._playHalf !== sim.world.half) {                          // a terület megnőtt: a határfal kifelé tolódik, a talaj színe frissül
+      this._playHalf = sim.world.half; const h = sim.world.half; this.bound.scale.set(h, 1, h); this.bound.position.y = heightAt(sim.world, 0, 0); this.moistT = 99;
+    }
+    this.moistT += dt; if (this.moistT > 6) { this.moistT = 0; this.updateMoistureColors(); }
     this.dynT += dt; if (this.dynT > 0.25) { this.dynT = 0; this.updateDynamic(sim); }
     this.ensureEntrance(sim); this.updateLighting(sim.env); this.updateRain(dt, sim.env.rain || 0);
     // metszetnézet: a talaj és a felszíni rendetlenség (fű, avar, kövek) eltűnik, a háttér a "föld keresztmetszete"; a fa kérge áttetsző

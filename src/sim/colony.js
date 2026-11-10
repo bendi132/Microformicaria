@@ -74,7 +74,8 @@ export function stepBrood(sim, dt) {
     if (b.dead) continue;
     const nd = node(nest, b.node); if (!nd) { b.dead = true; continue; }
     const { q, qh } = chamberQuality(sim, nd);
-    const speed = q;                               // rossz klíma = lassú fejlődés
+    const mold = nd.mold || 0; const speed = q * (1 - 0.55 * mold);       // rossz klíma és penész = lassú fejlődés
+    if (mold > 0.45 && sim.rng.chance(dt * 0.006 * (mold - 0.35))) { b.dead = true; continue; }       // erős penész: a fiasítás elpusztulhat
     b.badT = (b.badT || 0) + (q < 0.2 ? dt : -dt * 2); b.badT = Math.max(0, b.badT);
     if (b.badT > DAY * 0.75 || (nd.flood > 0 && sim.rng.chance(dt * 0.008))) { b.dead = true; continue; }       // kiszáradás vagy átnedvesedés miatti pusztulás
     if (b.stage === 'egg') { b.prog += days * speed / sp.brood.egg; if (b.prog >= 1) { b.stage = 'larva'; b.prog = 0; b.fed = 0.5; } }

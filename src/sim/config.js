@@ -4,7 +4,12 @@
 // Egység: 1 világegység = 1 mm. Idő: szimulációs másodperc; 1 játéknap = DAY mp 1x sebességnél.
 
 export const DAY = 150;                      // game
-export const WORLD_HALF = 90;                // a játéktér fél-oldala (mm)
+export const WORLD_HALF = 90;                // a kezdeti játéktér fél-oldala (mm)
+export const WORLD_MAX = 180;                // a világ teljes fél-oldala: a játszható rész ennyiig nőhet a kolónia méretével
+// game: a játszható terület lépcsői (dolgozók száma → fél-oldal, mm); a világ már kezdettől megvan, csak fokozatosan nyílik meg
+export const TERRITORY = [{ w: 0, half: 90 }, { w: 14, half: 120 }, { w: 32, half: 150 }, { w: 60, half: 180 }];
+// Lisztkukac (Tenebrio molitor lárva): nagy, lassú, ártalmatlan, puha testű táplálékállat; egyedül nehéz legyőzni, csoportban könnyű (a vadászat csoport-szabálya)
+export const MEALWORM = { len: [16, 26], hp: 40, armor: 0.06, speed: 0.9, energyPerMm3: 0.05, max: 7, flee: 1.25, senses: 3 };
 export const GAME_START_HOUR = 7;
 
 export const ANIMALS = ['ant', 'isopod', 'spider', 'springtail', 'scorpion']; // a játékban hangyák, ászkák, pókok és ugróvillások szerepelnek (atka nem)

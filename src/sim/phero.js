@@ -2,14 +2,14 @@
 // Egyszerűsítés (nyíltan): a valóságban a hangya a nyom irányát a feromon-gradiensből és tájékozódási memóriából ismeri; itt az "otthontól kifelé" irányt használjuk.
 // A mező nincs mentve (betöltés után újra felépül).
 import { clamp, dist } from '../core/util.js';
-import { DAY } from './config.js';
+import { DAY, WORLD_MAX } from './config.js';
 
-export const PN = 90, PC = 2;                      // 90x90 cella, 2 mm
+export const PN = WORLD_MAX, PC = 2;                     // PN×PC = a teljes világ (2·WORLD_MAX mm)                      // 90x90 cella, 2 mm
 const STRENGTH = { ponera: 0.22, cephalotes: 1.0, odonto: 0.3, proceratium: 0.45 };   // a magányos vadászok alig, a gyűjtögetők erősen nyomoznak
 export const trailStrength = (sim) => STRENGTH[sim.speciesId] ?? 0.4;
 
 export function ensure(sim) { if (!sim.phero) sim.phero = new Float32Array(PN * PN); return sim.phero; }
-const idx = (w, x, z) => { const i = Math.floor((x + w.half) / PC), j = Math.floor((z + w.half) / PC); return (i < 0 || j < 0 || i >= PN || j >= PN) ? -1 : j * PN + i; };
+const idx = (w, x, z) => { const i = Math.floor((x + WORLD_MAX) / PC), j = Math.floor((z + WORLD_MAX) / PC); return (i < 0 || j < 0 || i >= PN || j >= PN) ? -1 : j * PN + i; };
 export function deposit(sim, x, z, amt) { const f = ensure(sim), k = idx(sim.world, x, z); if (k >= 0) f[k] = Math.min(6, f[k] + amt); }
 export function sample(sim, x, z) { const f = ensure(sim), k = idx(sim.world, x, z); return k >= 0 ? f[k] : 0; }
 export function decay(sim, dt) {

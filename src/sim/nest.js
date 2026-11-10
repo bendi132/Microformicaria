@@ -110,6 +110,19 @@ export function digWork(n, sp, world, job, amount) {
 }
 
 // ---- kamrák klímája
+// Penész (game: egyszerűsített modell). Nedves (>0,72) és meleg (10–34 °C) kamrában nő, a raktárkamrában (élelmiszer) gyorsabban, elöntött csomópontban még gyorsabban.
+// A dolgozók folyamatosan takarítják (több dolgozó = gyorsabb), a vezetői intézkedés (hygiene) ezt erősíti; a szellőzőjárat (vent) csökkenti a kamra nedvességét.
+export function moldStep(n, sim_, dt, clean) {
+  const chs = n.nodes.filter((q) => q.kind === 'chamber' && q.ready !== false); let worst = 0;
+  for (const nd of chs) worst = Math.max(worst, nd.mold || 0);
+  for (const nd of chs) {
+    const wetK = clamp((nd.hum - 0.72) / 0.28, 0, 1), t = nd.temp, warm = clamp((t - 10) / 10, 0, 1) * clamp((34 - t) / 8, 0, 1);
+    const food = nd.role === 'store' ? (sim_.full ? 1.8 : 1.1) : 0.35;
+    const grow = wetK * warm * food * 0.0032 * (nd.flood > 0 ? 2.5 : 1) + (worst > 0.6 && (nd.mold || 0) < 0.6 ? 0.00006 : 0);     // erős penész a szomszédokat is fertőzi
+    nd.mold = clamp((nd.mold || 0) + dt * (grow - clean * (nd.mold > 0 ? 1 : 0.6)), 0, 1); if (nd.mold < 0.004) nd.mold = 0;
+    if (nd.vent > 0) nd.vent = Math.max(0, nd.vent - dt / 300);
+  }
+}
 export function updateClimate(n, world, env, dt, sp) {
   const tauHum = 45, tauT = 70;
   for (const nd of n.nodes) {
@@ -121,7 +134,7 @@ export function updateClimate(n, world, env, dt, sp) {
       tT = env.temp * 0.7 + env.tempMean * 0.3;                           // fa: mérsékelten pufferol
     } else {
       const depth = nodeDepth(nd), surf = moistureAt(world, nd.x, nd.z);
-      tHum = clamp(0.22 + 0.55 * clamp(depth / 16, 0, 1) + (surf - 0.3) * 0.55 + env.rain * 0.25 - (n.floodUntil > env.t && depth > 9 ? -0.3 : 0), 0.05, 1);
+      tHum = clamp(0.22 + 0.55 * clamp(depth / 16, 0, 1) + (surf - 0.3) * 0.55 + env.rain * 0.25 - (n.floodUntil > env.t && depth > 9 ? -0.3 : 0) - (nd.vent || 0) * 0.3, 0.05, 1);
       const k = Math.exp(-depth / 9);
       tT = env.tempMean + (env.temp - env.tempMean) * k;
     }

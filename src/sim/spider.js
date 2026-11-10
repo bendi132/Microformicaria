@@ -128,7 +128,7 @@ function resolveBite(sim, s, C) {
   if (t.kind === 'springtail') { if (d < C.lunge * 0.8 && t.state !== 'jump' && rng.chance(0.45)) { t.hp = 0; t.dead = true; t.state = 'dead'; s.sat = clamp(s.sat + 0.1, 0, 1); s.state = 'feed'; s.tmr = 2; s.target = null; } else s.state = 'wander'; return; }
   if (t.kind === 'isopod') {
     const hit = d < C.lunge * 0.9 && rng.chance(clamp(0.8 - t.armor * 0.5, 0.15, 0.9));
-    if (hit) { t.hp -= C.bite * 0.5; if (t.hp <= 0) { killIsopod(sim, t); s.state = 'feed'; s.tmr = 6; s.sat = clamp(s.sat + 0.4, 0, 1); s.target = null; sim.log(`Egy ${s.cls === 'scorpion' ? 'skorpió' : 'pók'} elkapott egy ${sim.world.biome === 'desert' ? 'sötétbogarat' : 'ászkát'}.`, 'info'); return; } }
+    if (hit) { t.hp -= C.bite * 0.5; if (t.hp <= 0) { killIsopod(sim, t); s.state = 'feed'; s.tmr = 6; s.sat = clamp(s.sat + 0.4, 0, 1); s.target = null; sim.log(`Egy ${s.cls === 'scorpion' ? 'skorpió' : 'pók'} elkapott egy ${t.sp === 'mealworm' ? 'lisztkukacot' : sim.world.biome === 'desert' ? 'sötétbogarat' : 'ászkát'}.`, 'info'); return; } }
     s.state = 'stalk'; return;
   }
   // hangya

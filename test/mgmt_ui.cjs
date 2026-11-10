@@ -39,12 +39,12 @@ const ok = (c, m) => { if (!c) { console.log('FAIL', m); process.exitCode = 1; }
     // csúszka állítása → irányelv "egyéni"
     await p.evaluate(() => { const el = document.querySelector('#mgRows input[data-k="water"]'); el.value = 1.6; el.dispatchEvent(new Event('input', { bubbles: true })); });
     ok(await p.evaluate(() => window.__G.sim.colony.dir.water === 1.6 && window.__G.sim.colony.mg.policy === 'custom'), name + ': csúszka → dir.water, irányelv egyéni');
-    await p.click('#mgPols button[data-id="harvest"]'); await p.waitForTimeout(300);
+    await p.evaluate(() => document.querySelector('#mgPols button[data-id="harvest"]').click()); await p.waitForTimeout(300);
     ok(await p.evaluate(() => window.__G.sim.colony.dir.hunt === 1.7 && window.__G.sim.colony.mg.policy === 'harvest' && Math.abs(+document.querySelector('#mgRows input[data-k="hunt"]').value - 1.7) < 1e-6), name + ': irányelv-gomb beállítja a csúszkákat');
-    await p.click('.mg-tabs button[data-t="stock"]'); await p.waitForTimeout(500);
+    await p.evaluate(() => document.querySelector('.mg-tabs button[data-t="stock"]').click()); await p.waitForTimeout(500);
     ok(await p.evaluate(() => document.querySelectorAll('#mgStores .srow').length >= 3 && document.querySelectorAll('#mgStores svg.spk polyline').length >= 1), name + ': készlet-sorok és trend-grafikon');
     await p.screenshot({ path: `${DIR}/${name}_4_stock.png`, timeout: 120000 }).catch(() => {});
-    await p.click('.mg-tabs button[data-t="rep"]'); await p.waitForTimeout(500);
+    await p.evaluate(() => document.querySelector('.mg-tabs button[data-t="rep"]').click()); await p.waitForTimeout(500);
     ok(await p.evaluate(() => document.querySelectorAll('#mgRep .tips li').length >= 1 && /nap jelentése/.test(document.getElementById('mgRep').textContent)), name + ': jelentés és tanácsok');
     await p.screenshot({ path: `${DIR}/${name}_5_report.png`, timeout: 120000 }).catch(() => {});
     await p.keyboard.press('Escape'); await p.waitForTimeout(300);

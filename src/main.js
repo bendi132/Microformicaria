@@ -164,9 +164,9 @@ function updateHud() {
   if (G.sel.kind === 'ant') { const carry = en.carry ? { prey: '🍖', sugar: '🍯', water: '💧', eggs: '🥚', soil: '🟤', brood: '🥚' }[en.carry.kind] || '' : '';
     box.innerHTML = `<div style="display:flex;justify-content:space-between"><b>${en.caste === 'queen' ? '👑 Királynő' : en.caste === 'soldier' ? '🛡 Katona' : '🐜 Dolgozó'}</b><span>${carry}</span></div><div style="color:var(--dim);margin:3px 0">${TASK_HU[en.task] || en.task}</div>
     <div class="row"><span class="ic">⚡</span><div class="bar"><i style="width:${pct(en.energy)}"></i></div></div><div class="row"><span class="ic">💧</span><div class="bar"><i style="width:${pct(en.hyd)};background:var(--water)"></i></div></div><div class="row"><span class="ic">♥</span><div class="bar"><i style="width:${pct(en.hp / en.maxHp * 100)};background:var(--bad)"></i></div></div>`;
-  } else { const ic = { spider: '🕷', isopod: '🪲', springtail: '🦗' }[G.sel.kind]; box.innerHTML = `<b>${ic} ${SPECIES_TEXT[G.sel.kind].name}</b><div style="color:var(--dim)">${en.len.toFixed(1)} mm${en.dead ? ' · elpusztult' : ''}</div><div class="row"><span class="ic">♥</span><div class="bar"><i style="width:${pct((en.hp / (en.maxHp || 1)) * 100)};background:var(--bad)"></i></div></div>`; }
+  } else { const mwk = G.sel.kind === 'isopod' && en.sp === 'mealworm', ic = mwk ? '🪱' : { spider: '🕷', isopod: '🪲', springtail: '🦗' }[G.sel.kind]; box.innerHTML = `<b>${ic} ${SPECIES_TEXT[mwk ? 'mealworm' : G.sel.kind].name}</b><div style="color:var(--dim)">${en.len.toFixed(1)} mm${en.dead ? ' · elpusztult' : ''}</div><div class="row"><span class="ic">♥</span><div class="bar"><i style="width:${pct((en.hp / (en.maxHp || 1)) * 100)};background:var(--bad)"></i></div></div>`; }
   // csak kritikus események jelennek meg szövegesen
-  while (G.logIdx < sim.logs.length) { const l = sim.logs[G.logIdx++]; if (l && l.level === 'critical') toast(l.text); }
+  while (G.logIdx < sim.logs.length) { const l = sim.logs[G.logIdx++]; if (l && l.level === 'critical') toast(l.text); else if (l && l.level === 'territory') toast(l.text, 7000, true); }
   if (sim.over && !G.over) { G.over = true; G.paused = true; show('pause'); }
 }
 function updateFpvHud() {

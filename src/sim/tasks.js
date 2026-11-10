@@ -248,7 +248,14 @@ export function findPrey(sim, a) {
     const d = dist(a.x, a.z, p.x, p.z);
     if (p.dead) { if (H.scavenge && p.foodLeft > 0.3 && p.fresh > 0.15 && d < R * 1.6) consider('isopod', p, d, 1); continue; }
     if (!H.live) continue;
-    const ratio = p.len / a.len; if (ratio > H.maxRatio * (1 + 0.6 * sim.groupSize(a, 18) * H.group)) continue;
+    const ratio = p.len / a.len;
+    // toborzás: a hangya, amelyik egy túl nagy (de legyőzhető) zsákmányt észrevesz, riasztja a többieket; a riasztások száma a csoport-erőt növeli (a nagy préda csoportban könnyebb)
+    if (p.callT !== undefined && sim.t - p.callT > 45) p.calls = 0;
+    const crowd = Math.max(sim.groupSize(a, 18), p.calls || 0);
+    if (ratio > H.maxRatio * (1 + 0.6 * crowd * H.group)) {
+      if (d < R && ratio < H.maxRatio * (1 + 0.6 * 6 * H.group) && (p.callT === undefined || sim.t - p.callT > 3)) { p.calls = Math.min(6, (p.calls || 0) + 1); p.callT = sim.t; }
+      continue;
+    }
     if (p.state === 'hidden') { const c = sim.world.covers.find((q) => q.id === p.cover); if (!c || dist(a.x, a.z, c.x, c.z) > c.r + 4 || !sim.rng.chance(0.012 * H.crevice * 6)) continue; consider('isopod', p, d, 3); continue; }
     if (d < R) consider('isopod', p, d, ratio * 3);
   }
