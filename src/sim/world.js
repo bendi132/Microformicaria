@@ -2,6 +2,7 @@
 import { RNG } from '../core/rng.js';
 import { fbm, clamp, dist, dist2 } from '../core/util.js';
 import { WORLD_HALF, WORLD_MAX, SPECIES, CLIMATE, TERRITORY } from './config.js';
+import { ensureHosts } from './aphids.js';
 
 export const CELL = 3;                                 // nedvességtérkép cellaméret (mm)
 export const MOIST_N = (WORLD_MAX * 2) / CELL;          // nedvességtérkép felbontása (a teljes világra)
@@ -107,7 +108,7 @@ export function createWorld(seed, speciesId) {
   let sx = 0, sz = 0;
   for (let t = 0; t < 100; t++) { sx = rng.range(-22, 22); sz = rng.range(-22, 22); if (free(sx, sz, 5, 6)) break; }
   w.spawn = { x: sx, z: sz };
-  extendWorld(w);
+  extendWorld(w); ensureHosts(w);
   return w;
 }
 
@@ -171,7 +172,7 @@ export function upgradeWorld(w, seed) {
     }
     w.moist = nm;
   }
-  w.max = WORLD_MAX; if (!w.extended) extendWorld(w); return w;
+  w.max = WORLD_MAX; if (!w.extended) extendWorld(w); ensureHosts(w); return w;
 }
 // a játszható terület fél-oldala a kolónia mérete (dolgozók száma) szerint
 export function territoryFor(workers) { let h = TERRITORY[0].half; for (const t of TERRITORY) if (workers >= t.w) h = t.half; return h; }

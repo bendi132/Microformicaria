@@ -161,7 +161,7 @@ function updateHud() {
   // kijelölés
   const en = selEntity(); const box = $('sel'); $('bPoss').disabled = !(en && G.sel.kind === 'ant');
   if (!en) { box.style.display = 'none'; return; } box.style.display = 'block';
-  if (G.sel.kind === 'ant') { const carry = en.carry ? { prey: '🍖', sugar: '🍯', water: '💧', eggs: '🥚', soil: '🟤', brood: '🥚' }[en.carry.kind] || '' : '';
+  if (G.sel.kind === 'ant') { const carry = en.carry ? { prey: '🍖', sugar: '🍯', water: '💧', eggs: '🥚', soil: '🟤', brood: '🥚', aphid: '🟢' }[en.carry.kind] || '' : '';
     box.innerHTML = `<div style="display:flex;justify-content:space-between"><b>${en.caste === 'queen' ? '👑 Királynő' : en.caste === 'soldier' ? '🛡 Katona' : '🐜 Dolgozó'}</b><span>${carry}</span></div><div style="color:var(--dim);margin:3px 0">${TASK_HU[en.task] || en.task}</div>
     <div class="row"><span class="ic">⚡</span><div class="bar"><i style="width:${pct(en.energy)}"></i></div></div><div class="row"><span class="ic">💧</span><div class="bar"><i style="width:${pct(en.hyd)};background:var(--water)"></i></div></div><div class="row"><span class="ic">♥</span><div class="bar"><i style="width:${pct(en.hp / en.maxHp * 100)};background:var(--bad)"></i></div></div>`;
   } else { const mwk = G.sel.kind === 'isopod' && en.sp === 'mealworm', ic = mwk ? '🪱' : { spider: '🕷', isopod: '🪲', springtail: '🦗' }[G.sel.kind]; box.innerHTML = `<b>${ic} ${SPECIES_TEXT[mwk ? 'mealworm' : G.sel.kind].name}</b><div style="color:var(--dim)">${en.len.toFixed(1)} mm${en.dead ? ' · elpusztult' : ''}</div><div class="row"><span class="ic">♥</span><div class="bar"><i style="width:${pct((en.hp / (en.maxHp || 1)) * 100)};background:var(--bad)"></i></div></div>`; }
@@ -172,12 +172,13 @@ function updateHud() {
 function updateFpvHud() {
   const sim = G.sim, a = sim.controlTarget(); if (!a) return; Mg.update(sim); $('fE').style.width = pct(a.energy); $('fH').style.width = pct(a.hyd); $('fL').style.width = pct(a.hp / a.maxHp * 100);
   const od = SPECIES[sim.speciesId].id === 'odonto'; $('fMand').style.display = od ? '' : 'none'; $('fM').style.width = pct(a.mand * 100); $('kJ').style.display = od ? '' : 'none'; $('kR').textContent = TOUCH ? (od ? '⌃' : '⌄') : (od ? 'RMB ⌃' : 'RMB ⌄');
-  $('fCarry').textContent = a.carry ? { prey: '🍖', sugar: '🍯', water: '💧', eggs: '🥚', soil: '🟤', brood: '🥚' }[a.carry.kind] || '' : '';
+  $('fCarry').textContent = a.carry ? { prey: '🍖', sugar: '🍯', water: '💧', eggs: '🥚', soil: '🟤', brood: '🥚', aphid: '🟢' }[a.carry.kind] || '' : '';
   let cls = ''; const tg = a.loc !== 'nest' ? manualTargets(sim, a, Math.max(SPECIES[sim.speciesId].hunt.reach * a.len * 1.4, 3.2)) : [];
   if (tg.length) { const k = tg[0]; cls = k.kind === 'spider' ? 'enemy' : k.kind === 'clutch' ? 'egg' : k.p.dead ? 'src' : 'prey'; }
   else { const ur = Math.max(3.4, a.len * 0.75 + 1.5); for (const d of sim.world.droplets) if (Math.hypot(d.x - a.x, d.z - a.z) < ur) { cls = 'src'; break; } if (!cls) for (const f of sim.world.foods) if (f.limb === undefined && Math.hypot(f.x - a.x, f.z - a.z) < ur) { cls = 'src'; break; } }
+  if (!cls && (a.carry ? a.carry.kind === 'aphid' && sim.world.hosts : true)) { for (const q of sim.world.aphids || []) if (Math.hypot(q.x - a.x, q.z - a.z) < Math.max(3.4, a.len * 0.75 + 1.5)) { cls = 'src'; break; } }
   $('cross').className = 'cross ' + cls;
-  if (sim.note) { toast(sim.note === 'noDig' ? 'Ez a faj nem ás a talajban' : 'Előbb fészek kell az ásáshoz', 2500); sim.note = null; }
+  if (sim.note) { toast({ noDig: 'Ez a faj nem ás a talajban', noNest: 'Előbb fészek kell az ásáshoz', aphidTaken: 'Levéltetű felvéve – E: növényre helyezés', aphidPlaced: 'A levéltetű a növényen: mézharmatot fog termelni', aphidNoHost: 'Ide nem tehető: növény kell hozzá', aphidFull: 'Ezen a növényen már elég tetű van', aphidLost: 'A levéltetű elveszett' }[sim.note] || '', 2500); sim.note = null; }
 }
 
 // ---------------------------------------------------------------- first person

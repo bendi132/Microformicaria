@@ -10,6 +10,7 @@ import { killIsopod } from './isopod.js';
 import { dist, clamp, angDiff, turnToward } from '../core/util.js';
 import { followDir, trailStrength } from './phero.js';
 import { effDir } from './manage.js';
+import { pickAphid, placeAphid } from './aphids.js';
 
 const S = (sim) => SPECIES[sim.speciesId];
 const EN = 10;                                    // 1 táplálékegység = ennyi energiapont
@@ -33,7 +34,7 @@ export function chooseTask(sim, a) {
   const weatherF = (1 - sim.env.rain * 0.85) * clamp((sim.env.temp - 6) / 10, 0.1, 1) * (sim.env.temp > 37 ? clamp(1 - (sim.env.temp - 37) / 9, 0.12, 1) : 1);   // hőségben a felszíni munka leáll   // esőben és hidegben a hangyák a fészekben maradnak
   const sc = {
     hunt: weatherF * nd.protein * 1.5 * dir.hunt * (hunter ? 1 : 0) * (1 - danger * 0.9) * (soldier ? 0.25 : 1) * (a.age > 0.6 ? 1 : 0.3) * (a.energy > 45 ? 1 : 0.5),
-    forage: weatherF * (sp.nest.type === 'tree' || sp.diet?.seeds ? 1 : 0) * (sp.diet?.seeds ? Math.max(nd.sugar, nd.protein) * 1.5 : nd.sugar * 1.1) * dir.forage * (1 - danger * 0.85) * (soldier ? 0.3 : 1) * (a.age > 0.6 ? 1 : 0.3),
+    forage: weatherF * (sp.nest.type === 'tree' || sp.diet?.seeds || sim.honeyReady > 0 ? 1 : 0) * (sp.diet?.seeds ? Math.max(nd.sugar, nd.protein) * 1.5 : nd.sugar * 1.1) * dir.forage * (1 - danger * 0.85) * (soldier ? 0.3 : 1) * (a.age > 0.6 ? 1 : 0.3),
     water: nd.water * 1.25 * dir.water * (1 - danger * 0.8) * (soldier ? 0.4 : 1),
     nurse: nd.nurse * 1.7 * dir.nurse * young,
     dig: nd.dig * 1.0 * dir.dig * (sp.nest.type === 'soil' ? 1 : 0),
@@ -97,7 +98,7 @@ function goHome(sim, a, dt, targetNodeId) {
   return r;
 }
 function deposit(sim, a) {
-  const c = sim.colony, cap = storeCap(sim), cr = a.carry; if (!cr) return;
+  const c = sim.colony, cap = storeCap(sim), cr = a.carry; if (!cr || cr.kind === 'aphid') return;       // a levéltetűt nem raktározzuk
   if (c.mg) { const k = cr.kind === 'eggs' ? 'prey' : cr.kind; if (cap[k] !== undefined) { const room = Math.max(0, cap[k] - (c.store[k] || 0)); c.mg.cnt.inc[k] += Math.min(cr.amt, room); if (k !== 'water') c.mg.cnt.wasted += Math.max(0, cr.amt - room); } }   // vezetés: beszerzés és kárba veszett mennyiség
   if (cr.kind === 'prey') c.store.prey = Math.min(cap.prey, c.store.prey + cr.amt);
   else if (cr.kind === 'seed') c.store.seed = Math.min(cap.seed, (c.store.seed || 0) + cr.amt);
@@ -641,6 +642,9 @@ function manual(sim, a, dt) {
   const sprint = inp.sprint && a.energy > 6 ? 1.7 : 1; const crouch = inp.act2 && sp.id !== 'odonto';
   a.hiding = crouch; a.slow = crouch; if (a.loc !== 'nest' && a.anim.act === 3) a.anim.act = 0;
   const spd = baseSpeed(sim, a) * (crouch ? 0.45 : sprint) * (0.5 + 0.5 * a.hp / a.maxHp);
+  // E rövid koppintás: levéltetű felvétele / növényre helyezése; E nyomva tartva: evés, ivás, a mézharmat „fejése”
+  if (inp.useHold) a.eT = (a.eT || 0) + dt;
+  else { const tap = a.eT > 0 && a.eT < 0.45; a.eT = 0; if (tap && a.loc === 'ground' && !a.climbing && sim.world.aphids) { if (a.carry && a.carry.kind === 'aphid') placeAphid(sim, a); else if (!a.carry) pickAphid(sim, a); } }
   const src = a.loc === 'ground' && inp.use ? nearbyUse(sim, a) : null;      // evés/ivás közben a hangya a forrásnál marad
   const digging = a.loc === 'ground' && inp.digSurf && !a.climbing && sp.nest.type === 'soil' && !!n && !src;   // felszíni ásás (X)
   if (inp.digSurf && !digging && !inp._noted) { inp._noted = true; sim.note = a.loc !== 'ground' ? null : a.climbing ? null : sp.nest.type !== 'soil' ? 'noDig' : !n ? 'noNest' : null; sim.noteT = sim.t; }
@@ -704,7 +708,7 @@ function manual(sim, a, dt) {
     else if (a.loc === 'nest') { const c = sim.colony; if (c.store.water > 1) { const t = Math.min(c.store.water, 1.6 * dt); c.store.water -= t; a.hyd = Math.min(100, a.hyd + t * 14); } }
   }
   inp.use = inp.useHold ? true : false;
-  if (inp.drop && a.carry) { inp.drop = false; if (a.loc === 'nest') deposit(sim, a); else a.carry = null; }
+  if (inp.drop && a.carry) { inp.drop = false; if (a.carry.kind === 'aphid') { if (!placeAphid(sim, a)) { a.carry = null; sim.note = 'aphidLost'; sim.noteT = sim.t; } } else if (a.loc === 'nest') deposit(sim, a); else a.carry = null; }
   a.anim.mv = a.moved > 0.0001 ? 1 : 0;
 }
 // felszíni nyílás: az eredeti bejárat vagy a játékos által ásott kijárat ('exit')

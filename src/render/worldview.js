@@ -5,6 +5,7 @@ import { PN, PC } from '../sim/phero.js';
 import { heightAt, moistureAt, limbPoint, limbBase } from '../sim/world.js';
 import { fbm, clamp, lerp, smooth } from '../core/util.js';
 import { RNG } from '../core/rng.js';
+import { buildHostMesh, loadUndergrowth } from './hosts.js';
 import { SPECIES } from '../sim/config.js';
 import { soilTextures, stoneTextures, barkTextures, rottenWoodTextures, mossTexture, sandTextures } from './textures.js';
 
@@ -99,7 +100,7 @@ export class WorldView {
       const x = rng.range(-half, half), z = rng.range(-half, half); if (this.overStone(w, x, z)) continue;
       const r = rng.range(0.25, 1.1); P.set(x, heightAt(w, x, z) + r * 0.15, z); S.set(r, r * rng.range(0.5, 0.8), r * rng.range(0.7, 1.1)); Qn.setFromEuler(new THREE.Euler(rng.range(0, 1), rng.range(0, 6), rng.range(0, 1))); M.compose(P, Qn, S); peb.setMatrixAt(pc, M); peb.setColorAt(pc, desert ? new THREE.Color().setHSL(0.1, 0.28, rng.range(0.55, 0.78)) : new THREE.Color().setHSL(0.08, 0.2, rng.range(0.28, 0.6))); pc++;
     }
-    peb.count = pc; peb.castShadow = true; peb.receiveShadow = true; G.add(peb);
+    peb.count = pc; peb.castShadow = false; peb.receiveShadow = true; G.add(peb);
     // ---- avar (száraz levéldarabok)
     const lg = new THREE.PlaneGeometry(1, 0.5, 12, 6); lg.rotateX(-Math.PI / 2); const lp = lg.attributes.position; for (let i = 0; i < lp.count; i++) { const lx = lp.getX(i), lz = lp.getZ(i); lp.setY(i, Math.sin(lx * 3.1 + 0.6) * 0.07 + lz * lz * 1.1 + Math.max(0, lx - 0.25) * 0.28 * Math.sign(lz) * lz); } lg.computeVertexNormals();
     const litM = new THREE.MeshStandardMaterial({ roughness: 0.9, side: THREE.DoubleSide, color: 0xffffff, map: this.leafTexture(), alphaTest: 0.5 }); const litN = desert ? 0 : Math.round(this.q.litter * AF); const lit = new THREE.InstancedMesh(lg, litM, Math.max(1, litN)); let lc = 0;
@@ -107,9 +108,10 @@ export class WorldView {
       const x = rng.range(-half, half), z = rng.range(-half, half); if (this.overStone(w, x, z)) continue; const s = rng.range(4, 10);
       P.set(x, heightAt(w, x, z) + 0.25, z); S.set(s, 1, s); Qn.setFromEuler(new THREE.Euler(rng.range(-0.2, 0.2), rng.range(0, 6.28), rng.range(-0.2, 0.2))); M.compose(P, Qn, S); lit.setMatrixAt(lc, M); lit.setColorAt(lc, new THREE.Color().setHSL(rng.range(0.05, 0.13), rng.range(0.3, 0.6), rng.range(0.3, 0.52))); lc++;
     }
-    lit.count = lc; lit.castShadow = true; lit.receiveShadow = true; G.add(lit);
+    lit.count = lc; lit.castShadow = false; lit.receiveShadow = true; G.add(lit);
     // ---- fű: ingó szálak
     this.buildGrass(w, rng);
+    const tok = this.buildTok = (this.buildTok || 0) + 1; loadUndergrowth().then((v) => { const hm = buildHostMesh(w, heightAt, v); if (hm && this.buildTok === tok) { this.group.add(hm); this.hostMesh = hm; } });          // gazdanövények (levéltetű-farm)
     // ---- fa (Cephalotes)
     if (w.limbs.length) this.buildTree(sim);
     // ---- fészekbejárat (talajfészek): a nyílás és a kidobott föld
@@ -119,7 +121,7 @@ export class WorldView {
     this.drops = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 20, 14), this.dropMat, 96); this.drops.count = 0; this.drops.castShadow = false; G.add(this.drops);
     this.pelletMesh = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 1), new THREE.MeshStandardMaterial({ map: this.tex.soil.map, color: 0xd2b894, roughness: 1, emissive: 0x2a1a0e, emissiveIntensity: 0.6 }), 260); this.pelletMesh.count = 0; this.pelletMesh.castShadow = true; G.add(this.pelletMesh);
     this.foodMat = new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.2, clearcoat: 0.8, transparent: false });
-    this.foods = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 16, 12), this.foodMat, 64); this.foods.count = 0; this.foods.castShadow = true; G.add(this.foods);
+    this.foods = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 16, 12), this.foodMat, 128); this.foods.count = 0; this.foods.castShadow = true; G.add(this.foods);
     this.initRain(); this.updateDynamic(sim);
   }
   leafTexture() {
@@ -165,11 +167,12 @@ export class WorldView {
       const x = rng.range(-w.max - 6, w.max + 6), z = rng.range(-w.max - 6, w.max + 6); if (this.overStone(w, x, z)) continue;
       if (Math.hypot(x - w.spawn.x, z - w.spawn.z) < 5) continue;
       const moist = moistureAt(w, clamp(x, -w.max, w.max), clamp(z, -w.max, w.max)); if (rng.next() > 0.35 + moist * 0.9) continue;
+      if ((Math.abs(x) > 96 || Math.abs(z) > 96) && rng.next() < 0.45) continue;       // a kezdő játéktéren kívül ritkább a fű (kevesebb rajzolt példány, a köd úgyis elfedi)
       const hgt = rng.range(5, 18) * (0.7 + moist * 0.7) * (this.tropical ? 1.35 : 1); P.set(x, heightAt(w, clamp(x, -w.max, w.max), clamp(z, -w.max, w.max)) - 0.1, z); S.set(rng.range(0.7, 1.4), hgt, 1);
       Qn.setFromEuler(new THREE.Euler(rng.range(-0.18, 0.18), rng.range(0, 6.28), rng.range(-0.18, 0.18))); M.compose(P, Qn, S); gi.setMatrixAt(c, M);
       gi.setColorAt(c, (this.tropical ? new THREE.Color().setHSL(rng.range(0.27, 0.36), rng.range(0.55, 0.8), rng.range(0.14, 0.3)) : new THREE.Color().setHSL(rng.range(0.19, 0.28), rng.range(0.4, 0.6), rng.range(0.2, 0.36)))); c++;
     }
-    gi.count = c; gi.castShadow = this.qn !== 'low'; gi.receiveShadow = true; gi.frustumCulled = false; this.group.add(gi); this.grass = gi;
+    gi.count = c; gi.castShadow = false; gi.receiveShadow = true; gi.frustumCulled = false; this.group.add(gi); this.grass = gi;
   }
   // sivatagi száraz fűcsomók: a szimuláció tufts-ai köré, a csomó sűrűségével arányos szálszámmal
   buildTufts(w, rng) {
@@ -194,7 +197,7 @@ export class WorldView {
       Qn.setFromEuler(new THREE.Euler(lean * 0.4, rng.range(0, 6.28), lean)); M.compose(P, Qn, S); gi.setMatrixAt(c, M);
       gi.setColorAt(c, new THREE.Color().setHSL(rng.range(0.1, 0.14), rng.range(0.35, 0.55), rng.range(0.42, 0.6))); c++;
     }
-    gi.count = c; gi.castShadow = this.qn !== 'low'; gi.receiveShadow = true; gi.frustumCulled = false; this.group.add(gi); this.grass = gi;
+    gi.count = c; gi.castShadow = false; gi.receiveShadow = true; gi.frustumCulled = false; this.group.add(gi); this.grass = gi;
   }
   buildTree(sim) {
     const w = sim.world; const tl = new THREE.TextureLoader();
@@ -271,10 +274,11 @@ export class WorldView {
     for (const d of w.droplets) { if (i >= 96) break; const r = Math.cbrt(d.vol) * 0.46; P.set(d.x, heightAt(w, d.x, d.z) + r * 0.45, d.z); S.set(r, r * 0.72, r); M.compose(P, Qn, S); this.drops.setMatrixAt(i++, M); }
     this.drops.count = i; this.drops.instanceMatrix.needsUpdate = true;
     { let k = 0; for (const p of (w.pellets || [])) { if (k >= 260) break; const r = p.s; P.set(p.x, heightAt(w, p.x, p.z) + r * 0.45, p.z); S.set(r * 1.15, r * 0.8, r); M.compose(P, Qn, S); this.pelletMesh.setMatrixAt(k++, M); } this.pelletMesh.count = k; this.pelletMesh.instanceMatrix.needsUpdate = true; }
-    i = 0; const colAmber = new THREE.Color(0xd6921c), colDrop = new THREE.Color(0x2a1d12);
+    i = 0; const colAmber = new THREE.Color(0xd6921c), colDrop = new THREE.Color(0x2a1d12), colHoney = new THREE.Color(0xf6d98a); const aphMap = new Map(); for (const q of w.aphids || []) aphMap.set(q.id, q);
     for (const f of w.foods) {
-      if (f.kind === 'seed') continue; if (i >= 64) break; let x = f.x, y, z = f.z;
+      if (f.kind === 'seed') continue; if (i >= 120) break; let x = f.x, y, z = f.z;
       if (f.limb !== undefined) { const pt = limbPoint(w, f.limb, f.s, f.th, {}); x = pt.x + pt.nx * 0.2; y = pt.y + pt.ny * 0.2; z = pt.z + pt.nz * 0.2; } else y = heightAt(w, x, z);
+      if (f.aphid) { const ap = aphMap.get(f.aphid); if (!ap || f.amount < 0.8) continue; const rr = 0.2 + Math.cbrt(f.amount) * 0.1; P.set(ap.x, y + ap.hy - 0.9, ap.z); S.set(rr, rr * 1.25, rr); M.compose(P, Qn, S); this.foods.setMatrixAt(i, M); this.foods.setColorAt(i, colHoney); i++; continue; }   // mézharmat-csepp a tetű alatt
       const r = 0.6 + Math.cbrt(Math.max(0, f.amount)) * 0.34; P.set(x, y + r * 0.35, z); S.set(r, r * 0.6, r); M.compose(P, Qn, S); this.foods.setMatrixAt(i, M); this.foods.setColorAt(i, f.kind === 'dropping' ? colDrop : colAmber); i++;
     }
     this.foods.count = i; this.foods.instanceMatrix.needsUpdate = true; if (this.foods.instanceColor) this.foods.instanceColor.needsUpdate = true;
@@ -329,7 +333,7 @@ export class WorldView {
     if (this._playHalf !== sim.world.half) {                          // a terület megnőtt: a határfal kifelé tolódik, a talaj színe frissül
       this._playHalf = sim.world.half; const h = sim.world.half; this.bound.scale.set(h, 1, h); this.bound.position.y = heightAt(sim.world, 0, 0); this.moistT = 99;
     }
-    this.moistT += dt; if (this.moistT > 6) { this.moistT = 0; this.updateMoistureColors(); }
+    this.moistT += dt; if (this.moistT > 10) { this.moistT = 0; this.updateMoistureColors(); }
     this.dynT += dt; if (this.dynT > 0.25) { this.dynT = 0; this.updateDynamic(sim); }
     this.ensureEntrance(sim); this.updateLighting(sim.env); this.updateRain(dt, sim.env.rain || 0);
     // metszetnézet: a talaj és a felszíni rendetlenség (fű, avar, kövek) eltűnik, a háttér a "föld keresztmetszete"; a fa kérge áttetsző

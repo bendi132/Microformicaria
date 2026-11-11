@@ -166,7 +166,7 @@ export function updateAnt(sim, a, dt) {
   if (a.pauseT > 0) { a.pauseT -= dt; paused = true; a.vf = 0.2; }
   else if (a.loc === 'ground' && a.stress < 20 && !a.target && a.anim.mv > 0.5 && !(sim.player.active && sim.player.antId === a.id) && ((a.task === 'forage' && a.st === 'go') || (a.task === 'hunt' && a.st === 'search') || a.task === 'water') && sim.rng.next() < dt * 0.14) a.pauseT = 0.35 + sim.rng.next() * 0.9;
   if (!paused) runTask(sim, a, dt);
-  if (a.loc === 'ground' && a.carry && a.moved > 0 && a.carry.kind !== 'soil' && a.carry.kind !== 'water') deposit(sim, a.x, a.z, 1.6 * trailStrength(sim) * dt);   // a táplálékot hazavivő hangya nyomot hagy
+  if (a.loc === 'ground' && a.carry && a.moved > 0 && a.carry.kind !== 'soil' && a.carry.kind !== 'water' && a.carry.kind !== 'aphid') deposit(sim, a.x, a.z, 1.6 * trailStrength(sim) * dt);   // a táplálékot hazavivő hangya nyomot hagy
   { const an = a.anim, tgt = a._feed ? 1 : 0; an.feedS = (an.feedS || 0) + (tgt - (an.feedS || 0)) * Math.min(1, dt * 6);   // evési póz: act = 4, a fej fokozatosan lehajlik
     if (an.act === 1) { an.actT += dt / 0.4; if (an.actT >= 1) { an.act = 0; an.actT = 0; } }     // támadás-csapás 0,4 mp, utána visszaáll (eddig beragadt, és blokkolta az evési pózt)
     if (an.feedS > 0.03 && an.act !== 1 && an.act !== 3) { an.act = 4; an.actT = an.feedS; } else if (an.act === 4) { an.act = 0; an.actT = 0; }

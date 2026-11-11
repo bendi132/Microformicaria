@@ -9,6 +9,7 @@ import { storeCap, workers } from './colony.js';
 import { seedAt } from './world.js';
 import { makeIsopod, makeMealworm } from './entities.js';
 import { damageAnt } from './ant.js';
+import { aphidCount, addAphid, hostCount } from './aphids.js';
 import { dist, clamp } from '../core/util.js';
 
 export const MIN_WORKERS = 6;                       // ettől a létszámtól kezdve érkeznek döntési események (a kis kolónia még nem "vezetett")
@@ -190,13 +191,25 @@ export const EVENTS = {
     ],
   },
   honeydew: {
-    title: 'Levéltetvek a közelben', icon: '🌿', weight: 2, def: 'wait',
-    when: (sim) => SPECIES[sim.speciesId].nest.type === 'tree' && workers(sim).length >= 8 && sim.env.rain < 0.3 && sim.env.temp > 12,
-    text: () => 'A felderítők levéltetű-telepet találtak egy kéregrésen. A mézharmat bőséges cukorforrás, de a tetveket védeni kell a ragadozóktól.',
+    title: 'Levéltetű-telep a közelben', icon: '🌿', weight: 2.4, def: 'wait',
+    when: (sim) => workers(sim).length >= 8 && sim.env.rain < 0.3 && sim.env.temp > 12 && (SPECIES[sim.speciesId].nest.type === 'tree' || (sim.world.biome !== 'desert' && aphidCount(sim.world) >= 2)),
+    text: (sim) => SPECIES[sim.speciesId].nest.type === 'tree'
+      ? 'A felderítők levéltetű-telepet találtak egy kéregrésen. A mézharmat bőséges cukorforrás, de a tetveket védeni kell a ragadozóktól.'
+      : 'A közeli növényeken levéltetű-telepek élnek. A hangyák "fejik" őket: a tetű a növény nedvéből szív, a felesleges cukrot mézharmatként üríti. Cserébe a hangya védi a tetveket. Az E gombbal tetveket vihetsz más növényekre is.',
     opts: [
-      { id: 'tend', label: 'Tetvek gondozása', note: 'Tartós cukorforrás, de az őrség is kell.', mods: [['forage', 1.7], ['guard', 1.4]], apply: (sim) => honey(sim, 14), judge: (sim, d) => d.died === 0 ? ok('A tetű-telep tartós cukorforrás lett.', 5) : bad(`${d.died} hangya elpusztult a telep védelmében.`) },
-      { id: 'milk', label: 'Gyors begyűjtés', note: 'Egyszeri nagy adag, védelem nélkül.', mods: [['forage', 2.2]], apply: (sim) => honey(sim, 9), judge: (sim, d) => d.died === 0 ? ok('Gyorsan megtelt a cukorkészlet.', 4) : meh('A begyűjtés áldozatot követelt.', 2) },
-      { id: 'wait', label: 'Nem avatkozunk be', note: 'A dolgozók maguk döntenek.', mods: [], apply: (sim) => honey(sim, 4), judge: () => meh('Kevés mézharmat jutott a fészekbe.', 1) },
+      { id: 'tend', label: 'Tetvek gondozása', note: 'Tartós cukorforrás: a tetvek védettek, jobban termelnek; az őrség is kell.', mods: [['forage', 1.7], ['guard', 1.4]], apply: (sim) => honeyEv(sim, 14, true), judge: (sim, d) => d.died === 0 ? ok('A tetű-telep tartós cukorforrás lett.', 5) : bad(`${d.died} hangya elpusztult a telep körüli munkában.`) },
+      { id: 'milk', label: 'Gyors fejés', note: 'Egyszeri nagy adag, védelem nélkül.', mods: [['forage', 2.2]], apply: (sim) => honeyEv(sim, 9, false), judge: (sim, d) => d.died === 0 ? ok('Gyorsan megtelt a cukorkészlet.', 4) : meh('A begyűjtés áldozatot követelt.', 2) },
+      { id: 'wait', label: 'Nem avatkozunk be', note: 'A dolgozók maguk döntenek.', mods: [], apply: (sim) => honeyEv(sim, 4, false), judge: () => meh('Kevés mézharmat jutott a fészekbe.', 1) },
+    ],
+  },
+  ladybird: {
+    title: 'Katicabogár-lárva a tetveken', icon: '🐞', weight: 2.6, def: 'wait',
+    when: (sim) => sim.world.biome !== 'desert' && aphidCount(sim.world) >= 3 && sim.env.rain < 0.3 && sim.env.temp > 12 && workers(sim).length >= 8,
+    text: () => 'Katicabogár-lárva közeledik a levéltetű-telepek felé: egyetlen lárva napi több tucat tetűt is felfalhat. A tetveket a hangyák védik, a lárvát el lehet űzni. (A tetveket E-vel át is telepítheted.)',
+    opts: [
+      { id: 'patrol', label: 'Őrjárat a növényeknél', note: 'Az őrök a telepnél tartózkodnak: a tetvek védettek, de kevesebb a gyűjtő.', mods: [['guard', 1.8], ['forage', 0.8]], apply: (sim, ev) => ladyEv(sim, ev, 0.006, true), risk: 0.003, judge: (sim, d, ev) => lostAphids(sim, ev) === 0 ? ok('A telep sértetlen maradt.', 5) : meh(`${lostAphids(sim, ev)} tetűt elvitt a lárva.`, 2) },
+      { id: 'move', label: 'Tetvek áttelepítése', note: 'A tetvek szétszóródnak, kisebb a veszteség; a telep újra kell épüljön.', mods: [['forage', 0.9], ['caution', 1.2]], apply: (sim, ev) => ladyEv(sim, ev, 0.0035, false), judge: (sim, d, ev) => lostAphids(sim, ev) <= 1 ? ok('A legtöbb tetű megmenekült.', 4) : meh(`${lostAphids(sim, ev)} tetű elveszett.`, 2) },
+      { id: 'wait', label: 'Nem avatkozunk be', note: 'A dolgozók maguk döntenek.', mods: [], apply: (sim, ev) => ladyEv(sim, ev, 0.006, false), judge: (sim, d, ev) => lostAphids(sim, ev) === 0 ? ok('A lárva nem talált rájuk.', 3) : bad(`A lárva ${lostAphids(sim, ev)} levéltetűt falt fel.`) },
     ],
   },
   antlion: {
@@ -239,17 +252,6 @@ export const EVENTS = {
       { id: 'wait', label: 'Nem avatkozunk be', note: 'A dolgozók maguk döntenek.', mods: [], apply: (sim) => droplets(sim, 4), risk: 0.012, judge: (sim, d) => d.died === 0 ? ok('Nem esett kár.', 3) : bad(`${d.died} hangyát elsodort a víz.`) },
     ],
   },
-  rival: {
-    title: 'Idegen hangyák a határon', icon: '⚔', weight: 2.2, def: 'wait',
-    when: (sim) => workers(sim).length >= 14 && !sim.env.night,
-    text: () => 'Egy szomszéd hangyakolónia felderítői tűntek fel a területen. Ha nincs ellenállás, elvihetik a zsákmányt, és harcba keveredhet a kolónia.',
-    opts: [
-      { id: 'guard', label: 'Határőrség', note: 'Erős őrség a bejáratnál és az ösvényeken.', mods: [['guard', 2.3], ['hunt', 0.7], ['forage', 0.7]], risk: 0.006, judge: (sim, d) => d.died <= 1 ? ok('A határőrség elriasztotta a betolakodókat.', 5) : bad(`A harcban ${d.died} hangya veszett el.`) },
-      { id: 'counter', label: 'Ellentámadás', note: 'Sok harcos kivonul; ha győznek, zsákmányt visznek.', mods: [['guard', 1.6], ['hunt', 1.4]], apply: (sim) => { sim.colony.store.prey = Math.min(storeCap(sim).prey, sim.colony.store.prey + 5); return true; }, risk: 0.015, judge: (sim, d) => d.died <= 2 ? ok('Az ellentámadás sikerült, zsákmányt szereztetek.', 5) : bad(`Az ellentámadás ${d.died} hangyába került.`) },
-      { id: 'retreat', label: 'Visszavonulás', note: 'A felszíni munka leáll; a rivális elviszi a zsákmány egy részét.', mods: [['caution', 2.4], ['hunt', 0.3], ['forage', 0.3]], apply: (sim) => { const s = sim.colony.store; for (const k of ['prey', 'seed']) s[k] = (s[k] || 0) * 0.85; return true; }, risk: 0.003, judge: (sim, d) => d.died === 0 ? meh('Nem volt harc, de a készlet megcsappant.', 2) : bad(`${d.died} hangya elveszett.`) },
-      { id: 'wait', label: 'Nem avatkozunk be', note: 'A dolgozók maguk döntenek.', mods: [], risk: 0.025, judge: (sim, d) => d.died === 0 ? ok('A rivális elvonult.', 3) : bad(`A rivális ${d.died} hangyát ölt meg.`) },
-    ],
-  },
   cold: {
     title: 'Hideg éjszaka', icon: '🥶', weight: 2, def: 'wait',
     when: (sim) => sim.env.weather === 'cold' || (!!sim.env.forecast && sim.env.forecast.type === 'cold') || sim.env.temp < 8,
@@ -281,6 +283,15 @@ export const EVENTS = {
     ],
   },
 };
+// levéltetű-események segédei
+function honeyEv(sim, amount, guard) {
+  const w = sim.world;
+  if (SPECIES[sim.speciesId].nest.type === 'tree') { honey(sim, amount); return; }
+  if (guard) { w.aphidGuardUntil = sim.t + DAY; const h = w.hosts.filter((q) => hostCount(w, q.id) > 0 && hostCount(w, q.id) < 6)[0]; if (h && aphidCount(w) < 36) addAphid(w, h, sim.rng); }      // a gondozott telep gyarapszik
+  else for (const f of w.foods) if (f.aphid) f.amount = Math.min(f.max, f.amount + (amount > 6 ? 2.5 : 1));
+}
+function ladyEv(sim, ev, rate, guard) { const w = sim.world; ev.data.a0 = aphidCount(w); w.ladyUntil = sim.t + DAY; w.ladyRate = rate; w.aphidGuardUntil = guard ? sim.t + DAY : 0; }
+const lostAphids = (sim, ev) => Math.max(0, (ev.data.a0 || 0) - aphidCount(sim.world));
 const moldInfo = (sim) => { let max = 0, count = 0, worstRole = null; if (sim.nest) for (const nd of sim.nest.nodes) if (nd.kind === 'chamber' && (nd.mold || 0) > 0.05) { count++; if (nd.mold > max) { max = nd.mold; worstRole = nd.role; } } return { max, count, worstRole }; };
 export const moldOf = moldInfo;
 // a közelben lisztkukacok jelennek meg (a felszínen, nem rejtőzve)
@@ -296,10 +307,10 @@ function carcass(sim) {
 function honey(sim, amount) { const s = sim.colony.store, cap = storeCap(sim).sugar; s.sugar = Math.min(cap, s.sugar + amount); }
 function droplets(sim, n) { const b = baseOf(sim), w = sim.world, rng = sim.rng; if (!b) return; for (let i = 0; i < n; i++) { const a = rng.range(0, 6.28), r = rng.range(10, 30); w.droplets.push({ id: w.nextId++, x: clamp(b.x + Math.cos(a) * r, -w.half + 5, w.half - 5), z: clamp(b.z + Math.sin(a) * r, -w.half + 5, w.half - 5), vol: 30, max: 30, dew: true }); } }
 // veszélyes események: véletlenszerű felszíni dolgozó vagy fióka elvesztése
-const HURT_BY = { antlion: 'hangyaleső', bird: 'madár', foot: 'emberi láb', sprinkler: 'locsolóvíz', rival: 'idegen hangyák' };
+const HURT_BY = { antlion: 'hangyaleső', bird: 'madár', foot: 'emberi láb', sprinkler: 'locsolóvíz' };
 function hurtGround(sim, id) {
   const cand = sim.ants.filter((a) => !a.dead && a.caste !== 'queen' && a.loc === 'ground'); if (!cand.length) return;
-  const a = sim.rng.pick(cand); const msgs = { antlion: 'Egy hangya a hangyaleső tölcsérébe esett.', bird: 'Egy madár elkapott egy hangyát.', foot: 'Egy hangyát eltaposott egy láb.', sprinkler: 'A locsolóvíz elsodort egy hangyát.', rival: 'Egy hangya elesett a szomszéd kolóniával vívott harcban.' };
+  const a = sim.rng.pick(cand); const msgs = { antlion: 'Egy hangya a hangyaleső tölcsérébe esett.', bird: 'Egy madár elkapott egy hangyát.', foot: 'Egy hangyát eltaposott egy láb.', sprinkler: 'A locsolóvíz elsodort egy hangyát.' };
   sim.log(msgs[id] || 'Egy hangya elpusztult.', 'bad', a.id); damageAnt(sim, a, 9999, HURT_BY[id] || 'veszély');
 }
 function hurtBrood(sim) { const c = sim.brood.filter((b) => !b.dead); if (!c.length) return; const b = sim.rng.pick(c); b.dead = true; sim.log('Egy fióka elpusztult az atkák miatt.', 'bad'); }

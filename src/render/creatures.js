@@ -1,11 +1,12 @@
 // Élőlények megjelenítése (hangyák, ászkák, ugróvillások, pókok, tojások, fiasítás) és a fészek metszete.
 import * as THREE from 'three';
 import { loadCreatureGeometry, CreatureBatch } from './rig.js';
+import { MiteLayer } from './mites.js';
 import { mergeGeometries } from '../../vendor/three/addons/BufferGeometryUtils.js';
 import { soilTextures, rottenWoodTextures } from './textures.js';
 import { heightAt } from '../sim/world.js';
 import { node } from '../sim/nest.js';
-import { SPECIES } from '../sim/config.js';
+import { SPECIES, DAY } from '../sim/config.js';
 
 const tmpV = new THREE.Vector3();
 const ROLE_COL = { brood: 0xd9b25c, store: 0x7fa65a, rest: 0x7d8fa8, null: 0x8a6a48 };
@@ -32,16 +33,17 @@ export class CreatureLayer {
   constructor(scene) { this.scene = scene; this.group = new THREE.Group(); scene.add(this.group); this.nestSig = ''; this._dc = new THREE.Color(); this._dc2 = new THREE.Color(); this.nestGroup = new THREE.Group(); this.group.add(this.nestGroup); this.loaded = false; }
   async load(speciesId) {
     const sp = SPECIES[speciesId]; this.sp = sp;
-    const desert = sp.climate === 'desert'; this.desert = desert; const names = [sp.model, sp.queenModel || sp.model, sp.soldierModel || sp.model, desert ? 'eleodes' : 'isopod', 'spider', 'springtail', 'scorpion', 'mealworm']; const uniq = {}; await Promise.all([...new Set(names)].map(async (n) => { uniq[n] = await loadCreatureGeometry(`assets/models/${n}.glb`); }));
-    const [ant, antQ, antS, iso, spi, spr, sco, mw] = names.map((n) => uniq[n]); const gc = (caste) => (sp.gaitCaste && sp.gaitCaste[caste]) || sp.gait;
+    const desert = sp.climate === 'desert'; this.desert = desert; const names = [sp.model, sp.queenModel || sp.model, sp.soldierModel || sp.model, desert ? 'eleodes' : 'isopod', 'spider', 'springtail', 'scorpion', 'mealworm', 'aphid']; const uniq = {}; await Promise.all([...new Set(names)].map(async (n) => { uniq[n] = await loadCreatureGeometry(`assets/models/${n}.glb`); }));
+    const [ant, antQ, antS, iso, spi, spr, sco, mw, aph] = names.map((n) => uniq[n]); const gc = (caste) => (sp.gaitCaste && sp.gaitCaste[caste]) || sp.gait;
     this.antB = new CreatureBatch(ant, { kind: 0, capacity: 400, color: sp.tint, swing: gc('worker').swing });
     this.queenB = new CreatureBatch(antQ, { kind: 0, capacity: 8, color: sp.tint, swing: gc('queen').swing }); this.soldB = new CreatureBatch(antS, { kind: 0, capacity: 120, color: sp.tint, swing: gc('soldier').swing });
     this.isoB = new CreatureBatch(iso, { kind: desert ? 0 : 1, capacity: 160, color: desert ? 0xffffff : 0x7a746c });
     this.scoB = new CreatureBatch(sco, { kind: 4, capacity: 8, color: 0xffffff });
     this.mwB = new CreatureBatch(mw, { kind: 5, capacity: 48, color: 0xf2c47a });       // lisztkukac
+    this.aphB = new CreatureBatch(aph, { kind: 5, capacity: 64, color: 0x7cc243 }); this.aphB.mesh.material.color.setHex(0x86c04a); this.aphB.mesh.material.clearcoat = 0.15;       // levéltetű (a lisztkukac-animáció: lábak, csáp, enyhe test-mozgás)
     this.spiB = new CreatureBatch(spi, { kind: 2, capacity: 24, color: 0xffffff });
     this.sprB = new CreatureBatch(spr, { kind: 3, capacity: 320, color: 0x8d949c });
-    for (const b of [this.antB, this.queenB, this.soldB, this.isoB, this.spiB, this.scoB, this.sprB, this.mwB]) this.group.add(b.mesh);
+    for (const b of [this.antB, this.queenB, this.soldB, this.isoB, this.spiB, this.scoB, this.sprB, this.mwB, this.aphB]) this.group.add(b.mesh);
     // magvak (Messor táplálék): valódi, fotóból rekonstruált mag-modell, egyetlen példányolt rajz
     const seedG = await loadCreatureGeometry('assets/models/seed.glb');
     this.seedMesh = new THREE.InstancedMesh(seedG.geometry, new THREE.MeshStandardMaterial({ color: 0xd9b56e, roughness: 0.55, metalness: 0 }), 420); this.seedMesh.count = 0; this.seedMesh.castShadow = true; this.seedMesh.frustumCulled = false; this.group.add(this.seedMesh);
@@ -50,6 +52,7 @@ export class CreatureLayer {
     this.eggMesh = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 14, 10), new THREE.MeshStandardMaterial({ roughness: 0.35, color: 0xffffff }), 900); this.eggMesh.count = 0; this.eggMesh.castShadow = true; this.group.add(this.eggMesh);
     const bmat = (r, em) => new THREE.MeshStandardMaterial({ roughness: r, color: 0xffffff, emissive: em, emissiveIntensity: 0.6 });
     this.nEgg = new THREE.InstancedMesh(blob(0.5, 0.26, 0.26, 0, 0.26, 0), bmat(0.3, 0x7a7466), 500); this.nLarva = new THREE.InstancedMesh(larvaGeometry(), bmat(0.5, 0x6f6755), 500); this.nPupa = new THREE.InstancedMesh(pupaGeometry(), bmat(0.55, 0x6a5a40), 500);
+    this.miteLayer = new MiteLayer(this.group);
     this.broodMeshes = [this.nEgg, this.nLarva, this.nPupa]; for (const m of this.broodMeshes) { m.count = 0; m.frustumCulled = false; this.group.add(m); }
     const soil = soilTextures(256); this.nestTex = soil.map; this.nestNrm = soil.normalMap; this.nestNrm.wrapS = this.nestNrm.wrapT = THREE.RepeatWrapping; this.nestNrm.repeat.set(1, 1); this.woodTex = rottenWoodTextures(256).map; for (const t of [this.nestTex, this.woodTex]) if (t) t.wrapS = t.wrapT = THREE.RepeatWrapping;
     this.silk = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 16, 12), new THREE.MeshStandardMaterial({ roughness: 0.9, color: 0xf2f0e6 }), 24); this.silk.count = 0; this.silk.castShadow = true; this.group.add(this.silk);
@@ -77,7 +80,7 @@ export class CreatureLayer {
   update(sim, time, nestView, camPos, controlled) {
     if (!this.loaded) return; const w = sim.world; this.up = this.up || new THREE.Vector3(0, 1, 0);
     const fwd = [0, 0, 1], up = [0, 1, 0], pos = tmpV; this.fpvAnt = controlled || null;
-    const { antB, queenB, soldB, isoB, spiB, scoB, sprB, mwB } = this; antB.begin(); queenB.begin(); soldB.begin(); isoB.begin(); spiB.begin(); scoB.begin(); sprB.begin(); mwB.begin();
+    const { antB, queenB, soldB, isoB, spiB, scoB, sprB, mwB, aphB } = this; aphB.begin(); antB.begin(); queenB.begin(); soldB.begin(); isoB.begin(); spiB.begin(); scoB.begin(); sprB.begin(); mwB.begin();
     let carryN = 0; const cm = this.carryMesh;
     const pushCarry = (x, y, z, r, color, flat) => { if (carryN >= 300) return; this.inst(cm, carryN, x, y, z, r, r * (flat || 1), r, color); carryN++; };
     // ---- magvak a talajon
@@ -118,6 +121,15 @@ export class CreatureLayer {
       B.addBasis(pos.set(p.x, y + (p.dead ? p.len * B.height * 0.95 : 0), p.z), fwd, up, p.len, [an.phase, p.dead ? 0 : an.mv, p.dead ? 9 : fl ? 7 : an.act, fl ? fl.t : an.actT], [an.head, an.open, fl ? fl.curl : an.curl, p.dead ? this.dryOf(p) : an.alert], p.dead ? (p.sp === 'mealworm' ? this._dc.setHex(0xe8d6b0).lerp(this._dc2.setHex(0x9c8a64), this.dryOf(p)).getHex() : this.deadColor(p)) : undefined);
     }
     isoB.end(time); mwB.end(time);
+    // ---- levéltetvek a gazdanövényeken (idle: finom láb- és csáp-mozgás; telt gaszter = mézharmat)
+    if (w.aphids) for (const ap of w.aphids) {
+      const y = heightAt(w, ap.x, ap.z) + ap.hy; fwd[0] = Math.sin(ap.yaw); fwd[1] = 0.25; fwd[2] = Math.cos(ap.yaw); up[0] = 0; up[1] = 1; up[2] = 0;
+      aphB.addBasis(pos.set(ap.x, y, ap.z), fwd, up, 3.6, [time * 1.3 + ap.id * 1.7, 0.1 + 0.05 * Math.sin(time * 0.7 + ap.id), 0, 0], [0, 0, 0, 0]);
+    }
+    for (const a of sim.ants) if (!a.dead && a.carry && a.carry.kind === 'aphid' && (a.loc !== 'nest' || nestView) && !(controlled && controlled.id === a.id)) {
+      this.antFrame(sim, a, fwd, up); aphB.addBasis(pos.set(a.x + fwd[0] * a.len * 0.62 + up[0] * a.len * 0.12, a.y + fwd[1] * a.len * 0.62 + up[1] * a.len * 0.12, a.z + fwd[2] * a.len * 0.62 + up[2] * a.len * 0.12), fwd, up, 2.6, [time * 3, 0.3, 0, 0], [0, 0, 0, 0]);
+    }
+    aphB.end(time);
     // ---- ugróvillások
     for (const p of sim.springtails) {
       const y = heightAt(w, p.x, p.z) + (p.leap || 0); this.groundUp(w, p.x, p.z, up); fwd[0] = Math.sin(p.yaw); fwd[1] = p.leap > 0.6 ? 0.35 : 0; fwd[2] = Math.cos(p.yaw); const an = p.anim;
@@ -146,7 +158,7 @@ export class CreatureLayer {
     eg.count = en; eg.instanceMatrix.needsUpdate = true; if (eg.instanceColor) eg.instanceColor.needsUpdate = true; this.silk.count = sn; this.silk.instanceMatrix.needsUpdate = true;
     cm.count = carryN; cm.instanceMatrix.needsUpdate = true; if (cm.instanceColor) cm.instanceColor.needsUpdate = true;
     // ---- fiasítás (fészekmetszet): tojás, pajor, báb külön, valódi alakú modellel
-    const showB = nestView || !!(controlled && controlled.loc === 'nest'); const cnt = [0, 0, 0]; const [mE, mL, mP] = this.broodMeshes; for (const m of this.broodMeshes) m.visible = showB;
+    const showB = nestView || !!(controlled && controlled.loc === 'nest'); const cnt = [0, 0, 0]; const mHost = []; const [mE, mL, mP] = this.broodMeshes; for (const m of this.broodMeshes) m.visible = showB;
     if (showB && sim.nest) for (const b of sim.brood) {
       if (b.carried) continue; const nd = node(sim.nest, b.node); if (!nd) continue;
       const rr = Math.max(0.6, nd.r), kz = nd.kind === 'chamber' ? 0.55 : 0.95; const x = nd.x + b.ox * Math.max(0, rr - 1.4) * 0.72, z = nd.z + b.oz * Math.max(0, rr - 1.4) * 0.72; const dd = Math.min(0.98, Math.hypot(x - nd.x, z - nd.z) / rr), y = nd.y - rr * kz * Math.sqrt(1 - dd * dd) + 0.04; const wob = Math.sin(time * 1.6 + b.ox * 40);   // y: a kamra aljának tényleges magassága ott, ahol a fiasítás fekszik const wob = Math.sin(time * 1.6 + b.ox * 40) ;
@@ -154,7 +166,16 @@ export class CreatureLayer {
       if (b.stage === 'egg') { mesh = mE; k = 0; sc = 0.62; col = 0xf6f2e4; }
       else if (b.stage === 'larva') { mesh = mL; k = 1; sc = (1.1 + b.prog * 1.7) * (1 + wob * 0.025); col = b.fed < 0.3 ? 0xc9c3b3 : 0xf1e8cf; }
       else { mesh = mP; k = 2; sc = wsz * 0.85; col = b.prog > 0.8 ? 0xb08a58 : b.prog > 0.45 ? 0xd9c49a : 0xefe6cf; }
+      if (k < 2 && mHost.length < 40) mHost.push({ x, y: y + sc * 0.35, z, r: sc * 0.55, i: mHost.length });
       if (cnt[k] >= 500) continue; this.Q.setFromAxisAngle(this.up, b.ox * 9 + b.oz * 3); this.M.compose(tmpV.set(x, y, z), this.Q, this.S.set(sc, sc * (k === 1 ? 1 + wob * 0.03 : 1), sc)); mesh.setMatrixAt(cnt[k], this.M); mesh.setColorAt(cnt[k], this.C.set(col)); cnt[k]++;
+    }
+    { // atkák az eseményben (a fiasításon mászkálnak); az „Alapos tisztogatás” / áthelyezés alatt fogyatkoznak
+      const mg = sim.colony.mg, ev = mg && mg.ev; let list = null;
+      if (showB && ev && ev.id === 'mites' && mHost.length) {
+        let n = Math.min(12, Math.max(4, Math.round(mHost.length * 0.5))); if (ev.phase === 'run') { const left = Math.max(0, ev.resolveAt - sim.t) / (DAY * 1.2); n = Math.max(0, Math.round(n * (ev.opt === 'clean' ? left : ev.opt === 'move' ? 0.35 + 0.65 * left : 1))); }
+        list = []; for (let i = 0; i < n; i++) { const h = mHost[(i * 7) % mHost.length], a = time * 0.35 + i * 2.1, q = h.r * (0.6 + 0.4 * Math.sin(time * 0.5 + i)); list.push({ x: h.x + Math.cos(a) * q, y: h.y, z: h.z + Math.sin(a) * q, yaw: -a - Math.PI / 2 }); }
+      }
+      this.miteLayer.update(time, list);
     }
     this.broodMeshes.forEach((m, i) => { m.count = cnt[i]; m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; });
     // fejlámpa: a föld alatti első személyű nézetben

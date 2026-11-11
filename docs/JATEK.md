@@ -45,7 +45,7 @@ Cél: a nagyobb kolónia ne „menjen magától”, hanem a játékos a vezetőj
 
 **Döntési események**
 - A kolónia 6 dolgozótól (és a 2. naptól) kezdve időnként döntési kártyát kap; kb. 2–3 naponként (Kezdő: ritkábban, Nehéz: gyakrabban). Egyszerre egy lehet; érkezéskor a sebesség 1×-ra áll.
-- Események (18 típus, kb. 0,5–1 naponként egy): **pók a fészek közelében**, **hőhullám**, **heves eső / elöntés** (talajfészeknél), **szűk a fészek**, **éheznek a lárvák**, **bőséges zsákmány**, és újabban: **penész a fészekben**, **lisztkukacok a közelben**, **elhullott bogár** (dögevő fajoknál), **levéltetvek** (faüregi fajoknál), **hangyaleső-tölcsér**, **madár**, **közelgő óriás léptek**, **kerti locsoló**, **idegen hangyák a határon**, **hideg éjszaka**, **szárazság**, **atkák a fiasításon**.
+- Események (18 típus, kb. 0,5–1 naponként egy): **pók a fészek közelében**, **hőhullám**, **heves eső / elöntés** (talajfészeknél), **szűk a fészek**, **éheznek a lárvák**, **bőséges zsákmány**, és újabban: **penész a fészekben**, **lisztkukacok a közelben**, **elhullott bogár** (dögevő fajoknál), **levéltetű-telep** és **katicabogár-lárva a tetveken** (erdei élőhelyeken), **hangyaleső-tölcsér**, **madár**, **közelgő óriás léptek**, **kerti locsoló**, **hideg éjszaka**, **szárazság**, **atkák a fiasításon**.
 - A veszélyes eseményeknél az opcióknak **kockázata** van (a kártyán „⚠ kis / közepes / nagy kockázat”): futás közben másodpercenként esély van egy felszíni dolgozó (vagy atkáknál egy fióka) elvesztésére; a jó döntés ezt lecsökkenti.
 - Minden opció *időszakos módosítókat* ad (pl. őrség ×2,2, vadászat ×0,7 egy napra), néha azonnali hatást (kamra-ásatás, gyenge lárvák feláldozása, zsákmány megjelenése). A kártyán látszik, mit változtat és mibe kerül; mindig van „Nem avatkozunk be” opció, ez lép életbe, ha a döntési idő (0,7 nap) lejár.
 - Az opció idejének lejártakor az eredmény *kiértékelődik* a mért adatokból (elesett hangyák, elveszett fiókák, beszerzés, elöntés, elkészült kamra): sikeres / vegyes / sikertelen, üzenettel. Aki döntött, XP-t kap (sikeres: 4–5, vegyes: 2–3, sikertelen: 1); az automatikus (időtúllépéses) döntés nem ad XP-t.
@@ -64,3 +64,18 @@ A világ kezdettől 360×360 mm (`WORLD_MAX = 180`), de csak a közepe játszhat
 ## Penész
 
 Kamránként `nd.mold` (0–1). Nő, ha a kamra nedves (>0,72) és meleg (10–34 °C); a raktárkamrában (főleg ha tele van) és elöntés után gyorsabban; az erős penész a szomszéd kamrákat is fertőzi. Csökkenti: a dolgozók folyamatos takarítása (több dolgozó = gyorsabb), a vezetői `hygiene` módosító és a szellőzőjárat (`nd.vent`). Hatása: a raktár készlete romlik, a fiasítás lassabban fejlődik és 45% fölött elpusztulhat. A fészeknézetben a kamra zöldes-szürkére színeződik; a Készlet fülön és a napi tanácsok között is megjelenik. A „Penész a fészekben” esemény opciói: nagytakarítás, szellőzőjárat ásása, a penészes készlet kidobása, vagy nem avatkozunk be.
+
+## Levéltetű-farm (`src/sim/aphids.js`, `src/render/hosts.js`, `assets/models/aphid.glb`, `tools/prep_aphid.py`)
+
+- **Élőhely:** gazdanövények (`world.hosts`) csak erdőben vannak: mérsékelt övben csalán, varádics, here, bogáncs; trópusokon hibiszkusz, ixóra, heliconia, lantána (a fészek körül ~15, a kibővülő területen további 16). **Sivatagban nincs levéltetű és gazdanövény** (a fa-világban – Cephalotes – a fa nedve a cukorforrás). Változatonként egy InstancedMesh rajzolja őket.
+- **Tetvek** (`world.aphids`): a fészek közelében 3 vadon élő telep (2–2 tetű) van. Szaporodnak (partenogenezis: 12–32 °C, növényenként legfeljebb 6, összesen 36), a növényen élnek, és **mézharmatot** termelnek (`world.foods`, `sap` típus, `aphid` hivatkozással). A hangyák jelenléte (≤12 mm) 1,7× termelést ad, és véd a ragadozótól; védtelen tetvet ritkán elkap a katicabogár-lárva / fátyolka.
+- **Gyűjtés:** a ragadozó fajok (Ponera, Odontomachus, Proceratium) is gyűjtenek cukrot, amint kész mézharmat van (`sim.honeyReady`); a Messor és a Cephalotes a megszokott módon.
+- **Játékos (FPV):** **E rövid koppintás** = tetű felvétele (szájba veszi), újabb koppintás növény mellett = ráteszi (`placeAphid`; növényenként legfeljebb 8). **E nyomva tartva** = evés / a mézharmat „fejése”. **G** = leteszi (növény nélkül elveszik).
+- **Események:** *Levéltetű-telep a közelben* (gondozás / gyors fejés) és *Katicabogár-lárva a tetveken* (őrjárat / áttelepítés E-vel / semmi); az *Atkák a fiasításon* esemény alatt valódi, animált atka-modell mászkál a fiasításon (a tisztogatás alatt fogyatkoznak). Az ellenséges kolónia esemény megszűnt.
+- **Mentés:** `world.hosts` / `world.aphids` a világgal együtt mentődik; régi mentésben a növények pótlódnak (`ensureHosts`).
+
+## Képek, modellek és licencek
+
+- **Atka (`assets/models/mite.glb`)**: *Animated mite* – Osian3D, licenc: CC-BY-4.0 (Sketchfab). A textúrák 512 px-re kicsinyítve.
+- **Levéltetű (`aphid.glb`)**: a mellékelt valódi levéltetű-modellből `tools/prep_aphid.py` készítette (új elülső lábak, csápok, zöld színezés).
+- A többi modell (hangyák, ászka, pók, ugróvilla, skorpió, lisztkukac) a projekt saját, `tools/` szkriptekkel készült vagy előkészített eszköze.

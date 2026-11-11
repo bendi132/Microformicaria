@@ -15,6 +15,7 @@ import { updateSpringtail } from './springtail.js';
 import { updateSpider } from './spider.js';
 import { initEcology, stepEcology } from './ecology.js';
 import { placeAnt, placeInNode } from './motion.js';
+import { stepAphids } from './aphids.js';
 import { ensureMgmt, stepManage, onNewDay as mgNewDay, modMul } from './manage.js';
 
 export const SAVE_VERSION = 3;
@@ -133,7 +134,7 @@ export class Sim {
     for (const p of this.isopods) updateIsopod(this, p, dt);
     for (const p of this.springtails) updateSpringtail(this, p, dt);
     for (const s of this.spiders) if (!s.dead) updateSpider(this, s, dt);
-    if (this.env.step % 10 === 0) { this.needs = this.nest ? colonyNeeds(this) : this.needs; this.updateDanger(); this.growTerritory(); stepManage(this, dt * 10); }
+    if (this.env.step % 10 === 0) { this.needs = this.nest ? colonyNeeds(this) : this.needs; this.updateDanger(); this.growTerritory(); stepAphids(this, dt * 10); stepManage(this, dt * 10); }
     for (const a of this.ants) if (!a.dead) updateAnt(this, a, dt);
     if (this.nest) { stepBrood(this, dt); this.rainDamage(dt); this.updateNestEffects(dt); }
     this.colony.store.prey = Math.max(0, this.colony.store.prey - this.colony.store.prey * dt * 0.00008);
