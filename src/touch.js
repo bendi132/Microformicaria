@@ -65,12 +65,18 @@ export function initTouch(ctx) {
     }
   };
   canvas.addEventListener('pointerup', end); canvas.addEventListener('pointercancel', end);
+  // Beragadás ellen: az ujj felengedése/megszakítása bárhol (HUD-gomb fölött, képernyőszélről indított böngészős kézmozdulat, háttérbe lépés) is nullázza a mozgást
+  const reset = () => { ptr.clear(); joyId = null; lookId = null; pinch = null; G.joy.on = false; G.joy.x = G.joy.y = 0; G.joy.sprint = false; setKnob(0, 0); };
+  window.addEventListener('pointerup', end); window.addEventListener('pointercancel', end); canvas.addEventListener('lostpointercapture', end);
+  window.addEventListener('touchend', (e) => { if (!e.touches.length) reset(); }, { passive: true }); window.addEventListener('touchcancel', reset, { passive: true });
+  window.addEventListener('blur', reset); document.addEventListener('visibilitychange', () => { if (document.hidden) reset(); });
   // a böngésző saját görgetése / nagyítása ne zavarjon
   document.addEventListener('gesturestart', (e) => e.preventDefault()); document.addEventListener('contextmenu', (e) => e.preventDefault());
   return {
     // a joystick a billentyű-állapotot is hajtja (felülnézeti pásztázás, földalatti irányítás); első személyben analóg értéket ad
     tick() {
       const k = G.keys, j = G.joy;
+      if ((j.on || joyId !== null) && (!inGame() || !fpvLike())) reset();           // kilépés FPV-ből / szünet közben se maradjon bekapcsolva
       if (j.on || j._was) { const t = 0.35; k.w = j.y > t; k.s = j.y < -t; k.a = j.x < -t; k.d = j.x > t; k.shift = !!j.sprint; j._was = j.on; }
       document.body.classList.toggle('tfpv', !!G.fpv);
     },
