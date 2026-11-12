@@ -172,7 +172,7 @@ export const EVENTS = {
   },
   worms: {
     title: 'Lisztkukacok a közelben', icon: '🪱', weight: 3, def: 'wait',
-    when: (sim) => { const sp = SPECIES[sim.speciesId]; return sp.hunt.live && workers(sim).length >= 8 && sim.env.rain < 0.3 && sim.isopods.filter((p) => p.sp === 'mealworm' && !p.dead).length < 8; },
+    when: (sim) => { const sp = SPECIES[sim.speciesId]; return sp.hunt.live && sim.world.biome !== 'desert' && workers(sim).length >= 8 && sim.env.rain < 0.3 && sim.isopods.filter((p) => p.sp === 'mealworm' && !p.dead).length < 8; },
     text: () => 'Kiszóródott gabonakészletből lisztkukacok másztak elő a fészek mellett. Nagyok és ártalmatlanok, de egyedül nehéz legyőzni őket – csoportban könnyebb, és sok táplálékot adnak.',
     opts: [
       { id: 'mob', label: 'Csoportos vadászat', note: 'Sok vadász indul együtt; a csoport legyőzi a nagy prédát.', mods: [['hunt', 2.2], ['forage', 0.8]], apply: (sim) => worms(sim, 4), judge: (sim, d) => d.incTotal >= 12 ? ok('A csoportos vadászat gazdag zsákmányt hozott.', 5) : d.died > 0 ? bad(`${d.died} hangya elpusztult a vadászatban.`) : meh('Kevés kukacot sikerült elejteni.', 3) },

@@ -19,9 +19,12 @@ export function steerGround(sim, e, tx, tz, speed, dt, opts = {}) {
       if (od < lim + 4 && od > 1e-3) {
         const k = (1 - (od - lim * 0.7) / (lim * 0.3 + 4)); const kk = clamp(k, 0, 1.6);
         // érintő irányú terelés (a cél felé eső oldal), plusz kifelé taszítás
-        const tx2 = -oz / od, tz2 = ox / od; const side = (tx2 * dx + tz2 * dz) >= 0 ? 1 : -1;
+        const tx2 = -oz / od, tz2 = ox / od; const dot = tx2 * dx + tz2 * dz; let side = dot >= 0 ? 1 : -1;
+        // hiszterézis: ugyanazt az oldalt tartjuk az akadály megkerülése közben (különben a terelés ide-oda váltogat, és a hangya rázkódik)
+        const key = o.id !== undefined ? o.id : o.x * 1000 + o.z; if (e._avK === key && sim.t - e._avT < 2.5) side = e._avS; else if (Math.abs(dot) < 0.15 * d) side = (e.id & 1) ? 1 : -1;
+        e._avK = key; e._avS = side; e._avT = sim.t;
         ax += (ox / od) * kk * 0.9 + tx2 * side * kk * 1.1; az += (oz / od) * kk * 0.9 + tz2 * side * kk * 1.1;
-        if (od < lim * 0.85) { e.x += (ox / od) * (lim * 0.85 - od) * 0.5; e.z += (oz / od) * (lim * 0.85 - od) * 0.5; }
+        if (od < lim * 0.85) { e.x += (ox / od) * (lim * 0.85 - od) * 0.25; e.z += (oz / od) * (lim * 0.85 - od) * 0.25; }
       }
     }
     if (ax || az) { const bx = Math.sin(want) + ax * 1.4, bz = Math.cos(want) + az * 1.4; want = Math.atan2(bx, bz); }

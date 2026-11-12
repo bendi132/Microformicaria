@@ -19,7 +19,7 @@ export function initEcology(sim) {
     if ((p.cls !== 'small') && rng.chance(ISOPOD.gravidChance)) makeGravid(sim, p);
     sim.isopods.push(p);
   }
-  for (let i = 0; i < Math.round(2 * D.isopods); i++) { const c = rng.pick(w.covers.filter((q) => q.kind !== 'tuft' && Math.abs(q.x) < w.half - 6 && Math.abs(q.z) < w.half - 6)); if (!c) break; const p = makeMealworm(sim, c.x + rng.range(-0.5, 0.5) * c.r, c.z + rng.range(-0.5, 0.5) * c.r, true); p.cover = c.id; p.tmr = rng.range(2, 40); sim.isopods.push(p); }
+  for (let i = 0; i < (w.biome === 'desert' ? 0 : Math.round(2 * D.isopods)); i++) { const c = rng.pick(w.covers.filter((q) => q.kind !== 'tuft' && Math.abs(q.x) < w.half - 6 && Math.abs(q.z) < w.half - 6)); if (!c) break; const p = makeMealworm(sim, c.x + rng.range(-0.5, 0.5) * c.r, c.z + rng.range(-0.5, 0.5) * c.r, true); p.cover = c.id; p.tmr = rng.range(2, 40); sim.isopods.push(p); }
   const desert = w.biome === 'desert'; const nSt = desert ? 0 : Math.round(30 * D.isopods);   // sivatagban nincs ugróvilla (nedves talajt, humuszt igényel)
   for (let i = 0; i < nSt; i++) {
     let x = 0, z = 0, best = -1;
@@ -78,7 +78,7 @@ export function stepEcology(sim, dt) {
     if (isoAlive < ISOPOD.max * D.isopods * 0.8 * A && rng.chance(0.08 * Math.sqrt(A) * wet * (env.night ? 1.6 : 0.6) * (1 - sim.preyScarcity))) {
       const c = rng.pick(w.covers.filter((q) => q.kind !== 'moss' && inPlay(w, q, 3))); if (c) { const p = makeIsopod(sim, pickClass(sim, isoTable(sim)), c.x, c.z, true); p.cover = c.id; sim.isopods.push(p); }
     }
-    if (wormAlive < MEALWORM.max * D.isopods * A && rng.chance(0.07 * Math.sqrt(A) * (1 - sim.preyScarcity))) {
+    if (w.biome !== 'desert' && wormAlive < MEALWORM.max * D.isopods * A && rng.chance(0.07 * Math.sqrt(A) * (1 - sim.preyScarcity))) {
       const c = rng.pick(w.covers.filter((q) => (q.kind === 'log' || q.kind === 'moss' || q.kind === 'stone') && inPlay(w, q, 3))); if (c) { const p = makeMealworm(sim, c.x, c.z, true); p.cover = c.id; sim.isopods.push(p); }
     }
     if (w.biome !== 'desert' && stAlive < SPRINGTAIL.max * D.isopods * 0.8 * A && rng.chance(0.18 * Math.sqrt(A) * wet * (1 - sim.preyScarcity))) {
