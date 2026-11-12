@@ -51,14 +51,15 @@ let spMode = 'new', spSel = 'ponera';
 const ANTS = ['ponera', 'cephalotes', 'odonto', 'proceratium', 'messor'], ALL = [...ANTS, 'isopod', 'spider', 'springtail'];
 function openSpecies(mode) {
   spMode = mode; const list = mode === 'new' ? ANTS : ALL; if (!list.includes(spSel)) spSel = list[0];
-  $('spList').innerHTML = ''; for (const id of list) { const t = SPECIES_TEXT[id]; const b = document.createElement('button'); b.dataset.id = id; const lk = mode === 'new' && !Prog.isUnlocked(prog, id); b.classList.toggle('locked', lk); b.innerHTML = `${t.name}${lk ? ' <span class="lk">🔒</span>' : ''}<small>${t.group}</small>`; b.onclick = () => selectSpecies(id); $('spList').appendChild(b); }
+  $('spList').innerHTML = ''; for (const id of list) { const t = SPECIES_TEXT[id]; const b = document.createElement('button'); b.dataset.id = id; const lk = mode === 'new' && $('diffSel').value !== 'easy' && !Prog.isUnlocked(prog, id); b.classList.toggle('locked', lk); b.innerHTML = `${t.name}${lk ? ' <span class="lk">🔒</span>' : ''}<small>${t.group}</small>`; b.onclick = () => selectSpecies(id); $('spList').appendChild(b); }
   $('spStart').style.display = $('diffWrap').style.display = mode === 'new' ? '' : 'none'; show('species'); menu.setMode('stage', spSel); selectSpecies(spSel);
 }
+$('diffSel').addEventListener('change', () => { if (spMode === 'new') openSpecies('new'); });
 function selectSpecies(id) {
   spSel = id; const t = SPECIES_TEXT[id]; menu.setMode('stage', id);
   for (const b of $('spList').children) b.classList.toggle('on', b.dataset.id === id);
   const d = t.diff ? `<div class="dots" style="margin:6px 0">${[1, 2, 3].map((i) => `<i class="${i <= t.diff ? 'f' : ''}"></i>`).join('')} <span style="color:var(--dim);margin-left:6px">${t.diffName}</span></div>` : '';
-  const lp = spMode === 'new' ? Prog.unlockProgress(prog, id) : { free: true, done: true };
+  const lp = spMode === 'new' && $('diffSel').value !== 'easy' ? Prog.unlockProgress(prog, id) : { free: true, done: true };       // Kezdő módban minden faj játszható
   $('spInfo').innerHTML = `<h2>${t.name}</h2><div class="lat">${t.latin}</div>${SPECIES[id] ? `<span class="tag">${CLIMATE[SPECIES[id].climate].name} éghajlat</span>` : ''}${d}<p>${t.blurb}</p><p class="bio"><span class="tag">biológia</span>${t.bio}</p><p class="game"><span class="tag">játékbeli egyszerűsítés</span>${t.game}</p>`;
   if (!lp.done) $('spInfo').insertAdjacentHTML('beforeend', `<div class="lockbox"><b>🔒 Zárolva</b> – feloldás:<ul class="req">${lp.items.map((r) => `<li class="${r.done ? 'ok' : 'no'}">${r.done ? '✓' : '○'} ${r.text} (${r.have}/${r.need})</li>`).join('')}</ul></div>`);
   $('spStart').disabled = !lp.done;
@@ -68,7 +69,7 @@ $('bNew').onclick = () => openSpecies('new'); $('bSpecies').onclick = () => open
 $('spBack').onclick = () => { menu.setMode('title'); show('title'); };
 $('spStart').onclick = async () => {
   const opts = { species: spSel, difficulty: $('diffSel').value };
-  if (!Prog.unlockProgress(prog, spSel).done) return;
+  if ($('diffSel').value !== 'easy' && !Prog.unlockProgress(prog, spSel).done) return;
   if (S.intro) { $('spStart').disabled = true; try { await playIntro({ sub: (SPECIES_TEXT[spSel] || {}).name || '' }); } catch (e) { console.warn('intro', e); } $('spStart').disabled = false; }
   if (!prog.seenHelp) { openHelp('species', () => startGame(opts)); return; }
   startGame(opts);
@@ -113,7 +114,7 @@ async function startGame(opts, loaded) {
   G.layer = new CreatureLayer(G.scene); await G.layer.load(sim.speciesId);
   G.env = new EnvView(G.scene, renderer, SPECIES[sim.speciesId].climate, sim.seed, MOBILE || S.quality === 'low'); G.env.build(null, sim.world).catch((e) => console.warn('env', e));
   const q = sim.queen; G.orbit.x = q ? q.x : 0; G.orbit.z = q ? q.z : 0; G.orbit.y = 0; G.orbit.dist = 55; G.orbit.pitch = 0.95; G.follow = true; setFollowBtn();
-  G.syncKills = sim.stats.kills; G.runFounded = sim.env.day >= Prog.FOUND_DAY;   // előrehaladás: ebben a játékban számolt zsákmány és alapítás
+  G.syncKills = sim.stats.kills; G.runFounded = sim.difficulty === 'easy' || (!!loaded && Prog.foundingMet(sim, sim.difficulty));   // előrehaladás: ebben a játékban számolt zsákmány és alapítás
   G.mode = 'game'; G.speed = 1; G.paused = false; G.nestView = false; G.sel = q ? { kind: 'ant', id: q.id } : null; G.fpv = false; G.logIdx = sim.logs.length; G.autoT = 0; G.over = false;
   Mg.attach(sim); G.syncMg = (sim.colony.mg && sim.colony.mg.xp) || 0; setSpeed(1); show('hud'); $('loading').style.display = 'none'; $('bNestV').classList.remove('on'); resize();
   sfxStart();

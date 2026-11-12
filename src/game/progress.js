@@ -14,8 +14,8 @@ export const REQ_TEXT = {
   foundings: (n) => `${n} sikeres kolóniaalapítás`,
   preyKills: (n) => `${n} zsákmány elejtése`,
 };
-// Sikeres kolóniaalapítás: nem a kész kezdő kolónia, és a nap ≥ FOUND_DAY, a királynő él, legalább FOUND_WORKERS dolgozóval.
-export const FOUND_DAY = 10, FOUND_WORKERS = 8;
+// Sikeres kolóniaalapítás: nem a kész kezdő kolónia; a királynő él, és kikelt az első (FOUND_WORKERS) dolgozó.
+export const FOUND_DAY = 0, FOUND_WORKERS = 1;
 
 export function defaultState() { return { xp: 0, preyKills: 0, foundings: 0, seenHelp: false }; }
 

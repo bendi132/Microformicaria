@@ -15,7 +15,7 @@
 | Ponera (Nehéz) | 2 sikeres alapítás + 10 zsákmány |
 | Proceratium (Nehéz) | 3 sikeres alapítás + 30 zsákmány |
 
-- **Sikeres alapítás:** Normál vagy Nehéz játék, legalább a 10. napon, élő királynővel és legalább 8 dolgozóval. A Kezdő, kész kolónia nem számít. Játékonként egyszer számolódik.
+- **Sikeres alapítás:** Normál vagy Nehéz játék, amint élő királynő mellett kikel az első dolgozó. A Kezdő, kész kolónia nem számít. **Kezdő módban minden faj feloldás nélkül játszható.** Játékonként egyszer számolódik.
 - A zárolt fajok a faj-választóban lakatot kapnak, a leírás pedig megmutatja a feltételeket és az állást. Az „Új játék” indítása zárolt fajnál nem lehetséges.
 - Új szint, új faj vagy alapítás esetén felugró üzenet jelenik meg.
 
