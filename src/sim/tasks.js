@@ -249,11 +249,12 @@ export function findPrey(sim, a) {
     const d = dist(a.x, a.z, p.x, p.z);
     if (p.dead) { if (H.scavenge && p.foodLeft > 0.3 && p.fresh > 0.15 && d < R * 1.6) consider('isopod', p, d, 1); continue; }
     if (!H.live) continue;
+    if (d >= R && p.state !== 'hidden' && (p.callT === undefined || p.calls === 0)) continue;          // túl messze: nincs további teendő (a költséges toborzás-számítás kimarad)
     const ratio = p.len / a.len;
     // toborzás: a hangya, amelyik egy túl nagy (de legyőzhető) zsákmányt észrevesz, riasztja a többieket; a riasztások száma a csoport-erőt növeli (a nagy préda csoportban könnyebb)
     if (p.callT !== undefined && sim.t - p.callT > 45) p.calls = 0;
-    const crowd = Math.max(sim.groupSize(a, 18), p.calls || 0);
-    if (ratio > H.maxRatio * (1 + 0.6 * crowd * H.group)) {
+    const big = ratio > H.maxRatio, crowd = big ? Math.max(sim.groupSize(a, 18), p.calls || 0) : 0;
+    if (big && ratio > H.maxRatio * (1 + 0.6 * crowd * H.group)) {
       if (d < R && ratio < H.maxRatio * (1 + 0.6 * 6 * H.group) && (p.callT === undefined || sim.t - p.callT > 3)) { p.calls = Math.min(6, (p.calls || 0) + 1); p.callT = sim.t; }
       continue;
     }
@@ -298,7 +299,7 @@ function hunt(sim, a, dt) {
   a.slow = false;
   if (a.st === 'search') {
     a.look = (a.look || 0) - dt;
-    if (a.look <= 0) { a.look = 0.35; if (a.loc !== 'nest') { const f = findPrey(sim, a); if (f) { a.target = f; a.st = 'approach'; a.lost = 0; stat(sim, 'found_' + f.kind); return; } } }
+    if (a.look <= 0) { a.look = 0.3 + sim.rng.next() * 0.2; if (a.loc !== 'nest') { const f = findPrey(sim, a); if (f) { a.target = f; a.st = 'approach'; a.lost = 0; stat(sim, 'found_' + f.kind); return; } } }
     if (!a.wp || dist(a.x, a.z, a.wp.x, a.wp.z) < 2 || a.tmr <= 0) { a.wp = (sim.rng.next() < trailStrength(sim) && followDir(sim, a)) || huntWaypoint(sim, a); a.tmr = 14; }
     a.tmr -= dt; a.huntT = (a.huntT || 0) + dt;
     if (a.loc === 'limb' && sp.nest.type === 'tree') { a.st = 'search'; }

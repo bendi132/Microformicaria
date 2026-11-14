@@ -44,7 +44,11 @@ export class Sim {
   get queen() { return queen(this); }
   localMoist(a) { return a.loc === 'nest' ? 0.7 : moistureAt(this.world, a.x, a.z); }
   colonySize() { return this.ants.filter((a) => !a.dead && a.caste !== 'queen').length; }
-  groupSize(a, r, prey) { let n = 0; for (const o of this.ants) { if (o === a || o.dead || o.loc !== 'ground' || o.caste === 'queen') continue; if (o.task === 'hunt' && (o.st === 'attack' || o.st === 'approach') && dist(o.x, o.z, a.x, a.z) < r) n++; } return n; }
+  // hány társ vadászik (támad/közelít) az r sugarú körben – a vadászlistát lépésenként egyszer építjük (nem minden hívásnál járjuk be az összes hangyát)
+  groupSize(a, r, prey) {
+    if (this._hlT !== this.t) { this._hlT = this.t; const hl = this._hl || (this._hl = []); hl.length = 0; for (const o of this.ants) if (o.task === 'hunt' && (o.st === 'attack' || o.st === 'approach') && !o.dead && o.loc === 'ground' && o.caste !== 'queen') hl.push(o); }
+    let n = 0; const hl = this._hl, r2 = r * r; for (let i = 0; i < hl.length; i++) { const o = hl[i]; if (o === a) continue; const dx = o.x - a.x, dz = o.z - a.z; if (dx * dx + dz * dz < r2) n++; } return n;
+  }
   // veszély egy helyen (0..1): ébren lévő pókok és ismert pókfészkek
   dangerAt(x, z, a) {
     let d = 0; const caution = this.colony.dir.caution * modMul(this, 'caution');
