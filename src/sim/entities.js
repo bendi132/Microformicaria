@@ -61,7 +61,7 @@ export function makeSpringtail(sim, x, z, juvenile = false) {
   let len = sim.rng.range(c.len[0], c.len[1]) * (juvenile ? 0.6 : 1);
   const food = Math.pow(len, 3) * c.energyPerMm3;
   return {
-    id: sim.nextId++, kind: 'springtail', len, x, y: 0, z, yaw: sim.rng.range(0, 6.28), hp: 2, maxHp: 2, armor: 0, food, foodLeft: food, state: 'forage', tmr: sim.rng.range(1, 6),
+    id: sim.nextId++, kind: 'springtail', len, x, y: 0, z, yaw: sim.rng.range(0, 6.28), hp: 1, maxHp: 1, armor: 0, food, foodLeft: food, state: 'forage', tmr: sim.rng.range(1, 6),
     tx: x, tz: z, cd: 0, jt: 0, jfx: x, jfz: z, jtx: x, jtz: z, leap: 0, dead: false, fresh: 1, anim: { phase: 0, mv: 0, act: 0, actT: 0, head: 0, open: 0, curl: 0, alert: 0 }, moved: 0,
     juvenile, grow: juvenile ? 1 : 0, layT: sim.rng.range(0.4, 1.5) * 150, held: 0, para: 0, threat: null, speed: c.speed * sim.rng.range(0.8, 1.2), wild: 1,
   };

@@ -269,7 +269,7 @@ export function strikeChance(sim, a, p) {
   const f = ratio <= 0.45 ? 1 : ratio <= H.maxRatio ? 1 - 0.5 * (ratio - 0.45) / Math.max(0.01, H.maxRatio - 0.45) : 0.08;
   const health = 0.45 + 0.55 * clamp(a.hp / a.maxHp, 0, 1), fed = 0.55 + 0.45 * clamp(a.energy / 80, 0, 1);
   let c = H.base * f * health * fed * (p.alert > 0 ? 0.75 : 1) * (1 - (p.armor || 0) * (1 - H.armorPierce));
-  if (p.kind === 'springtail') c *= p.state === 'jump' ? 0 : (a.slow ? 1 : 0.85);
+  if (p.kind === 'springtail') c = p.state === 'jump' ? 0 : Math.max(c, 0.93);          // az ugróvilla egyetlen csapástól elpusztul (kivéve, ha éppen a levegőben van)
   const allies = sim.groupSize(a, 12, p); c = 1 - (1 - c) * Math.pow(0.7, allies * H.group);
   if (a.mand < 0.7 && H.style === 'snap') c *= 0.6 + a.mand * 0.4;
   return clamp(c, 0, 0.97);
@@ -288,7 +288,7 @@ function applyStrike0(sim, a, p) {
   if (p.kind === 'springtail') dmg = 99;
   p.hp -= dmg; if (H.style === 'sting' && p.kind === 'isopod') p.para = H.paralyze * (0.6 + big);
   a.hitFx = sim.t;
-  if (p.hp <= 0) { if (p.kind === 'isopod') killIsopod(sim, p, a); else { p.dead = true; p.state = 'dead'; } a.kills++; if (sim.stats) sim.stats.kills++; sim.event('kill', a); return 'kill'; }
+  if (p.hp <= 0) { if (p.kind === 'isopod') killIsopod(sim, p, a); else { p.dead = true; p.state = 'dead'; } a.kills++; if (sim.stats) sim.stats.kills++; sim.event('kill', a); sim.event('splat', p); return 'kill'; }
   if (sim.player && sim.player.antId === a.id) sim.event('hit', a);
   p.held = 1.2; if (rng.chance(H.injury + big * 0.04)) damageAnt(sim, a, 2 + big * 3, 'zsákmány'); return 'hit';
 }
@@ -585,7 +585,7 @@ function fight(sim, a, dt) {
       s.hp -= D.fight.dmg * sim.rng.range(0.7, 1.3) * (a.hp / a.maxHp * 0.5 + 0.5);
       if (s.state === 'lair' || s.state === 'wander' || s.state === 'return') { s.target = a; s.state = 'stalk'; s.hidden = false; }
       if (sp.id === 'odonto') a.mand = Math.max(0.3, a.mand - 0.04);
-      if (s.hp <= 0) { s.dead = true; s.state = 'dead'; sim.event('spiderDied', s); }
+      if (s.hp <= 0) { s.dead = true; s.state = 'dead'; sim.event('spiderDied', s); sim.event('splat', s); }
     }
     if (s.state === 'stalk' && s.target !== a && sim.rng.chance(0.25)) s.target = a;
   }

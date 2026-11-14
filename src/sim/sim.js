@@ -39,7 +39,7 @@ export class Sim {
   }
   // ------------------------------------------------------------ segédek
   log(text, level = 'info', id = 0) { this.logs.push({ t: this.t, text, level, id }); if (this.logs.length > 160) this.logs.shift(); }
-  event(type, e) { if (this.fx.length < 200) this.fx.push({ type, id: e.id, x: e.x, y: e.y, z: e.z, kind: e.kind, loc: e.loc, t: this.t }); }
+  event(type, e) { if (this.fx.length < 200) this.fx.push({ type, id: e.id, x: e.x, y: e.y, z: e.z, kind: e.kind, loc: e.loc, len: e.len, sp: e.sp, t: this.t }); }
   noteThreat(spider, ant) { const l = this.world.lairs.find((q) => q.id === spider.lair); if (l) l.known = true; spider.spotted = true; }
   get queen() { return queen(this); }
   localMoist(a) { return a.loc === 'nest' ? 0.7 : moistureAt(this.world, a.x, a.z); }

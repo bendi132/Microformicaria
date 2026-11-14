@@ -346,12 +346,13 @@ function updateHpBars() {
   const sim = G.sim, now = performance.now() / 1000; const live = new Set();
   if (sim && !G.nestView && !G.topNest) {
     const each = (kind, list) => { for (const e of list) {
-      if (e.dead || e.hidden || e.state === 'hidden' || e.state === 'lair' || !e.maxHp) continue;
-      const key = kind + e.id, prev = hpSeen.get(key); if (!prev) hpSeen.set(key, { hp: e.hp, t: -99 }); else { if (e.hp < prev.hp - 0.01) prev.t = now; prev.hp = e.hp; }
+      if (e.hidden || e.state === 'hidden' || e.state === 'lair' || !e.maxHp) continue;
+      const key = kind + e.id, prev = hpSeen.get(key); if (e.dead && !prev) continue; if (!prev) hpSeen.set(key, { hp: e.hp, t: -99 }); else { if (e.hp < prev.hp - 0.01) prev.t = now; prev.hp = e.hp; }
+      if (e.dead) { const r0 = hpSeen.get(key); if (r0.d === undefined) { r0.d = now; r0.t = now; } if (now - r0.d > 1.6) continue; }      // a megölt rovar sávja még röviden látszik (lefogy nullára, majd eltűnik)
       const rec = hpSeen.get(key); if (e.hp >= e.maxHp - 0.01 || now - rec.t > 9) continue;
       v3.set(e.x, (e.y ?? heightAt(sim.world, e.x, e.z)) + Math.max(2.2, e.len * 0.95) + 2.5, e.z).project(G.cam); if (v3.z > 1 || Math.abs(v3.x) > 1.05 || Math.abs(v3.y) > 1.05) continue;
       const cp = G.cam.position, d = Math.hypot(cp.x - e.x, cp.y - (e.y ?? 0), cp.z - e.z); if (d > 520) continue;
-      const b = hpBarEl(key), f = Math.max(0, Math.min(1, e.hp / e.maxHp)); live.add(key);
+      const b = hpBarEl(key), f = e.dead ? 0 : Math.max(0, Math.min(1, e.hp / e.maxHp)); live.add(key);
       b.style.left = ((v3.x * 0.5 + 0.5) * innerWidth) + 'px'; b.style.top = ((-v3.y * 0.5 + 0.5) * innerHeight) + 'px'; b.style.opacity = 1;
       const sc = Math.max(0.8, Math.min(1.5, 60 / Math.max(20, d) + 0.7)); b.style.transform = `scale(${sc})`;
       b._i.style.width = (f * 100) + '%'; b._i.style.background = f > 0.55 ? '#7fc65a' : f > 0.28 ? '#e0b43a' : '#d9483b';

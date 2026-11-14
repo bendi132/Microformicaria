@@ -53,6 +53,9 @@ export class CreatureLayer {
     const bmat = (r, em) => new THREE.MeshStandardMaterial({ roughness: r, color: 0xffffff, emissive: em, emissiveIntensity: 0.6 });
     this.nEgg = new THREE.InstancedMesh(blob(0.5, 0.26, 0.26, 0, 0.26, 0), bmat(0.3, 0x7a7466), 500); this.nLarva = new THREE.InstancedMesh(larvaGeometry(), bmat(0.5, 0x6f6755), 500); this.nPupa = new THREE.InstancedMesh(pupaGeometry(), bmat(0.55, 0x6a5a40), 500);
     this.miteLayer = new MiteLayer(this.group);
+    // találat/halál-effekt: a megölt rovarból anyag-cseppek spriccelnek szét, és egy rövid fényvillanás jelzi a találatot
+    this.pN = 200; this.pD = new Float32Array(this.pN * 9); this.pCol = new Array(this.pN).fill(0); this.pCnt = 0; this.pT = 0;
+    this.pMesh = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 1), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.95 }), this.pN); this.pMesh.count = 0; this.pMesh.frustumCulled = false; this.group.add(this.pMesh);
     this.broodMeshes = [this.nEgg, this.nLarva, this.nPupa]; for (const m of this.broodMeshes) { m.count = 0; m.frustumCulled = false; this.group.add(m); }
     const soil = soilTextures(256); this.nestTex = soil.map; this.nestNrm = soil.normalMap; this.nestNrm.wrapS = this.nestNrm.wrapT = THREE.RepeatWrapping; this.nestNrm.repeat.set(1, 1); this.woodTex = rottenWoodTextures(256).map; for (const t of [this.nestTex, this.woodTex]) if (t) t.wrapS = t.wrapT = THREE.RepeatWrapping;
     this.silk = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 16, 12), new THREE.MeshStandardMaterial({ roughness: 0.9, color: 0xf2f0e6 }), 24); this.silk.count = 0; this.silk.castShadow = true; this.group.add(this.silk);
@@ -76,6 +79,26 @@ export class CreatureLayer {
     if (a.loc === 'ground') { up[0] = a.up[0]; up[1] = a.up[1]; up[2] = a.up[2]; fwd[0] = Math.sin(a.yaw); fwd[1] = 0; fwd[2] = Math.cos(a.yaw); }
     else if (a.loc === 'limb') { up[0] = a.up[0]; up[1] = a.up[1]; up[2] = a.up[2]; const f = a.fw && Math.hypot(...a.fw) > 0.01 ? a.fw : [0, 1, 0]; fwd[0] = f[0]; fwd[1] = f[1]; fwd[2] = f[2]; }
     else { const p = a.pitch || 0; fwd[0] = Math.sin(a.yaw) * Math.cos(p); fwd[1] = -Math.sin(p); fwd[2] = Math.cos(a.yaw) * Math.cos(p); up[0] = 0; up[1] = 1; up[2] = 0; }
+  }
+  // részecskék: [x,y,z,vx,vy,vz,élet,max,méret] / részecske
+  spawnBurst(e) {
+    const kind = e.kind, len = Math.max(1.5, e.len || 3), col = kind === 'spider' ? 0x3a2a22 : e.sp === 'mealworm' ? 0xe0c06a : kind === 'springtail' ? 0xa9bccd : 0x7a6a56, n = Math.min(30, Math.round(10 + len * 1.6));
+    const add = (vx, vy, vz, life, size, c) => { if (this.pCnt >= this.pN) return; const i = this.pCnt++, d = this.pD, o = i * 9; d[o] = e.x; d[o + 1] = (e.y ?? 0) + len * 0.35; d[o + 2] = e.z; d[o + 3] = vx; d[o + 4] = vy; d[o + 5] = vz; d[o + 6] = life; d[o + 7] = life; d[o + 8] = size; this.pCol[i] = c; };
+    for (let i = 0; i < 3; i++) add(0, 0, 0, 0.16 + i * 0.05, len * (1.1 + i * 0.35), i === 0 ? 0xffffff : 0xffe9a8);      // villanás
+    for (let i = 0; i < n; i++) { const a = Math.random() * 6.283, up = 0.4 + Math.random() * 1.0, sp = (7 + Math.random() * 16) * Math.min(2.2, 0.6 + len * 0.12); add(Math.cos(a) * sp, up * sp * 0.9 + 6, Math.sin(a) * sp, 0.45 + Math.random() * 0.5, (0.18 + Math.random() * 0.3) * Math.min(2, 0.5 + len * 0.18), i % 4 === 0 ? 0xd8453a : col); }
+  }
+  burstStep(sim, time, nestView) {
+    for (const f of sim.fx) if (f.type === 'splat' && !nestView) this.spawnBurst(f);
+    const dt = Math.min(0.1, Math.max(0, time - this.pT)); this.pT = time; const d = this.pD, w = sim.world; let k = 0;
+    for (let i = 0; i < this.pCnt; i++) {
+      const o = i * 9; d[o + 6] -= dt; if (d[o + 6] <= 0) continue;
+      d[o + 4] -= 70 * dt; d[o] += d[o + 3] * dt; d[o + 1] += d[o + 4] * dt; d[o + 2] += d[o + 5] * dt;
+      const gy = heightAt(w, d[o], d[o + 2]) + 0.15; if (d[o + 1] < gy) { d[o + 1] = gy; d[o + 3] *= 0.5; d[o + 5] *= 0.5; d[o + 4] = 0; }
+      const j = k * 9; if (j !== o) for (let q = 0; q < 9; q++) d[j + q] = d[o + q]; this.pCol[k] = this.pCol[i]; k++;
+    }
+    this.pCnt = k;
+    for (let i = 0; i < k; i++) { const o = i * 9, fr = d[o + 6] / d[o + 7], s = d[o + 8] * (d[o + 4] === 0 && d[o + 3] === 0 && d[o + 5] === 0 ? (1 + (1 - fr) * 1.4) : (0.4 + 0.6 * fr)); this.inst(this.pMesh, i, d[o], d[o + 1], d[o + 2], s, s, s, this.pCol[i]); }
+    this.pMesh.count = k; this.pMesh.instanceMatrix.needsUpdate = true; if (this.pMesh.instanceColor) this.pMesh.instanceColor.needsUpdate = true;
   }
   update(sim, time, nestView, camPos, controlled) {
     if (!this.loaded) return; const w = sim.world; this.up = this.up || new THREE.Vector3(0, 1, 0);
@@ -177,6 +200,7 @@ export class CreatureLayer {
       }
       this.miteLayer.update(time, list);
     }
+    this.burstStep(sim, time, nestView);
     this.broodMeshes.forEach((m, i) => { m.count = cnt[i]; m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; });
     // fejlámpa: a föld alatti első személyű nézetben
     if (controlled && controlled.loc === 'nest') { this.headLight.intensity = 450; this.headLight.position.set(controlled.x, controlled.y + controlled.len * 0.9, controlled.z); } else this.headLight.intensity = 0;
