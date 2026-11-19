@@ -103,5 +103,5 @@ export function placeAphid(sim, a) {
   const h = hostNear(w, a.x, a.z, 4 + a.len * 0.4);
   if (!h) { sim.note = 'aphidNoHost'; sim.noteT = sim.t; return false; }
   if (hostCount(w, h.id) >= HOST_CAP) { sim.note = 'aphidFull'; sim.noteT = sim.t; return false; }
-  addAphid(w, h, sim.rng); a.carry = null; sim.note = 'aphidPlaced'; sim.noteT = sim.t; return true;
+  addAphid(w, h, sim.rng); a.carry = null; sim.stats.aphidsPlaced = (sim.stats.aphidsPlaced || 0) + 1; sim.note = 'aphidPlaced'; sim.noteT = sim.t; return true;
 }

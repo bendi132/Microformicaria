@@ -102,7 +102,7 @@ function deposit(sim, a) {
   if (c.mg) { const k = cr.kind === 'eggs' ? 'prey' : cr.kind; if (cap[k] !== undefined) { const room = Math.max(0, cap[k] - (c.store[k] || 0)); c.mg.cnt.inc[k] += Math.min(cr.amt, room); if (k !== 'water') c.mg.cnt.wasted += Math.max(0, cr.amt - room); } }   // vezetés: beszerzés és kárba veszett mennyiség
   if (cr.kind === 'prey') c.store.prey = Math.min(cap.prey, c.store.prey + cr.amt);
   else if (cr.kind === 'seed') c.store.seed = Math.min(cap.seed, (c.store.seed || 0) + cr.amt);
-  else if (cr.kind === 'sugar') c.store.sugar = Math.min(cap.sugar, c.store.sugar + cr.amt);
+  else if (cr.kind === 'sugar') { c.store.sugar = Math.min(cap.sugar, c.store.sugar + cr.amt); sim.stats.honey = (sim.stats.honey || 0) + cr.amt; }
   else if (cr.kind === 'water') c.store.water = Math.min(cap.water, c.store.water + cr.amt);
   else if (cr.kind === 'eggs') c.store.prey = Math.min(cap.prey, c.store.prey + cr.amt);
   a.carry = null; sim.event('deposit', a);
@@ -288,7 +288,8 @@ function applyStrike0(sim, a, p) {
   if (p.kind === 'springtail') dmg = 99;
   p.hp -= dmg; if (H.style === 'sting' && p.kind === 'isopod') p.para = H.paralyze * (0.6 + big);
   a.hitFx = sim.t;
-  if (p.hp <= 0) { if (p.kind === 'isopod') killIsopod(sim, p, a); else { p.dead = true; p.state = 'dead'; } a.kills++; if (sim.stats) sim.stats.kills++; sim.event('kill', a); sim.event('splat', p); return 'kill'; }
+  if (p.hp <= 0) { if (sim.player && sim.player.antId === a.id) { const st = sim.stats; st.streakT = (st.streakT && sim.t - st.streakT < 20) ? st.streakT : sim.t; st.streak = (sim.t - (st.lastK || -99) < 20) ? (st.streak || 0) + 1 : 1; st.lastK = sim.t; st.bestStreak = Math.max(st.bestStreak || 0, st.streak); }
+    if (p.kind === 'isopod') killIsopod(sim, p, a); else { p.dead = true; p.state = 'dead'; } a.kills++; if (sim.stats) sim.stats.kills++; sim.event('kill', a); sim.event('splat', p); return 'kill'; }
   if (sim.player && sim.player.antId === a.id) sim.event('hit', a);
   p.held = 1.2; if (rng.chance(H.injury + big * 0.04)) damageAnt(sim, a, 2 + big * 3, 'zsákmány'); return 'hit';
 }

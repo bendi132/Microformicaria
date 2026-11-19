@@ -79,3 +79,8 @@ Kamránként `nd.mold` (0–1). Nő, ha a kamra nedves (>0,72) és meleg (10–3
 - **Atka (`assets/models/mite.glb`)**: *Animated mite* – Osian3D, licenc: CC-BY-4.0 (Sketchfab). A textúrák 512 px-re kicsinyítve.
 - **Levéltetű (`aphid.glb`)**: a mellékelt valódi levéltetű-modellből `tools/prep_aphid.py` készítette (új elülső lábak, csápok, zöld színezés).
 - A többi modell (hangyák, ászka, pók, ugróvilla, skorpió, lisztkukac) a projekt saját, `tools/` szkriptekkel készült vagy előkészített eszköze.
+
+## Célok és FPV-visszajelzés
+
+- **Célok (`src/game/goals.js`):** 13 mérföldkő (dolgozók száma, első zsákmány, vadász, kamrák, túlélt napok, levéltetű-pásztor, mézharmat-gazda, sikeres döntések, gyilkos sorozat). Teljesítéskor XP és felirat; a szünet-menüben listázva, a profilban megmaradnak.
+- **FPV:** találatnál rövid képernyő-villanás és rázkódás, megölésnél erősebb; 20 másodpercen belüli egymás utáni ölések „🔥 Sorozat ×N" feliratot adnak.

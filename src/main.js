@@ -13,6 +13,7 @@ import { WorldView } from './render/worldview.js';
 import { CreatureLayer } from './render/creatures.js';
 import { EnvView } from './render/envview.js';
 import * as Prog from './game/progress.js';
+import { GOALS, evalGoals, goalsDone } from './game/goals.js';
 import { MenuScene } from './render/menu3d.js';
 import { SPECIES_TEXT } from './ui/texts.js';
 import { initMgmt } from './ui/mgmt.js';
@@ -140,7 +141,7 @@ $('bNestV').onclick = () => toggleNest();
 function toggleNest() { G.autoNestOn = false; G.nestView = !G.nestView; $('bNestV').classList.toggle('on', G.nestView); const n = G.sim && G.sim.nest; if (G.nestView && n) { const f = G.sel && selEntity(); if (!(f && f.loc === 'nest')) { const e = n.nodes[Math.min(2, n.nodes.length - 1)]; G.orbit.x = e.x; G.orbit.z = e.z; G.follow = false; setFollowBtn(); G.orbit.dist = Math.min(G.orbit.dist, 36); } } }
 $('bDig').onclick = () => { G.dig = !G.dig; $('bDig').classList.toggle('on', G.dig); $('digOpts').style.display = G.dig ? '' : 'none'; if (!G.dig) $('digRing').style.display = 'none'; if (G.dig && !G.nestView) toggleNest(); };
 $('bSave').onclick = () => saveGame(true); $('pSave').onclick = () => saveGame(true);
-$('bMenu').onclick = () => { G.back = 'game'; show('pause'); G.paused = true; }; $('pResume').onclick = () => { show('hud'); G.paused = false; }; $('pQuit').onclick = () => { saveGame(false); quitToMenu(); };
+$('bMenu').onclick = () => { G.back = 'game'; renderGoals(); show('pause'); G.paused = true; }; $('pResume').onclick = () => { show('hud'); G.paused = false; }; $('pQuit').onclick = () => { saveGame(false); quitToMenu(); };
 $('bPoss').onclick = () => enterFpv();
 function saveGame(msg) { if (!G.sim || G.sim.over) return; try { localStorage.setItem(SAVE_KEY, G.sim.serialize()); if (msg) toast('Mentve', 1200, true); } catch (e) { toast('A mentés nem sikerült.'); } }
 let toastT = 0; function toast(t, ms = 6000, soft) { const el = $('toast'); el.textContent = t; el.style.display = 'block'; el.style.background = soft === 'warn' ? 'rgba(112,78,14,.93)' : soft ? 'rgba(40,70,30,.9)' : 'rgba(120,20,10,.92)'; clearTimeout(toastT); toastT = setTimeout(() => { el.style.display = 'none'; }, ms); }
@@ -329,10 +330,22 @@ function hpBarEl(key) {
   b = document.createElement('div'); b.style.cssText = 'position:absolute;width:34px;height:5px;margin:-3px 0 0 -17px;border-radius:3px;background:rgba(20,12,8,.72);box-shadow:0 0 0 1px rgba(255,235,200,.35);transition:opacity .35s;opacity:0;will-change:left,top';
   const i = document.createElement('i'); i.style.cssText = 'display:block;height:100%;border-radius:3px;transition:width .35s ease-out,background .35s;width:100%'; b.appendChild(i); b._i = i; hpLayer.appendChild(b); hpBars.set(key, b); return b;
 }
+// FPV találat-visszajelzés: rövid képernyő-villanás + rázkódás, gyilkos sorozatnál felirat
+const hitEl = document.createElement('div'); hitEl.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:7;opacity:0;transition:opacity .28s ease-out;background:radial-gradient(ellipse at center,rgba(255,240,200,0) 45%,rgba(255,170,60,.55) 100%)'; document.body.appendChild(hitEl);
+function hitFeel(kill, sim) {
+  hitEl.style.transition = 'none'; hitEl.style.opacity = kill ? 1 : 0.5; void hitEl.offsetWidth; hitEl.style.transition = 'opacity .35s ease-out'; hitEl.style.opacity = 0;
+  const cv = document.querySelector('canvas'); if (cv) { const a = kill ? 7 : 3; cv.style.transition = 'none'; cv.style.transform = `translate(${(Math.random() - 0.5) * a}px,${(Math.random() - 0.5) * a}px)`; setTimeout(() => { cv.style.transition = 'transform .12s'; cv.style.transform = ''; }, 55); }
+  const st = sim.stats; if (kill && st.streak >= 2) toast(`🔥 Sorozat ×${st.streak}`, 1400, true);
+}
+function renderGoals() {
+  const el = $('goalsList'); if (!el) return; const done = prog.goals || {};
+  el.innerHTML = `<div style="font-weight:600;margin-bottom:4px">Célok ${goalsDone(prog)}/${GOALS.length}</div>` + GOALS.map((g) => `<div style="opacity:${done[g.id] ? 1 : 0.55};font-size:12px;line-height:1.5">${done[g.id] ? '✅' : '⬜'} ${g.icon} <b>${g.name}</b> – ${g.desc} <span style="opacity:.7">(+${g.xp} XP)</span></div>`).join('');
+}
 // Előrehaladás: zsákmány és alapítás a játék közben; szint-lépésnél, új fajnál és alapításnál üzenet
 function progTick() {
   const sim = G.sim; if (!sim || G.mode !== 'game' || sim.over) return;
   const before = { ...prog }; let changed = false; const msgs = [];
+  for (const g of evalGoals(sim, prog)) { Prog.addXp(prog, g.xp); changed = true; msgs.push(`${g.icon} Cél teljesítve: ${g.name} (+${g.xp} XP)`); renderGoals(); }
   const dk = sim.stats.kills - G.syncKills; if (dk > 0) { G.syncKills = sim.stats.kills; Prog.addPreyKills(prog, dk); changed = true; }
   { const mx = (sim.colony.mg && sim.colony.mg.xp) || 0; if (mx > G.syncMg) { Prog.addXp(prog, mx - G.syncMg); G.syncMg = mx; changed = true; } }
   if (!G.runFounded && Prog.foundingMet(sim, sim.difficulty)) { G.runFounded = true; Prog.addFounding(prog); changed = true; msgs.push('Sikeres kolóniaalapítás (+30 XP)'); }
@@ -395,6 +408,7 @@ function frame(now) {
   // kijelölés-gyűrű
   hudT += dt; if (hudT > 0.2) { hudT = 0; if (G.fpv) { updateFpvHud(); } else updateHud(); const foc = ctl || sim.queen || null; updateArrows(foc); progTick(); }
   if (G.paused) sfxHush(); else sfxFrame(sim, { cam: G.cam, ctlId: ctl ? ctl.id : 0, underView: G.nestView || under, speed: G.speed });
+  if (G.fpv) for (const f of sim.fx) if ((f.type === 'kill' || f.type === 'hit') && sim.player && f.id === sim.player.antId) hitFeel(f.type === 'kill', sim);
   sim.fx.length = 0;
   G.autoT += dt; if (S.auto && G.autoT > 60) { G.autoT = 0; saveGame(false); }
   updateHpBars();
