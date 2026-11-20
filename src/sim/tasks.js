@@ -647,12 +647,14 @@ function manual(sim, a, dt) {
   // E rövid koppintás: levéltetű felvétele / növényre helyezése; E nyomva tartva: evés, ivás, a mézharmat „fejése”
   if (inp.useHold) a.eT = (a.eT || 0) + dt;
   else { const tap = a.eT > 0 && a.eT < 0.45; a.eT = 0; if (tap && a.loc === 'ground' && !a.climbing && sim.world.aphids) { if (a.carry && a.carry.kind === 'aphid') placeAphid(sim, a); else if (!a.carry) pickAphid(sim, a); } }
-  const src = a.loc === 'ground' && inp.use ? nearbyUse(sim, a) : null;      // evés/ivás közben a hangya a forrásnál marad
+  let src = a.loc === 'ground' && inp.use ? nearbyUse(sim, a) : null;      // evés/ivás közben a hangya a forrásnál marad
+  // ha előtte él a zsákmány, az E támadás (nem evés a közelben heverő tetemből / mézharmatból)
+  if (src && src.type !== 'eggs') { const lt = manualTargets(sim, a, Math.max(sp.hunt.reach * a.len * 1.4, 3.2)); if (lt.length && !lt[0].p.dead && (lt[0].kind === 'springtail' || lt[0].kind === 'isopod' || lt[0].kind === 'spider')) src = null; }
   const digging = a.loc === 'ground' && inp.digSurf && !a.climbing && sp.nest.type === 'soil' && !!n && !src;   // felszíni ásás (X)
   if (inp.digSurf && !digging && !inp._noted) { inp._noted = true; sim.note = a.loc !== 'ground' ? null : a.climbing ? null : sp.nest.type !== 'soil' ? 'noDig' : !n ? 'noNest' : null; sim.noteT = sim.t; }
   if (!inp.digSurf) inp._noted = false;
   const fwd = inp.fwd, str = inp.strafe; const mag = (src || digging) ? 0 : Math.hypot(fwd, str);
-  a.anim.open = sp.id === 'odonto' ? (inp.act2 ? clamp(a.anim.open + dt * 7, 0, 1) : clamp(a.anim.open - dt * 6, 0, 1)) : (a.anim.open > 0 ? a.anim.open - dt * 4 : 0);
+  a.anim.open = sp.id === 'odonto' ? (inp.act2 || a.autoOpen > sim.t ? clamp(a.anim.open + dt * 7, 0, 1) : clamp(a.anim.open - dt * 6, 0, 1)) : (a.anim.open > 0 ? a.anim.open - dt * 4 : 0);
   if (a.loc === 'ground') {
     if (mag > 0.01) {
       const ang = a.yaw + Math.atan2(str, fwd) ; const m = Math.min(1, mag);
@@ -688,7 +690,7 @@ function manual(sim, a, dt) {
   if (a.climbing) { a.climbGrace = (a.climbGrace || 0) - dt; if (a.loc !== 'ground' || (a.climbGrace <= 0 && !climbHeight(w, a.x, a.z))) { a.climbing = false; a.cb = 1; } }
   // ---- műveletek
   const reach = sp.hunt.reach * a.len;
-  if (inp.use && !src && a.loc !== 'nest' && a.cd <= 0) { const tg0 = manualTargets(sim, a, Math.max(reach * 1.4, 3.2)); if (tg0.length && !tg0[0].p.dead && (tg0[0].kind === 'springtail' || tg0[0].kind === 'isopod')) inp.act1 = true; }   // E az élő zsákmányra: ütés/harapás
+  if (inp.use && !src && a.loc !== 'nest' && a.cd <= 0) { const tg0 = manualTargets(sim, a, Math.max(reach * 1.4, 3.2)); if (tg0.length && !tg0[0].p.dead && (tg0[0].kind === 'springtail' || tg0[0].kind === 'isopod')) { inp.act1 = true; if (sp.hunt.style === 'snap') a.autoOpen = sim.t + 0.4; } }       // csapóállkapcsos fajnál az E magától kinyitja az állkapcsot, majd üt   // E az élő zsákmányra: ütés/harapás
   if (inp.act1 && a.cd <= 0) {
     inp.act1 = false; const H = sp.hunt;
     const tg = manualTargets(sim, a, Math.max(reach * 1.4, 3.2));
