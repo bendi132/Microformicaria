@@ -9,7 +9,7 @@ import { buildHostMesh, loadUndergrowth } from './hosts.js';
 import { SPECIES } from '../sim/config.js';
 import { soilTextures, stoneTextures, barkTextures, rottenWoodTextures, mossTexture, sandTextures } from './textures.js';
 
-const Q = { low: { grass: 1800, pebbles: 250, litter: 90, shadow: 1024, seg: 110 }, medium: { grass: 5200, pebbles: 600, litter: 220, shadow: 2048, seg: 160 }, high: { grass: 11000, pebbles: 1100, litter: 380, shadow: 4096, seg: 220 } };
+const Q = { min: { grass: 700, pebbles: 120, litter: 50, shadow: 512, seg: 90 }, low: { grass: 1800, pebbles: 250, litter: 90, shadow: 1024, seg: 110 }, medium: { grass: 5200, pebbles: 600, litter: 220, shadow: 2048, seg: 160 }, high: { grass: 11000, pebbles: 1100, litter: 380, shadow: 4096, seg: 220 } };
 
 export class WorldView {
   constructor(scene, renderer, quality = 'medium') {
@@ -40,7 +40,10 @@ export class WorldView {
   }
   dispose() { this.scene.remove(this.group, this.sun, this.sun.target, this.hemi, this.fill); this.group.traverse((o) => { if (o.geometry) o.geometry.dispose(); }); }
 
+  // sűrűség-szabályozó (teljesítmény-vezérlő): a fű/kavics/avar példányszámát arányosan csökkenti, a hálók megmaradnak
+  setDensity(f) { for (const d of this.dens || []) d.mesh.count = Math.floor(d.full * f); }
   build(sim) {
+    this.dens = [];
     const w = sim.world, rng = new RNG(w.seed ^ 0x51ed), half = w.max || w.half; const AF = Math.min(2.4, Math.pow(half / 90, 2) * 0.6); this.AF = AF;       // a teljes világ (a játszható rész ennek csak egy darabja nő)
     this.sim = sim; const G = this.group; const climate = SPECIES[sim.speciesId].climate; const tropical = climate === 'tropical'; this.tropical = tropical; const desert = climate === 'desert'; this.desert = desert;
     // ---- terep
@@ -100,7 +103,7 @@ export class WorldView {
       const x = rng.range(-half, half), z = rng.range(-half, half); if (this.overStone(w, x, z)) continue;
       const r = rng.range(0.25, 1.1); P.set(x, heightAt(w, x, z) + r * 0.15, z); S.set(r, r * rng.range(0.5, 0.8), r * rng.range(0.7, 1.1)); Qn.setFromEuler(new THREE.Euler(rng.range(0, 1), rng.range(0, 6), rng.range(0, 1))); M.compose(P, Qn, S); peb.setMatrixAt(pc, M); peb.setColorAt(pc, desert ? new THREE.Color().setHSL(0.1, 0.28, rng.range(0.55, 0.78)) : new THREE.Color().setHSL(0.08, 0.2, rng.range(0.28, 0.6))); pc++;
     }
-    peb.count = pc; peb.castShadow = false; peb.receiveShadow = true; G.add(peb);
+    peb.count = pc; this.dens.push({ mesh: peb, full: pc }); peb.castShadow = false; peb.receiveShadow = true; G.add(peb);
     // ---- avar (száraz levéldarabok)
     const lg = new THREE.PlaneGeometry(1, 0.5, 12, 6); lg.rotateX(-Math.PI / 2); const lp = lg.attributes.position; for (let i = 0; i < lp.count; i++) { const lx = lp.getX(i), lz = lp.getZ(i); lp.setY(i, Math.sin(lx * 3.1 + 0.6) * 0.07 + lz * lz * 1.1 + Math.max(0, lx - 0.25) * 0.28 * Math.sign(lz) * lz); } lg.computeVertexNormals();
     const litM = new THREE.MeshStandardMaterial({ roughness: 0.9, side: THREE.DoubleSide, color: 0xffffff, map: this.leafTexture(), alphaTest: 0.5 }); const litN = desert ? 0 : Math.round(this.q.litter * AF); const lit = new THREE.InstancedMesh(lg, litM, Math.max(1, litN)); let lc = 0;
@@ -108,7 +111,7 @@ export class WorldView {
       const x = rng.range(-half, half), z = rng.range(-half, half); if (this.overStone(w, x, z)) continue; const s = rng.range(4, 10);
       P.set(x, heightAt(w, x, z) + 0.25, z); S.set(s, 1, s); Qn.setFromEuler(new THREE.Euler(rng.range(-0.2, 0.2), rng.range(0, 6.28), rng.range(-0.2, 0.2))); M.compose(P, Qn, S); lit.setMatrixAt(lc, M); lit.setColorAt(lc, new THREE.Color().setHSL(rng.range(0.05, 0.13), rng.range(0.3, 0.6), rng.range(0.3, 0.52))); lc++;
     }
-    lit.count = lc; lit.castShadow = false; lit.receiveShadow = true; G.add(lit);
+    lit.count = lc; this.dens.push({ mesh: lit, full: lc }); lit.castShadow = false; lit.receiveShadow = true; G.add(lit);
     // ---- fű: ingó szálak
     this.buildGrass(w, rng);
     const tok = this.buildTok = (this.buildTok || 0) + 1; loadUndergrowth().then((v) => { const hm = buildHostMesh(w, heightAt, v); if (hm && this.buildTok === tok) { this.group.add(hm); this.hostMesh = hm; } });          // gazdanövények (levéltetű-farm)
@@ -172,7 +175,7 @@ export class WorldView {
       Qn.setFromEuler(new THREE.Euler(rng.range(-0.18, 0.18), rng.range(0, 6.28), rng.range(-0.18, 0.18))); M.compose(P, Qn, S); gi.setMatrixAt(c, M);
       gi.setColorAt(c, (this.tropical ? new THREE.Color().setHSL(rng.range(0.27, 0.36), rng.range(0.55, 0.8), rng.range(0.14, 0.3)) : new THREE.Color().setHSL(rng.range(0.19, 0.28), rng.range(0.4, 0.6), rng.range(0.2, 0.36)))); c++;
     }
-    gi.count = c; gi.castShadow = false; gi.receiveShadow = true; gi.frustumCulled = false; this.group.add(gi); this.grass = gi;
+    gi.count = c; this.dens.push({ mesh: gi, full: c }); gi.castShadow = false; gi.receiveShadow = true; gi.frustumCulled = false; this.group.add(gi); this.grass = gi;
   }
   // sivatagi száraz fűcsomók: a szimuláció tufts-ai köré, a csomó sűrűségével arányos szálszámmal
   buildTufts(w, rng) {
@@ -197,7 +200,7 @@ export class WorldView {
       Qn.setFromEuler(new THREE.Euler(lean * 0.4, rng.range(0, 6.28), lean)); M.compose(P, Qn, S); gi.setMatrixAt(c, M);
       gi.setColorAt(c, new THREE.Color().setHSL(rng.range(0.1, 0.14), rng.range(0.35, 0.55), rng.range(0.42, 0.6))); c++;
     }
-    gi.count = c; gi.castShadow = false; gi.receiveShadow = true; gi.frustumCulled = false; this.group.add(gi); this.grass = gi;
+    gi.count = c; this.dens.push({ mesh: gi, full: c }); gi.castShadow = false; gi.receiveShadow = true; gi.frustumCulled = false; this.group.add(gi); this.grass = gi;
   }
   buildTree(sim) {
     const w = sim.world; const tl = new THREE.TextureLoader();

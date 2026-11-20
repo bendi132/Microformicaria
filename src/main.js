@@ -25,7 +25,7 @@ const stored = (() => { try { return JSON.parse(localStorage.getItem('mf.setting
 const AUTO_PHONE = isTouchDevice() && Math.min(screen.width, screen.height) < 1000;        // találgatás, amíg a játékos nem választott eszközt
 const MOBILE = stored.device ? stored.device === 'phone' : AUTO_PHONE;
 const DEVICE_DEFAULTS = { phone: { quality: 'low', shadow: 0, scale: 0.8 }, desktop: { quality: 'medium', shadow: 1, scale: 1 } };
-const S = Object.assign({ ...DEVICE_DEFAULTS[MOBILE ? 'phone' : 'desktop'], sens: 1, inv: 0, auto: 1, dyn: 1, intro: 1, music: 0.5, sfx: 0.6 }, (() => { try { return JSON.parse(localStorage.getItem(SET_KEY)) || {}; } catch { return {}; } })());
+const S = Object.assign({ ...DEVICE_DEFAULTS[MOBILE ? 'phone' : 'desktop'], sens: 1, inv: 0, auto: 1, dyn: 1, fps: 60, intro: 1, music: 0.5, sfx: 0.6 }, (() => { try { return JSON.parse(localStorage.getItem(SET_KEY)) || {}; } catch { return {}; } })());
 const saveSettings = () => { try { localStorage.setItem(SET_KEY, JSON.stringify(S)); } catch {} };
 
 // ---------------------------------------------------------------- renderer
@@ -85,7 +85,7 @@ $('bCont').onclick = () => { try { startGame(null, Sim.deserialize(localStorage.
 $('setBack').onclick = () => { saveSettings(); show(G.back === 'game' ? 'pause' : 'title'); };
 $('pSet').onclick = () => { G.back = 'game'; show('settings'); };
 function bindSettings() {
-  const map = [['sQual', 'quality'], ['sShadow', 'shadow'], ['sScale', 'scale'], ['sSens', 'sens'], ['sInv', 'inv'], ['sAuto', 'auto'], ['sDyn', 'dyn'], ['sIntro', 'intro'], ['sMusic', 'music'], ['sSfx', 'sfx']];
+  const map = [['sQual', 'quality'], ['sShadow', 'shadow'], ['sScale', 'scale'], ['sSens', 'sens'], ['sInv', 'inv'], ['sAuto', 'auto'], ['sDyn', 'dyn'], ['sFps', 'fps'], ['sIntro', 'intro'], ['sMusic', 'music'], ['sSfx', 'sfx']];
   for (const [id, key] of map) { const el = $(id); el.value = S[key]; el.onchange = el.oninput = () => { S[key] = typeof S[key] === 'number' ? parseFloat(el.value) : el.value; if (key === 'shadow') { renderer.shadowMap.enabled = !!S.shadow; if (G.view) G.view.sun.castShadow = !!S.shadow; } if (key === 'scale') resize(); saveSettings(); }; }
 }
 // eszközválasztás: az első indításkor rákérdezünk; a beállításokban bármikor módosítható (újratöltéssel érvényesül)
@@ -111,9 +111,9 @@ async function startGame(opts, loaded) {
   disposeGame();
   const sim = loaded || new Sim({ species: opts.species, difficulty: opts.difficulty, seed: (Math.random() * 1e6) | 0 }); G.sim = sim;
   G.scene = new THREE.Scene(); G.cam = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.05, 16000);
-  G.view = new WorldView(G.scene, renderer, S.quality); G.view.sun.castShadow = !!S.shadow; G.view.build(sim);
+  G.view = new WorldView(G.scene, renderer, S.quality); G.view.sun.castShadow = !!S.shadow; G.view.build(sim); G.perf = 0; G.dynScale = null; perfAt = 0; upWait = 8;
   G.layer = new CreatureLayer(G.scene); await G.layer.load(sim.speciesId);
-  G.env = new EnvView(G.scene, renderer, SPECIES[sim.speciesId].climate, sim.seed, MOBILE || S.quality === 'low'); G.env.build(null, sim.world).catch((e) => console.warn('env', e));
+  G.env = new EnvView(G.scene, renderer, SPECIES[sim.speciesId].climate, sim.seed, MOBILE || S.quality === 'low' || S.quality === 'min'); G.env.build(null, sim.world).catch((e) => console.warn('env', e));
   const q = sim.queen; G.orbit.x = q ? q.x : 0; G.orbit.z = q ? q.z : 0; G.orbit.y = 0; G.orbit.dist = 55; G.orbit.pitch = 0.95; G.follow = true; setFollowBtn();
   G.syncKills = sim.stats.kills; G.runFounded = sim.difficulty === 'easy' || (!!loaded && Prog.foundingMet(sim, sim.difficulty));   // előrehaladás: ebben a játékban számolt zsákmány és alapítás
   G.mode = 'game'; G.speed = 1; G.paused = false; G.nestView = false; G.sel = q ? { kind: 'ant', id: q.id } : null; G.fpv = false; G.logIdx = sim.logs.length; G.autoT = 0; G.over = false;
@@ -378,9 +378,24 @@ function updateHpBars() {
 // ---------------------------------------------------------------- hurok
 let last = performance.now(), hudT = 0;
 let fAcc = 0, fN = 0;
-function dynRes(raw) {   // dinamikus felbontás: ha a képkockaidő tartósan magas, a belső felbontás csökken (és vissza nő, ha van tartalék)
-  if (!S.dyn || raw > 1.5 || document.hidden) return; fAcc += raw; fN++; if (fAcc < 1.6) return; const avg = fAcc / fN; fAcc = 0; fN = 0; const top = S.scale, cur = G.dynScale || top;
-  let nx = cur; if (avg > 0.036) nx = Math.max(0.4, cur * 0.86); else if (avg < 0.021 && cur < top) nx = Math.min(top, cur * 1.07);
+// Teljesítmény-vezérlő: a célzott képkockaidőhöz (S.fps) igazít. Lépcsők (romló sorrendben): belső felbontás ~70%-ig → árnyék ki → fűsűrűség 50% → 25% + háttér-dekor ki → felbontás 40%-ig.
+// Visszalépés csak türelemmel (várakozás), és ha egy visszalépés után rögtön újra romlik, a várakozás megduplázódik – így nem pattog.
+G.perf = 0; let perfAt = 0, upWait = 8, lastUp = -99;
+function applyPerf(l) {
+  G.perf = l; const sh = !!S.shadow && l < 1; renderer.shadowMap.enabled = sh;
+  if (G.view) { G.view.sun.castShadow = sh; G.view.setDensity([1, 1, 0.5, 0.25][l]); }
+  if (G.env && G.env.group) G.env.group.visible = l < 3;
+}
+function dynRes(raw) {
+  if (!S.dyn || raw > 1.5 || document.hidden || G.mode !== 'game') return; fAcc += raw; fN++; if (fAcc < 1.6) return; const avg = fAcc / fN; fAcc = 0; fN = 0;
+  const now = performance.now() / 1000, tgt = 1 / (S.fps || 60), top = S.scale, cur = G.dynScale || top, mid = Math.max(0.5, top * 0.7);
+  let nx = cur;
+  if (avg > tgt * 1.08) {
+    if (now - lastUp < 12) upWait = Math.min(90, upWait * 2);
+    if (cur > mid + 0.01) nx = Math.max(mid, cur * 0.88); else if (G.perf < 3) { applyPerf(G.perf + 1); perfAt = now; } else nx = Math.max(0.4, cur * 0.88);
+  } else if (avg < tgt * 1.04 && now - perfAt > upWait) {
+    if (cur < mid - 0.01) nx = Math.min(mid, cur * 1.1); else if (G.perf > 0) { applyPerf(G.perf - 1); perfAt = now; lastUp = now; } else if (cur < top - 0.01) nx = Math.min(top, cur * 1.07);
+  }
   if (Math.abs(nx - cur) > 0.01) { G.dynScale = nx; resize(); }
 }
 function frame(now) {

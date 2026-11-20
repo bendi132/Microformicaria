@@ -84,3 +84,9 @@ Kamránként `nd.mold` (0–1). Nő, ha a kamra nedves (>0,72) és meleg (10–3
 
 - **Célok (`src/game/goals.js`):** 13 mérföldkő (dolgozók száma, első zsákmány, vadász, kamrák, túlélt napok, levéltetű-pásztor, mézharmat-gazda, sikeres döntések, gyilkos sorozat). Teljesítéskor XP és felirat; a szünet-menüben listázva, a profilban megmaradnak.
 - **FPV:** találatnál rövid képernyő-villanás és rázkódás, megölésnél erősebb; 20 másodpercen belüli egymás utáni ölések „🔥 Sorozat ×N" feliratot adnak.
+
+## Teljesítmény (cél: 60 FPS)
+
+- **Beállítások:** Grafikai minőség (Minimális / Alacsony / Közepes / Magas – új játéknál lép életbe), Felbontás-skála, Árnyék, **Célzott képkockaszám (60/45/30)** és **Automatikus teljesítmény-vezérlés**.
+- **Vezérlő (`dynRes` a `main.js`-ben):** a célzott képkockaidőhöz igazít: belső felbontás ~70%-ig → árnyék ki → fű/kavics/avar 50% → 25% és háttér-dekor ki → felbontás 40%-ig. Javulás esetén türelemmel lép vissza (várakozás; ha rögtön újra romlik, a várakozás megduplázódik, így nem pattog).
+- **Szimuláció:** a vadászat-keresés és a csoportméret számítása optimalizált (300 hangyánál ~2,9 ms / 0,1 s lépés).
